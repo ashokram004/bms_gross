@@ -1,0 +1,8 @@
+beautifulsoup4
+requests
+lxml
+pycryptodome
+fake-useragent
+selenium
+webdriver-manager
+openpyxl
