@@ -10,6 +10,8 @@ from fake_useragent import UserAgent
 from datetime import datetime
 import os
 
+url = "https://in.bookmyshow.com/movies/vizag-Visakhapatnam/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260119"
+
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 
 # ✅ SEAT RULE
@@ -283,52 +285,9 @@ def generate_excel(results, total):
 
     wb = Workbook()
 
-    # ================= SHEET 1 : SHOW WISE COLLECTIONS =================
-    sheet = wb.active
-    sheet.title = "Show Wise Collections"
-
-    headers = [
-        "Venue", "Show Time", "Total Seats",
-        "Booked Seats", "Occupancy %",
-        "Total Gross", "Booked Gross"
-    ]
-    sheet.append(headers)
-
-    for r in results:
-        sheet.append([
-            r["venue"],
-            r["showTime"],
-            r["total_tickets"],
-            r["booked_tickets"],
-            r["occupancy"],
-            r["total_gross"],
-            r["booked_gross"]
-        ])
-
-    # --------- AGGREGATES ROW ---------
-    total_seats = sum(r["total_tickets"] for r in results)
-    total_booked_seats = sum(r["booked_tickets"] for r in results)
-    total_gross = sum(r["total_gross"] for r in results)
-    total_booked_gross = sum(r["booked_gross"] for r in results)
-    avg_occupancy = (
-        round(sum(r["occupancy"] for r in results) / len(results), 2)
-        if results else 0
-    )
-
-    sheet.append([
-        "TOTAL / AVG",
-        "-",
-        total_seats,
-        total_booked_seats,
-        avg_occupancy,
-        total_gross,
-        total_booked_gross
-    ])
-
-
-     # ================= SHEET 2 : THEATRE WISE COLLECTIONS =================
-
-    theatre_sheet = wb.create_sheet(title="Theatre Wise Collections")
+    # ================= SHEET 1 : THEATRE WISE COLLECTIONS =================
+    theatre_sheet = wb.active
+    theatre_sheet.title = "Theatre Wise Collections"
     headers2 = [
         "Venue", "Show count", "Total Seats",
         "Booked Seats", "Occupancy %",
@@ -386,6 +345,47 @@ def generate_excel(results, total):
         total_booked_gross_theatre
     ])
 
+    # ================= SHEET 2 : SHOW WISE COLLECTIONS =================
+    sheet = wb.create_sheet(title="Show Wise Collections")
+
+    headers = [
+        "Venue", "Show Time", "Total Seats",
+        "Booked Seats", "Occupancy %",
+        "Total Gross", "Booked Gross"
+    ]
+    sheet.append(headers)
+
+    for r in results:
+        sheet.append([
+            r["venue"],
+            r["showTime"],
+            r["total_tickets"],
+            r["booked_tickets"],
+            r["occupancy"],
+            r["total_gross"],
+            r["booked_gross"]
+        ])
+
+    # --------- AGGREGATES ROW ---------
+    total_seats = sum(r["total_tickets"] for r in results)
+    total_booked_seats = sum(r["booked_tickets"] for r in results)
+    total_gross = sum(r["total_gross"] for r in results)
+    total_booked_gross = sum(r["booked_gross"] for r in results)
+    avg_occupancy = (
+        round(sum(r["occupancy"] for r in results) / len(results), 2)
+        if results else 0
+    )
+
+    sheet.append([
+        "TOTAL / AVG",
+        "-",
+        total_seats,
+        total_booked_seats,
+        avg_occupancy,
+        total_gross,
+        total_booked_gross
+    ])
+
     # ================= SHEET 3 : SUMMARY =================
 
     summary = wb.create_sheet(title="Summary")
@@ -420,9 +420,7 @@ def generate_excel(results, total):
 
 
 # ---------------- RUN ----------------
-if __name__ == "__main__":
-    url = "https://in.bookmyshow.com/movies/vizag-visakhapatnam/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260120"
 
-    results, total = process_movie(url)
-    generate_excel(results, total)
-    driver.quit()
+results, total = process_movie(url)
+generate_excel(results, total)
+driver.quit()
