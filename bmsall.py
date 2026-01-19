@@ -10,7 +10,42 @@ from fake_useragent import UserAgent
 from datetime import datetime
 import os
 
-url = "https://in.bookmyshow.com/movies/vizag-Visakhapatnam/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260119"
+CITIES = [
+    "anakapalle",
+    "vizag-Visakhapatnam",
+    "Vijayawada",
+    "Guntur",
+    "Nellore",
+    "rajamahendravaram-rajahmundry",
+    "Kurnool",
+    "Kakinada",
+    "Kadapa",
+    "Tirupati",
+    "tadepalligudem",
+    "mangalagiri",
+    "Anantapur",
+    "Ongole",
+    "Vizianagaram",
+    "Eluru",
+    "Proddatur",
+    "Nandyal",
+    "Adoni",
+    "Madanapalle",
+    "machilipatnam",
+    "Tenali",
+    "Chittoor",
+    "Hindupur",
+    "Srikakulam",
+    "Bhimavaram",
+    "Tadepalligudem",
+    "Guntakal",
+    "Dharmavaram",
+    "Gudivada",
+    "Narasaraopet",
+    "Kadiri",
+    "Tadipatri",
+    "Chilakaluripet"
+]
 
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 
@@ -34,12 +69,10 @@ def get_driver():
     return webdriver.Chrome(options=options)
 
 
-driver = get_driver()
-
-
 # ---------------- INITIAL STATE ----------------
 def extract_initial_state_from_page(url: str):
     driver.get(url)
+    time.sleep(2)  # Wait for JS to load
     html = driver.page_source
 
     marker = "window.__INITIAL_STATE__"
@@ -278,28 +311,73 @@ def process_movie(url):
 
 # ---------------- EXCEL ----------------
 
-def generate_excel(results, total):
+def generate_excel(all_results, all_totals):
     # ---------------- CREATE REPORTS FOLDER ----------------
     reports_dir = "reports"
     os.makedirs(reports_dir, exist_ok=True)
 
     wb = Workbook()
 
-    # ================= SHEET 1 : THEATRE WISE COLLECTIONS =================
-    theatre_sheet = wb.active
-    theatre_sheet.title = "Theatre Wise Collections"
+    # ================= SHEET 1 : CITY WISE COLLECTIONS =================
+    city_sheet = wb.active
+    city_sheet.title = "City Wise Collections"
+    city_sheet.append(["City", "Show Count", "Total Seats", "Booked Seats", "Occupancy %", "Total Gross", "Booked Gross"])
+
+    city_totals = {}
+    for r in all_results:
+        city = r["city"]
+        if city not in city_totals:
+            city_totals[city] = {
+                "show_count": 0,
+                "total_seats": 0,
+                "booked_seats": 0,
+                "occupancies": [],
+                "total_gross": 0,
+                "booked_gross": 0
+            }
+        city_totals[city]["show_count"] += 1
+        city_totals[city]["total_seats"] += r["total_tickets"]
+        city_totals[city]["booked_seats"] += r["booked_tickets"]
+        city_totals[city]["occupancies"].append(r["occupancy"])
+        city_totals[city]["total_gross"] += r["total_gross"]
+        city_totals[city]["booked_gross"] += r["booked_gross"]
+
+    for city, data in city_totals.items():
+        avg_occ = round(sum(data["occupancies"]) / data["show_count"], 2) if data["show_count"] else 0
+        city_sheet.append([
+            city,
+            data["show_count"],
+            data["total_seats"],
+            data["booked_seats"],
+            avg_occ,
+            data["total_gross"],
+            data["booked_gross"]
+        ])
+
+    total_city_shows = sum(data["show_count"] for data in city_totals.values())
+    total_city_seats = sum(data["total_seats"] for data in city_totals.values())
+    total_city_booked_seats = sum(data["booked_seats"] for data in city_totals.values())
+    overall_city_occupancy = round((total_city_booked_seats / total_city_seats) * 100, 2) if total_city_seats else 0
+    total_city_gross = sum(data["total_gross"] for data in city_totals.values())
+    total_city_booked_gross = sum(data["booked_gross"] for data in city_totals.values())
+    city_sheet.append(["TOTAL", total_city_shows, total_city_seats, total_city_booked_seats, overall_city_occupancy, total_city_gross, total_city_booked_gross])
+
+    # ================= SHEET 2 : THEATRE WISE COLLECTIONS =================
+    theatre_sheet = wb.create_sheet(title="Theatre Wise Collections")
     headers2 = [
-        "Venue", "Show count", "Total Seats",
+        "City", "Venue", "Show count", "Total Seats",
         "Booked Seats", "Occupancy %",
         "Total Gross", "Booked Gross"
     ]
     theatre_sheet.append(headers2)
 
     theatre_data = {}
-    for r in results:
+    for r in all_results:
+        city = r["city"]
         venue = r["venue"]
-        if venue not in theatre_data:
-            theatre_data[venue] = {
+        key = (city, venue)
+        if key not in theatre_data:
+            theatre_data[key] = {
                 "num_shows": 0,
                 "total_tickets": 0,
                 "booked_tickets": 0,
@@ -307,17 +385,19 @@ def generate_excel(results, total):
                 "total_gross": 0,
                 "booked_gross": 0
             }
-        theatre_data[venue]["num_shows"] += 1
-        theatre_data[venue]["total_tickets"] += r["total_tickets"]
-        theatre_data[venue]["booked_tickets"] += r["booked_tickets"]
-        theatre_data[venue]["occupancies"].append(r["occupancy"])
-        theatre_data[venue]["total_gross"] += r["total_gross"]
-        theatre_data[venue]["booked_gross"] += r["booked_gross"]
+        theatre_data[key]["num_shows"] += 1
+        theatre_data[key]["total_tickets"] += r["total_tickets"]
+        theatre_data[key]["booked_tickets"] += r["booked_tickets"]
+        theatre_data[key]["occupancies"].append(r["occupancy"])
+        theatre_data[key]["total_gross"] += r["total_gross"]
+        theatre_data[key]["booked_gross"] += r["booked_gross"]
 
-    for venue, data in theatre_data.items():
+    for key, data in theatre_data.items():
+        city, venue = key
         num_shows = data["num_shows"]
         avg_occ = round(sum(data["occupancies"]) / num_shows, 2) if num_shows else 0
         theatre_sheet.append([
+            city,
             venue,
             num_shows,
             data["total_tickets"],
@@ -337,6 +417,7 @@ def generate_excel(results, total):
 
     theatre_sheet.append([
         "TOTAL / AVG",
+        "-",
         total_shows_overall,
         total_seats_theatre,
         total_booked_seats_theatre,
@@ -345,18 +426,19 @@ def generate_excel(results, total):
         total_booked_gross_theatre
     ])
 
-    # ================= SHEET 2 : SHOW WISE COLLECTIONS =================
+    # ================= SHEET 3 : SHOW WISE COLLECTIONS =================
     sheet = wb.create_sheet(title="Show Wise Collections")
 
     headers = [
-        "Venue", "Show Time", "Total Seats",
+        "City", "Venue", "Show Time", "Total Seats",
         "Booked Seats", "Occupancy %",
         "Total Gross", "Booked Gross"
     ]
     sheet.append(headers)
 
-    for r in results:
+    for r in all_results:
         sheet.append([
+            r["city"],
             r["venue"],
             r["showTime"],
             r["total_tickets"],
@@ -367,17 +449,18 @@ def generate_excel(results, total):
         ])
 
     # --------- AGGREGATES ROW ---------
-    total_seats = sum(r["total_tickets"] for r in results)
-    total_booked_seats = sum(r["booked_tickets"] for r in results)
-    total_gross = sum(r["total_gross"] for r in results)
-    total_booked_gross = sum(r["booked_gross"] for r in results)
+    total_seats = sum(r["total_tickets"] for r in all_results)
+    total_booked_seats = sum(r["booked_tickets"] for r in all_results)
+    total_gross = sum(r["total_gross"] for r in all_results)
+    total_booked_gross = sum(r["booked_gross"] for r in all_results)
     avg_occupancy = (
-        round(sum(r["occupancy"] for r in results) / len(results), 2)
-        if results else 0
+        round(sum(r["occupancy"] for r in all_results) / len(all_results), 2)
+        if all_results else 0
     )
 
     sheet.append([
         "TOTAL / AVG",
+        "-",
         "-",
         total_seats,
         total_booked_seats,
@@ -386,12 +469,13 @@ def generate_excel(results, total):
         total_booked_gross
     ])
 
-    # ================= SHEET 3 : SUMMARY =================
+    # ================= SHEET 4 : SUMMARY =================
 
     summary = wb.create_sheet(title="Summary")
 
-    total_theatres = len(set(r["venue"] for r in results))
-    total_shows = len(results)
+    total_cities = len(set(r["city"] for r in all_results))
+    total_theatres = len(set((r["city"], r["venue"]) for r in all_results))
+    total_shows = len(all_results)
 
     overall_occupancy = (
         round((total_booked_seats / total_seats) * 100, 2)
@@ -401,6 +485,7 @@ def generate_excel(results, total):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     summary.append(["Metric", "Value"])
+    summary.append(["Total Cities", total_cities])
     summary.append(["Total Theatres", total_theatres])
     summary.append(["Total Shows", total_shows])
     summary.append(["Overall Occupancy (%)", overall_occupancy])
@@ -419,8 +504,30 @@ def generate_excel(results, total):
 
 
 
-# ---------------- RUN ----------------
 
-results, total = process_movie(url)
-generate_excel(results, total)
-driver.quit()
+all_results = []
+all_totals = []
+
+for city in CITIES:
+    url = f"https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260120"
+    driver = None
+    try:
+        driver = get_driver()
+        results_city, total_city = process_movie(url)
+        for r in results_city:
+            r["city"] = city
+        all_results.extend(results_city)
+        all_totals.append(total_city)
+        print(f"Processed {city}: Total Gross ₹{total_city}")
+        time.sleep(10)
+    except Exception as e:
+        print(f"Error processing {city}: {e}")
+    finally:
+        if driver:
+            try:
+                driver.quit()
+            except:
+                pass
+        continue
+
+generate_excel(all_results, all_totals)
