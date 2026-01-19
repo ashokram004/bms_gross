@@ -96,7 +96,13 @@ def get_seat_layout(venue_code, session_id):
     );
     """
     response = driver.execute_async_script(js)
-    return json.loads(response)["BookMyShow"]["strData"]
+    
+    data = json.loads(response)["BookMyShow"]
+
+    if data.get("blnSuccess") == "false":
+        print(data.get("strException"))
+
+    return data.get("strData")
 
 
 # ---------------- PRICE MAP ----------------
@@ -222,8 +228,25 @@ def process_movie(url):
             try:
                 price_map = extract_price_map_from_show(show)
                 enc = get_seat_layout(venue_code, session_id)
-                decrypted = decrypt_data(enc)
-                data = calculate_show_collection(decrypted, price_map)
+                if not enc:
+                    # 🔴 SOLD OUT FALLBACK (HEURISTIC)
+                    FALLBACK_TOTAL_SEATS = 200
+
+                    if not price_map:
+                        raise ValueError("Price map missing for sold-out show")
+
+                    fallback_price = max(price_map.values())
+
+                    data = {
+                        "total_tickets": FALLBACK_TOTAL_SEATS,
+                        "booked_tickets": FALLBACK_TOTAL_SEATS,
+                        "occupancy": 100.0,
+                        "total_gross": int(FALLBACK_TOTAL_SEATS * fallback_price),
+                        "booked_gross": int(FALLBACK_TOTAL_SEATS * fallback_price)
+                    }
+                else:
+                    decrypted = decrypt_data(enc)
+                    data = calculate_show_collection(decrypted, price_map)
 
             except Exception as e:
                 print(f"❌ Skipping {venue_name} | {show_time} : {e}")
@@ -245,7 +268,7 @@ def process_movie(url):
             results.append(data)
             grand_total += data["booked_gross"]
 
-            time.sleep(1)
+            # time.sleep(2)
 
     print(f"\n💰 TOTAL COLLECTION: ₹{grand_total}")
     return results, grand_total
@@ -260,9 +283,9 @@ def generate_excel(results, total):
 
     wb = Workbook()
 
-    # ================= SHEET 1 : EXACT COLLECTIONS =================
+    # ================= SHEET 1 : SHOW WISE COLLECTIONS =================
     sheet = wb.active
-    sheet.title = "Exact Collections"
+    sheet.title = "Show Wise Collections"
 
     headers = [
         "Venue", "Show Time", "Total Seats",
@@ -302,7 +325,69 @@ def generate_excel(results, total):
         total_booked_gross
     ])
 
-    # ================= SHEET 2 : SUMMARY =================
+
+     # ================= SHEET 2 : THEATRE WISE COLLECTIONS =================
+
+    theatre_sheet = wb.create_sheet(title="Theatre Wise Collections")
+    headers2 = [
+        "Venue", "Show count", "Total Seats",
+        "Booked Seats", "Occupancy %",
+        "Total Gross", "Booked Gross"
+    ]
+    theatre_sheet.append(headers2)
+
+    theatre_data = {}
+    for r in results:
+        venue = r["venue"]
+        if venue not in theatre_data:
+            theatre_data[venue] = {
+                "num_shows": 0,
+                "total_tickets": 0,
+                "booked_tickets": 0,
+                "occupancies": [],
+                "total_gross": 0,
+                "booked_gross": 0
+            }
+        theatre_data[venue]["num_shows"] += 1
+        theatre_data[venue]["total_tickets"] += r["total_tickets"]
+        theatre_data[venue]["booked_tickets"] += r["booked_tickets"]
+        theatre_data[venue]["occupancies"].append(r["occupancy"])
+        theatre_data[venue]["total_gross"] += r["total_gross"]
+        theatre_data[venue]["booked_gross"] += r["booked_gross"]
+
+    for venue, data in theatre_data.items():
+        num_shows = data["num_shows"]
+        avg_occ = round(sum(data["occupancies"]) / num_shows, 2) if num_shows else 0
+        theatre_sheet.append([
+            venue,
+            num_shows,
+            data["total_tickets"],
+            data["booked_tickets"],
+            avg_occ,
+            data["total_gross"],
+            data["booked_gross"]
+        ])
+
+    # --------- AGGREGATES ROW ---------
+    total_shows_overall = sum(data["num_shows"] for data in theatre_data.values())
+    total_seats_theatre = sum(data["total_tickets"] for data in theatre_data.values())
+    total_booked_seats_theatre = sum(data["booked_tickets"] for data in theatre_data.values())
+    total_gross_theatre = sum(data["total_gross"] for data in theatre_data.values())
+    total_booked_gross_theatre = sum(data["booked_gross"] for data in theatre_data.values())
+    overall_occupancy_theatre = round((total_booked_seats_theatre / total_seats_theatre) * 100, 2) if total_seats_theatre else 0
+
+    theatre_sheet.append([
+        "TOTAL / AVG",
+        total_shows_overall,
+        total_seats_theatre,
+        total_booked_seats_theatre,
+        overall_occupancy_theatre,
+        total_gross_theatre,
+        total_booked_gross_theatre
+    ])
+
+    # ================= SHEET 3 : SUMMARY =================
+
     summary = wb.create_sheet(title="Summary")
 
     total_theatres = len(set(r["venue"] for r in results))
@@ -322,6 +407,7 @@ def generate_excel(results, total):
     summary.append(["Total Potential Gross (₹)", total_gross])
     summary.append(["Total Booked Gross (₹)", total_booked_gross])
     summary.append(["Report Generated At", timestamp])
+    
 
     # ================= SAVE FILE =================
     file_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -335,7 +421,7 @@ def generate_excel(results, total):
 
 # ---------------- RUN ----------------
 if __name__ == "__main__":
-    url = "https://in.bookmyshow.com/movies/hyderabad/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260111"
+    url = "https://in.bookmyshow.com/movies/vizag-visakhapatnam/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260120"
 
     results, total = process_movie(url)
     generate_excel(results, total)
