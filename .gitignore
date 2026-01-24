@@ -1,2 +1,3 @@
 .venv
 reports
+utils/__pycache__/

@@ -10,6 +10,12 @@ from fake_useragent import UserAgent
 from datetime import datetime
 import os
 
+from utils.generateMultiCityImageReport import generate_multi_city_image_report
+
+# --- CONFIGURATION ---
+# ONLY TEMPLATE IS NEEDED. NO HARDCODED DATES/NAMES
+MOVIE_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260124"
+
 CITIES = [
     "anakapalle",
     "vizag-Visakhapatnam",
@@ -48,12 +54,8 @@ CITIES = [
 ]
 
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
-
-# ✅ SEAT RULE
-# 0 = empty/aisle/invalid
-# 1 = available
-# 2 = booked
 BOOKED_STATES = {"2"}
+SLEEP_TIME = 1
 
 
 # ---------------- DRIVER ----------------
@@ -70,14 +72,16 @@ def get_driver():
 
 
 # ---------------- INITIAL STATE ----------------
-def extract_initial_state_from_page(url: str):
+def extract_initial_state_from_page(driver, url: str):
     driver.get(url)
-    time.sleep(2)  # Wait for JS to load
+    time.sleep(2)
     html = driver.page_source
 
     marker = "window.__INITIAL_STATE__"
     start = html.find(marker)
     if start == -1:
+        if "BookMyShow" in driver.title:
+            return None 
         raise ValueError("INITIAL_STATE not found")
 
     start = html.find("{", start)
@@ -97,82 +101,90 @@ def extract_initial_state_from_page(url: str):
 
 # ---------------- VENUES ----------------
 def extract_venues(state):
-    sbe = state["showtimesByEvent"]
-    date_code = sbe["currentDateCode"]
-    widgets = sbe["showDates"][date_code]["dynamic"]["data"]["showtimeWidgets"]
+    if not state: return []
+    try:
+        sbe = state.get("showtimesByEvent")
+        if not sbe: return []
+        
+        date_code = sbe.get("currentDateCode")
+        if not date_code: return []
 
-    for widget in widgets:
-        if widget.get("type") == "groupList":
-            for group in widget["data"]:
-                if group.get("type") == "venueGroup":
-                    return group["data"]
+        widgets = sbe["showDates"][date_code]["dynamic"]["data"]["showtimeWidgets"]
+
+        for widget in widgets:
+            if widget.get("type") == "groupList":
+                for group in widget["data"]:
+                    if group.get("type") == "venueGroup":
+                        return group["data"]
+    except Exception as e:
+        print(f"⚠️ Error parsing venues: {e}")
     return []
 
 
 # ---------------- SEAT LAYOUT ----------------
-def get_seat_layout(venue_code, session_id):
+def get_seat_layout(driver, venue_code, session_id):
+    global SLEEP_TIME
     api_url = "https://services-in.bookmyshow.com/doTrans.aspx"
+    max_retries = 2
 
-    js = f"""
-    var callback = arguments[0];
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", "{api_url}", true);
-    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    xhr.onload = function() {{ callback(xhr.responseText); }};
-    xhr.send(
-        "strCommand=GETSEATLAYOUT" +
-        "&strAppCode=WEB" +
-        "&strVenueCode={venue_code}" +
-        "&lngTransactionIdentifier=0" +
-        "&strParam1={session_id}" +
-        "&strParam2=WEB" +
-        "&strParam5=Y" +
-        "&strFormat=json"
-    );
-    """
-    response = driver.execute_async_script(js)
-    
-    data = json.loads(response)["BookMyShow"]
+    for attempt in range(max_retries+1):
+        js = """
+        var callback = arguments[0];
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "%s", true);
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        xhr.onload = function() { callback(xhr.responseText); };
+        xhr.send(
+            "strCommand=GETSEATLAYOUT" +
+            "&strAppCode=WEB" +
+            "&strVenueCode=%s" +
+            "&lngTransactionIdentifier=0" +
+            "&strParam1=%s" +
+            "&strParam2=WEB" +
+            "&strParam5=Y" +
+            "&strFormat=json"
+        );
+        """ % (api_url, venue_code, session_id)
+        
+        try:
+            response = driver.execute_async_script(js)
+            data = json.loads(response)["BookMyShow"]
 
-    if data.get("blnSuccess") == "false":
-        print(data.get("strException"))
+            if data.get("blnSuccess") == "true":
+                return data.get("strData")
+            else:
+                exception = data.get("strException", "")
+                if "Rate limit exceeded" in exception and attempt < max_retries:
+                    print(f"🐢 Rate limit hit, retrying in 60s... (attempt {attempt + 1})")
+                    time.sleep(60)
+                    if SLEEP_TIME < 2.0: SLEEP_TIME = 2.0
+                    continue
+                else:
+                    return None
+        except Exception as e:
+            return None
+    return None
 
-    return data.get("strData")
 
-
-# ---------------- PRICE MAP ----------------
+# ---------------- PRICE & DECRYPT ----------------
 def extract_price_map_from_show(show):
     price_map = {}
     for cat in show["additionalData"].get("categories", []):
         price_map[cat["areaCatCode"]] = float(cat["curPrice"])
     return price_map
 
-
-# ---------------- DECRYPT ----------------
 def decrypt_data(enc):
     decoded = b64decode(enc)
     cipher = AES.new(ENCRYPTION_KEY.encode(), AES.MODE_CBC, iv=bytes(16))
     return unpad(cipher.decrypt(decoded), AES.block_size).decode()
 
-
-# ---------------- CATEGORY MAP ----------------
 def extract_category_map(decrypted):
-    """
-    Maps:
-    A -> 0000000002
-    B -> 0000000004
-    C -> 0000000005
-    """
     header = decrypted.split("||")[0]
     category_map = {}
-
     for part in header.split("|"):
         pieces = part.split(":")
         if len(pieces) >= 3:
-            letter = pieces[1]
-            area_code = pieces[2]
-            category_map[letter] = area_code
-
+            category_map[pieces[1]] = pieces[2]
     return category_map
 
 
@@ -180,43 +192,27 @@ def extract_category_map(decrypted):
 def calculate_show_collection(decrypted, price_map):
     header, rows_part = decrypted.split("||")
     rows = rows_part.split("|")
-
     category_map = extract_category_map(decrypted)
 
     seats_map = {}
     booked_map = {}
 
     for row in rows:
-        if not row:
-            continue
-
+        if not row: continue
         parts = row.split(":")
-
-        # A000 / B000 / C000 → take first letter
-        #Skip invalid row
-        if len(parts) < 3:
-            continue
-        elif len(parts) > 3:
-            block_letter = parts[3][0]
-        else:
-            block_letter = parts[2][0]
+        if len(parts) < 3: continue
+        elif len(parts) > 3: block_letter = parts[3][0]
+        else: block_letter = parts[2][0]
 
         area_code = category_map.get(block_letter)
-
-        if not area_code:
-            continue
+        if not area_code: continue
 
         for seat in parts:
-            #Skip invalid seats
-            if len(seat) < 2:
-                continue
-
+            if len(seat) < 2: continue
             status = seat[1]
-
-            # count total seats (ignore aisle/void only if explicitly 0+0. 1 means available, 2 means filled)
+            
             if seat[0] == block_letter and status in ("1", "2"):
                 seats_map[area_code] = seats_map.get(area_code, 0) + 1
-
             if status in BOOKED_STATES:
                 booked_map[area_code] = booked_map.get(area_code, 0) + 1
 
@@ -225,7 +221,6 @@ def calculate_show_collection(decrypted, price_map):
     for area_code, total in seats_map.items():
         booked = booked_map.get(area_code, 0)
         price = price_map.get(area_code, 0)
-
         total_tickets += total
         booked_tickets += booked
         total_gross += total * price
@@ -242,14 +237,24 @@ def calculate_show_collection(decrypted, price_map):
     }
 
 
-# ---------------- MAIN PROCESS ----------------
-def process_movie(url):
-    state = extract_initial_state_from_page(url)
-    venues = extract_venues(state)
+# ---------------- PROCESS SINGLE MOVIE ----------------
+def process_movie(driver, url, city_name):
+    try:
+        state = extract_initial_state_from_page(driver, url)
+        if not state:
+            print(f"   ⚠️ No initial state found for {city_name}")
+            return [], 0
+    except Exception as e:
+        print(f"   ❌ Failed to load state for {city_name}: {e}")
+        return [], 0
 
+    venues = extract_venues(state)
     results = []
     grand_total = 0
     curShowNo = 0
+
+    if not venues:
+        print(f"   ⚠️ No venues found in {city_name}")
 
     for venue in venues:
         venue_code = venue["additionalData"]["venueCode"]
@@ -259,19 +264,18 @@ def process_movie(url):
             curShowNo += 1
             session_id = show["additionalData"]["sessionId"]
             show_time = show["title"]
+            soldOut = False
 
             try:
                 price_map = extract_price_map_from_show(show)
-                enc = get_seat_layout(venue_code, session_id)
+                enc = get_seat_layout(driver, venue_code, session_id)
+                
                 if not enc:
-                    # 🔴 SOLD OUT FALLBACK (HEURISTIC)
                     FALLBACK_TOTAL_SEATS = 200
-
                     if not price_map:
-                        raise ValueError("Price map missing for sold-out show")
-
+                        continue
+                        
                     fallback_price = max(price_map.values())
-
                     data = {
                         "total_tickets": FALLBACK_TOTAL_SEATS,
                         "booked_tickets": FALLBACK_TOTAL_SEATS,
@@ -279,46 +283,35 @@ def process_movie(url):
                         "total_gross": int(FALLBACK_TOTAL_SEATS * fallback_price),
                         "booked_gross": int(FALLBACK_TOTAL_SEATS * fallback_price)
                     }
+                    soldOut = True
                 else:
                     decrypted = decrypt_data(enc)
                     data = calculate_show_collection(decrypted, price_map)
 
             except Exception as e:
-                print(f"❌ Skipping {venue_name} | {show_time} : {e}")
                 continue
 
-            if data['total_tickets'] == 0:
-                print(f"Something is wrong with this show data: {venue_name} | {show_time}")
+            if data['total_tickets'] > 0:
+                tag = "(SOLD OUT HEURISTIC)" if soldOut else ""
+                print(f"   🎬 {venue_name} | {show_time} | Occ: {data['occupancy']}% | Gross: ₹{data['booked_gross']} {tag}")
 
-            print(
-                f"Show no: {curShowNo}\n"
-                f"🎬 {venue_name} | {show_time}\n"
-                f"   Seats: {data['total_tickets']} | "
-                f"Booked: {data['booked_tickets']} | "
-                f"Occ: {data['occupancy']}% | "
-                f"Gross: ₹{data['booked_gross']}"
-            )
+                data.update({"city": city_name, "venue": venue_name, "showTime": show_time})
+                results.append(data)
+                grand_total += data["booked_gross"]
+            
+            time.sleep(SLEEP_TIME)
 
-            data.update({"venue": venue_name, "showTime": show_time})
-            results.append(data)
-            grand_total += data["booked_gross"]
-
-            # time.sleep(2)
-
-    print(f"\n💰 TOTAL COLLECTION: ₹{grand_total}")
     return results, grand_total
 
 
-# ---------------- EXCEL ----------------
-
-def generate_excel(all_results, all_totals):
-    # ---------------- CREATE REPORTS FOLDER ----------------
+# ---------------- EXCEL GENERATION ----------------
+def generate_excel(all_results):
+    print("\n📊 Generating Excel Report...")
     reports_dir = "reports"
     os.makedirs(reports_dir, exist_ok=True)
-
     wb = Workbook()
 
-    # ================= SHEET 1 : CITY WISE COLLECTIONS =================
+    # SHEET 1: CITY WISE
     city_sheet = wb.active
     city_sheet.title = "City Wise Collections"
     city_sheet.append(["City", "Show Count", "Total Seats", "Booked Seats", "Occupancy %", "Total Gross", "Booked Gross"])
@@ -328,12 +321,8 @@ def generate_excel(all_results, all_totals):
         city = r["city"]
         if city not in city_totals:
             city_totals[city] = {
-                "show_count": 0,
-                "total_seats": 0,
-                "booked_seats": 0,
-                "occupancies": [],
-                "total_gross": 0,
-                "booked_gross": 0
+                "show_count": 0, "total_seats": 0, "booked_seats": 0,
+                "occupancies": [], "total_gross": 0, "booked_gross": 0
             }
         city_totals[city]["show_count"] += 1
         city_totals[city]["total_seats"] += r["total_tickets"]
@@ -345,45 +334,29 @@ def generate_excel(all_results, all_totals):
     for city, data in city_totals.items():
         avg_occ = round(sum(data["occupancies"]) / data["show_count"], 2) if data["show_count"] else 0
         city_sheet.append([
-            city,
-            data["show_count"],
-            data["total_seats"],
-            data["booked_seats"],
-            avg_occ,
-            data["total_gross"],
-            data["booked_gross"]
+            city, data["show_count"], data["total_seats"], data["booked_seats"],
+            avg_occ, data["total_gross"], data["booked_gross"]
         ])
 
-    total_city_shows = sum(data["show_count"] for data in city_totals.values())
-    total_city_seats = sum(data["total_seats"] for data in city_totals.values())
-    total_city_booked_seats = sum(data["booked_seats"] for data in city_totals.values())
-    overall_city_occupancy = round((total_city_booked_seats / total_city_seats) * 100, 2) if total_city_seats else 0
-    total_city_gross = sum(data["total_gross"] for data in city_totals.values())
-    total_city_booked_gross = sum(data["booked_gross"] for data in city_totals.values())
-    city_sheet.append(["TOTAL", total_city_shows, total_city_seats, total_city_booked_seats, overall_city_occupancy, total_city_gross, total_city_booked_gross])
+    tc_shows = sum(d["show_count"] for d in city_totals.values())
+    tc_seats = sum(d["total_seats"] for d in city_totals.values())
+    tc_booked = sum(d["booked_seats"] for d in city_totals.values())
+    tc_gross = sum(d["total_gross"] for d in city_totals.values())
+    tc_bgross = sum(d["booked_gross"] for d in city_totals.values())
+    tc_occ = round((tc_booked / tc_seats) * 100, 2) if tc_seats else 0
+    city_sheet.append(["TOTAL", tc_shows, tc_seats, tc_booked, tc_occ, tc_gross, tc_bgross])
 
-    # ================= SHEET 2 : THEATRE WISE COLLECTIONS =================
+    # SHEET 2: THEATRE WISE
     theatre_sheet = wb.create_sheet(title="Theatre Wise Collections")
-    headers2 = [
-        "City", "Venue", "Show count", "Total Seats",
-        "Booked Seats", "Occupancy %",
-        "Total Gross", "Booked Gross"
-    ]
-    theatre_sheet.append(headers2)
+    theatre_sheet.append(["City", "Venue", "Show count", "Total Seats", "Booked Seats", "Occupancy %", "Total Gross", "Booked Gross"])
 
     theatre_data = {}
     for r in all_results:
-        city = r["city"]
-        venue = r["venue"]
-        key = (city, venue)
+        key = (r["city"], r["venue"])
         if key not in theatre_data:
             theatre_data[key] = {
-                "num_shows": 0,
-                "total_tickets": 0,
-                "booked_tickets": 0,
-                "occupancies": [],
-                "total_gross": 0,
-                "booked_gross": 0
+                "num_shows": 0, "total_tickets": 0, "booked_tickets": 0,
+                "occupancies": [], "total_gross": 0, "booked_gross": 0
             }
         theatre_data[key]["num_shows"] += 1
         theatre_data[key]["total_tickets"] += r["total_tickets"]
@@ -393,141 +366,75 @@ def generate_excel(all_results, all_totals):
         theatre_data[key]["booked_gross"] += r["booked_gross"]
 
     for key, data in theatre_data.items():
-        city, venue = key
-        num_shows = data["num_shows"]
-        avg_occ = round(sum(data["occupancies"]) / num_shows, 2) if num_shows else 0
+        avg_occ = round(sum(data["occupancies"]) / data["num_shows"], 2) if data["num_shows"] else 0
         theatre_sheet.append([
-            city,
-            venue,
-            num_shows,
-            data["total_tickets"],
-            data["booked_tickets"],
-            avg_occ,
-            data["total_gross"],
-            data["booked_gross"]
+            key[0], key[1], data["num_shows"], data["total_tickets"], data["booked_tickets"],
+            avg_occ, data["total_gross"], data["booked_gross"]
         ])
 
-    # --------- AGGREGATES ROW ---------
-    total_shows_overall = sum(data["num_shows"] for data in theatre_data.values())
-    total_seats_theatre = sum(data["total_tickets"] for data in theatre_data.values())
-    total_booked_seats_theatre = sum(data["booked_tickets"] for data in theatre_data.values())
-    total_gross_theatre = sum(data["total_gross"] for data in theatre_data.values())
-    total_booked_gross_theatre = sum(data["booked_gross"] for data in theatre_data.values())
-    overall_occupancy_theatre = round((total_booked_seats_theatre / total_seats_theatre) * 100, 2) if total_seats_theatre else 0
-
-    theatre_sheet.append([
-        "TOTAL / AVG",
-        "-",
-        total_shows_overall,
-        total_seats_theatre,
-        total_booked_seats_theatre,
-        overall_occupancy_theatre,
-        total_gross_theatre,
-        total_booked_gross_theatre
-    ])
-
-    # ================= SHEET 3 : SHOW WISE COLLECTIONS =================
-    sheet = wb.create_sheet(title="Show Wise Collections")
-
-    headers = [
-        "City", "Venue", "Show Time", "Total Seats",
-        "Booked Seats", "Occupancy %",
-        "Total Gross", "Booked Gross"
-    ]
-    sheet.append(headers)
-
+    # SHEET 3: SHOW WISE
+    show_sheet = wb.create_sheet(title="Show Wise Collections")
+    show_sheet.append(["City", "Venue", "Show Time", "Total Seats", "Booked Seats", "Occupancy %", "Total Gross", "Booked Gross"])
     for r in all_results:
-        sheet.append([
-            r["city"],
-            r["venue"],
-            r["showTime"],
-            r["total_tickets"],
-            r["booked_tickets"],
-            r["occupancy"],
-            r["total_gross"],
-            r["booked_gross"]
+        show_sheet.append([
+            r["city"], r["venue"], r["showTime"], r["total_tickets"], r["booked_tickets"],
+            r["occupancy"], r["total_gross"], r["booked_gross"]
         ])
 
-    # --------- AGGREGATES ROW ---------
-    total_seats = sum(r["total_tickets"] for r in all_results)
-    total_booked_seats = sum(r["booked_tickets"] for r in all_results)
-    total_gross = sum(r["total_gross"] for r in all_results)
-    total_booked_gross = sum(r["booked_gross"] for r in all_results)
-    avg_occupancy = (
-        round(sum(r["occupancy"] for r in all_results) / len(all_results), 2)
-        if all_results else 0
-    )
-
-    sheet.append([
-        "TOTAL / AVG",
-        "-",
-        "-",
-        total_seats,
-        total_booked_seats,
-        avg_occupancy,
-        total_gross,
-        total_booked_gross
-    ])
-
-    # ================= SHEET 4 : SUMMARY =================
-
+    # SHEET 4: SUMMARY
     summary = wb.create_sheet(title="Summary")
-
-    total_cities = len(set(r["city"] for r in all_results))
-    total_theatres = len(set((r["city"], r["venue"]) for r in all_results))
-    total_shows = len(all_results)
-
-    overall_occupancy = (
-        round((total_booked_seats / total_seats) * 100, 2)
-        if total_seats else 0
-    )
-
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
     summary.append(["Metric", "Value"])
-    summary.append(["Total Cities", total_cities])
-    summary.append(["Total Theatres", total_theatres])
-    summary.append(["Total Shows", total_shows])
-    summary.append(["Overall Occupancy (%)", overall_occupancy])
-    summary.append(["Total Potential Gross (₹)", total_gross])
-    summary.append(["Total Booked Gross (₹)", total_booked_gross])
-    summary.append(["Report Generated At", timestamp])
-    
+    summary.append(["Total Cities", len(city_totals)])
+    summary.append(["Total Theatres", len(theatre_data)])
+    summary.append(["Total Shows", len(all_results)])
+    summary.append(["Overall Occupancy (%)", tc_occ])
+    summary.append(["Total Potential Gross (INR)", tc_gross])
+    summary.append(["Total Booked Gross (INR)", tc_bgross])
+    summary.append(["Report Generated At", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
-    # ================= SAVE FILE =================
     file_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"bms_collections_{file_ts}.xlsx"
+    filename = f"bms_multicity_{file_ts}.xlsx"
     filepath = os.path.join(reports_dir, filename)
-
     wb.save(filepath)
-    print(f"📊 Excel report generated: {filepath}")
+    print(f"✅ Excel report saved at: {filepath}")
 
 
+# ---------------- MAIN EXECUTION ----------------
+if __name__ == "__main__":
+    all_results = []
+    last_valid_url = "" # Stores a valid URL to extract metadata later
 
+    for city in CITIES:
+        print(f"\n🌍 Fetching: {city}...")
+        driver = None
+        try:
+            driver = get_driver()
+            
+            # Using Template
+            url = MOVIE_URL_TEMPLATE.format(city=city)
+            last_valid_url = url # Save for later
+            
+            results_city, total_city = process_movie(driver, url, city)
+            
+            all_results.extend(results_city)
+            print(f"   💰 {city} Total: ₹{total_city}")
 
-all_results = []
-all_totals = []
-
-for city in CITIES:
-    url = f"https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260120"
-    driver = None
-    try:
-        driver = get_driver()
-        results_city, total_city = process_movie(url)
-        for r in results_city:
-            r["city"] = city
-        all_results.extend(results_city)
-        all_totals.append(total_city)
-        print(f"Processed {city}: Total Gross ₹{total_city}")
-        time.sleep(10)
-    except Exception as e:
-        print(f"Error processing {city}: {e}")
-    finally:
-        if driver:
-            try:
+        except Exception as e:
+            print(f"   ❌ Critical Error for {city}: {e}")
+        finally:
+            if driver:
                 driver.quit()
-            except:
-                pass
-        continue
+        
+        time.sleep(2)
 
-generate_excel(all_results, all_totals)
+    if all_results:
+        # 1. Generate Excel
+        generate_excel(all_results)
+        
+        # 2. Generate Multi-City Image Report (Using metadata from the last processed URL)
+        img_path = f"reports/bms_multicity_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        
+        # Now passing URL instead of hardcoded strings
+        generate_multi_city_image_report(all_results, last_valid_url, img_path)
+    else:
+        print("No data collected.")

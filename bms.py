@@ -11,7 +11,7 @@ from datetime import datetime
 from utils.generateImageReport import generate_city_image_report
 import os
 
-url = "https://in.bookmyshow.com/movies/guntur/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260124"
+url = "https://in.bookmyshow.com/movies/hyderabad/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260124"
 
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 
