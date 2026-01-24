@@ -8,7 +8,7 @@ from utils.generateImageReport import generate_city_image_report
 
 # Example URL provided by you
 url = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-hyderabad-MV203929"
-MOVIE_DATE = "2026-01-24"
+MOVIE_DATE = "2026-01-25"
 
 
 url += "?fromdate=" + MOVIE_DATE

@@ -103,7 +103,7 @@ def generate_multi_state_image_report(all_results, reference_url, output_path):
     draw.text((padding, curr_y), movie_name, font=f_large, fill=C_ORANGE)
     curr_y += 40
     gen_time = datetime.now().strftime("%I:%M %p")
-    subtitle = f"Multi-State Collection Report | Gen: {gen_time} | Date: {show_date}"
+    subtitle = f"District App Multi-State Collection Report | {show_date} | Generated at: {gen_time}"
     draw.text((padding, curr_y), subtitle, font=f_reg, fill=(100, 100, 100))
     curr_y += 50
 

@@ -136,7 +136,7 @@ def generate_city_image_report(results, source_url, output_path, source_type="di
     curr_y = padding
     draw.text((padding, curr_y), movie_name, font=f_large, fill=COLOR_HEADER_BG)
     curr_y += 35
-    draw.text((padding, curr_y), f"{city_name} | {show_date} | Generated at: {datetime.now().strftime('%I:%M %p')}", font=f_reg, fill=(80,80,80))
+    draw.text((padding, curr_y), f"{city_name} | {show_date} | Generated at: {datetime.now().strftime('%I:%M %p')} | Source: {source_type.capitalize()}", font=f_reg, fill=(80,80,80))
     curr_y += 35
 
     # Header & Subheader Drawing

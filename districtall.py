@@ -7,10 +7,13 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from openpyxl import Workbook
-from utils.generateMultiStateImageReport import generate_multi_state_image_report
+from utils.generateDistrictMultiStateImageReport import generate_multi_state_image_report
+
+# Add states for reporting
+inputStateList = ["Andhra Pradesh"] 
+
 
 # --- CONFIGURATION ---
-inputStateList = ["Andhra Pradesh"] 
 CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
 MOVIE_BASE_URL = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-"
 SHOW_DATE = "2026-01-24"
@@ -75,15 +78,69 @@ def extract_city_data(driver, state_name, city_name, city_slug, processed_ids):
         return city_results
     except Exception:
         return []
+    
 
 def generate_consolidated_report(all_results):
     wb = Workbook()
     reports_dir = "reports"
     os.makedirs(reports_dir, exist_ok=True)
 
-    # 1. THEATRE WISE SHEET
-    ws1 = wb.active
-    ws1.title = "Theatre Wise Collections"
+    # 1. STATE WISE SHEET (New)
+    ws_state = wb.active
+    ws_state.title = "State Wise Collections"
+    ws_state.append(["State", "Cities", "Theatres", "Shows", "Total Seats", "Booked Seats", "Total Gross ₹", "Booked Gross ₹", "Occ %"])
+    
+    state_map = {}
+    city_tracker = {} # To count unique cities per state
+    theatre_tracker = {} # To count unique theatres per state
+
+    for r in all_results:
+        st = r["state"]
+        if st not in state_map:
+            state_map[st] = {"shows":0, "t_seats":0, "b_seats":0, "p_gross":0, "b_gross":0}
+            city_tracker[st] = set()
+            theatre_tracker[st] = set()
+        
+        d = state_map[st]
+        d["shows"] += 1
+        d["t_seats"] += r["total_tickets"]
+        d["b_seats"] += r["booked_tickets"]
+        d["p_gross"] += r["total_gross"]
+        d["b_gross"] += r["booked_gross"]
+        city_tracker[st].add(r["city"])
+        theatre_tracker[st].add(r["venue"])
+
+    for st, d in state_map.items():
+        avg_occ = round((d["b_seats"] / d["t_seats"]) * 100, 2) if d["t_seats"] > 0 else 0
+        ws_state.append([st, len(city_tracker[st]), len(theatre_tracker[st]), d["shows"], d["t_seats"], d["b_seats"], d["p_gross"], d["b_gross"], avg_occ])
+
+    # 2. CITY WISE SHEET (New)
+    ws_city = wb.create_sheet(title="City Wise Collections")
+    ws_city.append(["State", "City", "Theatres", "Shows", "Total Seats", "Booked Seats", "Total Gross ₹", "Booked Gross ₹", "Occ %"])
+    
+    city_map = {}
+    city_theatre_tracker = {}
+
+    for r in all_results:
+        key = (r["state"], r["city"])
+        if key not in city_map:
+            city_map[key] = {"shows":0, "t_seats":0, "b_seats":0, "p_gross":0, "b_gross":0}
+            city_theatre_tracker[key] = set()
+        
+        d = city_map[key]
+        d["shows"] += 1
+        d["t_seats"] += r["total_tickets"]
+        d["b_seats"] += r["booked_tickets"]
+        d["p_gross"] += r["total_gross"]
+        d["b_gross"] += r["booked_gross"]
+        city_theatre_tracker[key].add(r["venue"])
+
+    for (st, ct), d in city_map.items():
+        avg_occ = round((d["b_seats"] / d["t_seats"]) * 100, 2) if d["t_seats"] > 0 else 0
+        ws_city.append([st, ct, len(city_theatre_tracker[(st, ct)]), d["shows"], d["t_seats"], d["b_seats"], d["p_gross"], d["b_gross"], avg_occ])
+
+    # 3. THEATRE WISE SHEET
+    ws1 = wb.create_sheet(title="Theatre Wise Collections")
     ws1.append(["State", "City", "Venue", "Shows", "Total Seats", "Booked Seats", "Total Gross ₹", "Booked Gross ₹", "Occ %"])
     
     theatre_map = {}
@@ -102,33 +159,34 @@ def generate_consolidated_report(all_results):
         avg_occ = round((d["b_seats"] / d["t_seats"]) * 100, 2) if d["t_seats"] > 0 else 0
         ws1.append([st, ct, vn, d["shows"], d["t_seats"], d["b_seats"], d["p_gross"], d["b_gross"], avg_occ])
 
-    # 2. SHOW WISE SHEET
+    # 4. SHOW WISE SHEET
     ws2 = wb.create_sheet(title="Show Wise Collections")
     ws2.append(["State", "City", "Venue", "Time", "Total Seats", "Booked Seats", "Total Gross ₹", "Booked Gross ₹", "Occ %"])
     for r in all_results:
         ws2.append([r["state"], r["city"], r["venue"], r["showTime"], r["total_tickets"], r["booked_tickets"], r["total_gross"], r["booked_gross"], r["occupancy"]])
 
-    # 3. SUMMARY SHEET
+    # 5. SUMMARY SHEET
     ws3 = wb.create_sheet(title="Summary")
     agg_p_gross = sum(r["total_gross"] for r in all_results)
     agg_b_gross = sum(r["booked_gross"] for r in all_results)
-    agg_total_seats = sum(r["total_tickets"] for r in all_results)
-    agg_booked_seats = sum(r["booked_tickets"] for r in all_results)
-    overall_occ = round((agg_booked_seats / agg_total_seats) * 100, 2) if agg_total_seats > 0 else 0
+    agg_t_seats = sum(r["total_tickets"] for r in all_results)
+    agg_b_seats = sum(r["booked_tickets"] for r in all_results)
+    overall_occ = round((agg_b_seats / agg_t_seats) * 100, 2) if agg_t_seats > 0 else 0
     
     ws3.append(["Metric", "Value"])
-    ws3.append(["States Processed", len(set(r["state"] for r in all_results))])
-    ws3.append(["Total Cities", len(set(r["city"] for r in all_results))])
+    ws3.append(["States Processed", len(state_map)])
+    ws3.append(["Total Cities", len(city_map)])
     ws3.append(["Total Theatres", len(theatre_map)])
     ws3.append(["Grand Total Potential Gross (₹)", agg_p_gross])
     ws3.append(["Grand Total Booked Gross (₹)", agg_b_gross])
     ws3.append(["Overall Occupancy (%)", overall_occ])
     ws3.append(["Generated At", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
-    filename = f"district_full_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    filename = f"district_consolidated_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     filepath = os.path.join(reports_dir, filename)
     wb.save(filepath)
-    print(f"\n📊 Consolidated Report Saved: {filepath}")
+    print(f"\n📊 Excel Report with 5 Sheets Saved: {filepath}")
+
 
 if __name__ == "__main__":
     if not os.path.exists(CONFIG_PATH):

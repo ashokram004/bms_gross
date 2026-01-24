@@ -157,7 +157,7 @@ def generate_multi_city_image_report(all_results, reference_url, output_path):
     current_y += 35
     
     gen_time = datetime.now().strftime("%I:%M %p")
-    subtitle = f"Multi-City Report  |  {show_date}  |  Generated: {gen_time}"
+    subtitle = f"BMS Multi-City Collection Report  |  {show_date}  |  Generated at: {gen_time}"
     draw.text((padding, current_y), subtitle, font=font_reg, fill=(80, 80, 80))
     current_y += 35
 

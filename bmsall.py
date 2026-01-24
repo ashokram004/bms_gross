@@ -10,7 +10,7 @@ from fake_useragent import UserAgent
 from datetime import datetime
 import os
 
-from utils.generateMultiCityImageReport import generate_multi_city_image_report
+from utils.generateBMSMultiCityImageReport import generate_multi_city_image_report
 
 # --- CONFIGURATION ---
 # ONLY TEMPLATE IS NEEDED. NO HARDCODED DATES/NAMES
@@ -393,7 +393,7 @@ def generate_excel(all_results):
     summary.append(["Report Generated At", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
     file_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"bms_multicity_{file_ts}.xlsx"
+    filename = f"bms_consolidated_{file_ts}.xlsx"
     filepath = os.path.join(reports_dir, filename)
     wb.save(filepath)
     print(f"✅ Excel report saved at: {filepath}")
