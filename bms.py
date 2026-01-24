@@ -440,6 +440,6 @@ results, total = process_movie(url)
 generate_excel(results, total)
 
 img_path = f"reports/bms_city_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-generate_city_image_report(results, url, img_path)
+generate_city_image_report(results, url, img_path, "bms")
 
 driver.quit()
