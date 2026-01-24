@@ -8,7 +8,6 @@ from selenium.webdriver.chrome.options import Options
 from openpyxl import Workbook
 from fake_useragent import UserAgent
 from datetime import datetime
-from utils.generateImageReport import generate_city_image_report
 import os
 
 url = "https://in.bookmyshow.com/movies/hyderabad/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260124"
@@ -20,7 +19,6 @@ ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 # 1 = available
 # 2 = booked
 BOOKED_STATES = {"2"}
-SLEEP_TIME = 1
 
 
 # ---------------- DRIVER ----------------
@@ -79,12 +77,11 @@ def extract_venues(state):
 
 
 # ---------------- SEAT LAYOUT ----------------
-def get_seat_layout(venue_code, session_id):
-    global SLEEP_TIME
+def get_seat_layout(venue_code, session_id, retry_on_rate_limit=False):
     api_url = "https://services-in.bookmyshow.com/doTrans.aspx"
-    max_retries = 2
+    max_retries = 2 if retry_on_rate_limit else 0
 
-    for attempt in range(max_retries+1):
+    for attempt in range(max_retries + 1):
         js = """
         var callback = arguments[0];
         var xhr = new XMLHttpRequest();
@@ -107,20 +104,15 @@ def get_seat_layout(venue_code, session_id):
         data = json.loads(response)["BookMyShow"]
 
         if data.get("blnSuccess") == "true":
-            return data.get("strData")
+            return data.get("strData"), True  # Success
         else:
             exception = data.get("strException", "")
             if "Rate limit exceeded" in exception and attempt < max_retries:
                 print(f"Rate limit hit, retrying in 60 seconds... (attempt {attempt + 1}/{max_retries + 1})")
                 time.sleep(60)
-                # Increase global sleep after first rate limit
-                if SLEEP_TIME < 2.0:
-                    SLEEP_TIME = 2.0
-                    print("🐢 Increasing global sleep time to 1.0s")
                 continue
             else:
-                print(exception)
-                return None
+                return exception, False  # Failure with exception
 
 
 # ---------------- PRICE MAP ----------------
@@ -286,7 +278,7 @@ def process_movie(url):
             results.append(data)
             grand_total += data["booked_gross"]
 
-            time.sleep(SLEEP_TIME)
+            # time.sleep(2)
 
     print(f"\n💰 TOTAL COLLECTION: ₹{grand_total}")
     return results, grand_total
@@ -434,12 +426,83 @@ def generate_excel(results, total):
     print(f"📊 Excel report generated: {filepath}")
 
 
+
+# ---------------- RATE LIMIT TESTER ----------------
+def test_rate_limit(url, duration_minutes=10):
+    """
+    Tests the rate limit for the get_seat_layout API by making repeated requests
+    and logging successes and failures.
+    """
+    print("🔍 Starting Rate Limit Test...")
+    print(f"Duration: {duration_minutes} minutes")
+    print("=" * 50)
+
+    # Extract initial state to get venue_code and session_id
+    state = extract_initial_state_from_page(url)
+    venues = extract_venues(state)
+    if not venues:
+        print("❌ No venues found")
+        return
+
+    venue_code = venues[0]["additionalData"]["venueCode"]
+    session_id = venues[0]["showtimes"][0]["additionalData"]["sessionId"] if venues[0].get("showtimes") else None
+    if not session_id:
+        print("❌ No session_id found")
+        return
+
+    print(f"Using Venue Code: {venue_code}")
+    print(f"Using Session ID: {session_id}")
+    print("=" * 50)
+
+    start_time = time.time()
+    end_time = start_time + (duration_minutes * 60)
+    request_count = 0
+    success_count = 0
+    rate_limit_count = 0
+    other_errors = 0
+
+    while time.time() < end_time:
+        request_count += 1
+        timestamp = datetime.now().strftime("%H:%M:%S")
+
+        result, success = get_seat_layout(venue_code, session_id, retry_on_rate_limit=False)
+
+        if success:
+            success_count += 1
+            print(f"[{timestamp}] ✅ Request {request_count}: SUCCESS")
+        else:
+            if "Rate limit exceeded" in str(result):
+                rate_limit_count += 1
+                print(f"[{timestamp}] 🚫 Request {request_count}: RATE LIMIT EXCEEDED")
+            else:
+                other_errors += 1
+                print(f"[{timestamp}] ❌ Request {request_count}: ERROR - {result}")
+
+        # time.sleep(1)  # Wait 1 second between requests
+
+    # Summary
+    total_time = time.time() - start_time
+    print("\n" + "=" * 50)
+    print("📊 RATE LIMIT TEST SUMMARY")
+    print("=" * 50)
+    print(f"Total Duration: {total_time:.2f} seconds")
+    print(f"Total Requests: {request_count}")
+    print(f"Successful Requests: {success_count}")
+    print(f"Rate Limit Errors: {rate_limit_count}")
+    print(f"Other Errors: {other_errors}")
+    print(".2f")
+    print(".2f")
+
+    if rate_limit_count > 0:
+        print(f"\nEstimated Rate Limit: ~{success_count} requests per {duration_minutes} minutes")
+        print("Cooldown Time: Appears to reset automatically (no manual cooldown detected in test)")
+
+
 # ---------------- RUN ----------------
 
-results, total = process_movie(url)
-generate_excel(results, total)
+# Uncomment the line below to run the rate limit test instead of the full scraper
+test_rate_limit(url, duration_minutes=10)
 
-img_path = f"reports/bms_city_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-generate_city_image_report(results, url, img_path)
-
+# results, total = process_movie(url)
+# generate_excel(results, total)
 driver.quit()

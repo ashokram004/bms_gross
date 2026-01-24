@@ -6,3 +6,5 @@ fake-useragent
 selenium
 webdriver-manager
 openpyxl
+pandas
+matplotlib
