@@ -1,91 +1,217 @@
-import matplotlib
-matplotlib.use("Agg")
-
-import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
+import os
+from urllib.parse import urlparse
+from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime
-from .computeCityKPIs import compute_city_kpis
-from .buildTheatreDataFrame import build_theatre_dataframe
-from .parseBMSURL import parse_bms_url
 
-def generate_city_image_report(results, url, output_path):
-    meta = parse_bms_url(url)
-    theatre_df = build_theatre_dataframe(results)
-    kpis = compute_city_kpis(theatre_df)
+# --- CONFIGURATION ---
+MAX_ROWS_TO_DISPLAY = 25
+FONT_PATH_BOLD = "arialbd.ttf"
+FONT_PATH_REG = "arial.ttf"
 
-    top_theatres = theatre_df.head(20)
+def parse_url_metadata(url):
+    """
+    Extracts City, Movie Name, and Date from BMS URL.
+    """
+    try:
+        path = urlparse(url).path
+        parts = [p for p in path.split('/') if p]
 
-    fig = plt.figure(figsize=(18, 11), dpi=150)
-    gs = GridSpec(3, 1, height_ratios=[0.9, 1.1, 3], hspace=0.25)
+        if "buytickets" in parts:
+            idx = parts.index("buytickets")
+            city_raw = parts[idx - 2]
+            movie_raw = parts[idx - 1]
+            date_raw = parts[-1] 
 
-    # ================= HEADER =================
-    ax0 = fig.add_subplot(gs[0])
-    ax0.axis("off")
+            city = city_raw.replace("-", " ").title()
+            movie_name = movie_raw.replace("-", " ").title()
+            
+            try:
+                date_obj = datetime.strptime(date_raw, "%Y%m%d")
+                show_date = date_obj.strftime("%d %b %Y")
+            except ValueError:
+                show_date = date_raw
 
-    ax0.text(
-        0.01, 0.65,
-        f"🎬 {meta['movie']}",
-        fontsize=22, fontweight="bold"
-    )
-    ax0.text(
-        0.01, 0.35,
-        f"📍 {meta['city']}   |   📅 {meta['date']}",
-        fontsize=14
-    )
+            return city, movie_name, show_date
 
-    # ================= KPI ROW =================
-    ax1 = fig.add_subplot(gs[1])
-    ax1.axis("off")
+    except Exception as e:
+        print(f"⚠️ Could not parse URL metadata: {e}")
+    
+    return "City", "Movie Collection Report", datetime.now().strftime("%d %b %Y")
 
-    kpi_text = (
-        f"Theatres: {kpis['theatres']}     "
-        f"Shows: {kpis['shows']}     "
-        f"Tickets: {kpis['tickets']}     "
-        f"Occupancy: {kpis['occupancy']}%     "
-        f"Gross: ₹{kpis['gross']:,}"
-    )
+def truncate_text(draw, text, font, max_width):
+    if draw.textlength(text, font=font) <= max_width:
+        return text
+    while draw.textlength(text + "...", font=font) > max_width and len(text) > 0:
+        text = text[:-1]
+    return text + "..."
 
-    ax1.text(
-        0.01, 0.5,
-        kpi_text,
-        fontsize=15,
-        fontweight="bold"
-    )
+def get_fonts():
+    try:
+        font_large = ImageFont.truetype(FONT_PATH_BOLD, 26)
+        font_header = ImageFont.truetype(FONT_PATH_BOLD, 18)
+        font_bold = ImageFont.truetype(FONT_PATH_BOLD, 15)
+        font_reg = ImageFont.truetype(FONT_PATH_REG, 15)
+    except IOError:
+        font_large = ImageFont.load_default()
+        font_header = ImageFont.load_default()
+        font_bold = ImageFont.load_default()
+        font_reg = ImageFont.load_default()
+    return font_large, font_header, font_bold, font_reg
 
-    # ================= THEATRE TABLE =================
-    ax2 = fig.add_subplot(gs[2])
-    ax2.axis("off")
-    ax2.set_title("Top 20 Theatres by Gross", fontsize=15, fontweight="bold", loc="left")
+def generate_city_image_report(results, source_url, output_path):
+    print("🎨 Generating Image Report with URL Metadata...")
 
-    table_data = top_theatres[
-        ["venue", "shows", "booked_seats", "occupancy", "gross"]
-    ].values
+    # --- 1. EXTRACT METADATA ---
+    city_name, movie_name, show_date = parse_url_metadata(source_url)
 
-    table = ax2.table(
-        cellText=table_data,
-        colLabels=[
-            "Theatre",
-            "Shows",
-            "Tickets Sold",
-            "Occupancy %",
-            "Gross (₹)"
-        ],
-        loc="center"
-    )
+    # --- 2. DATA AGGREGATION ---
+    theater_data = {}
+    for r in results:
+        venue = r["venue"]
+        if venue not in theater_data:
+            theater_data[venue] = {"gross": 0, "tickets": 0, "shows": 0, "occupancy_sum": 0}
+        
+        theater_data[venue]["gross"] += r["booked_gross"]
+        theater_data[venue]["tickets"] += r["booked_tickets"]
+        theater_data[venue]["shows"] += 1
+        theater_data[venue]["occupancy_sum"] += r["occupancy"]
 
-    table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    table.scale(1, 1.4)
+    full_table = []
+    for venue, data in theater_data.items():
+        avg_occ = round(data["occupancy_sum"] / data["shows"], 1) if data["shows"] > 0 else 0
+        full_table.append({
+            "venue": venue,
+            "gross": data["gross"],
+            "tickets": data["tickets"],
+            "shows": data["shows"],
+            "occupancy": avg_occ
+        })
 
-    # ================= FOOTER =================
-    fig.text(
-        0.01, 0.02,
-        f"Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Source: BookMyShow",
-        fontsize=9,
-        color="gray"
-    )
+    full_table.sort(key=lambda x: x["gross"], reverse=True)
 
-    plt.savefig(output_path, bbox_inches="tight")
-    plt.close()
+    # --- 3. TOTALS & SLICING ---
+    grand_total_gross = sum(r["gross"] for r in full_table)
+    grand_total_tickets = sum(r["tickets"] for r in full_table)
+    grand_total_shows = sum(r["shows"] for r in full_table)
+    grand_avg_occupancy = round(sum(r["occupancy"] for r in full_table) / len(full_table), 1) if full_table else 0
 
-    print(f"🖼 City image report generated: {output_path}")
+    display_rows = full_table[:MAX_ROWS_TO_DISPLAY]
+    remaining_rows = full_table[MAX_ROWS_TO_DISPLAY:]
+
+    if remaining_rows:
+        display_rows.append({
+            "venue": f"Others ({len(remaining_rows)} theaters)",
+            "gross": sum(r["gross"] for r in remaining_rows),
+            "tickets": sum(r["tickets"] for r in remaining_rows),
+            "shows": sum(r["shows"] for r in remaining_rows),
+            "occupancy": round(sum(r["occupancy"] for r in remaining_rows) / len(remaining_rows), 1)
+        })
+
+    # --- 4. LAYOUT ---
+    COLOR_HEADER_BG = (237, 125, 49)    # Orange
+    COLOR_SUBHEADER_BG = (189, 215, 238) # Blue
+    COLOR_ROW_EVEN = (255, 255, 255)
+    COLOR_ROW_ODD = (242, 242, 242)
+    COLOR_FOOTER_BG = (169, 208, 142)   # Green
+    COLOR_TEXT = (0, 0, 0)
+    COLOR_TEXT_WHITE = (255, 255, 255)
+    
+    padding = 20
+    row_height = 30
+    header_height = 45
+    
+    # ✅ REORDERED COLUMNS: Venue -> Shows -> Tickets -> Gross -> Occupancy
+    cols = [
+        {"key": "venue", "title": "Theater Name", "width": 380, "align": "left"},
+        {"key": "shows", "title": "Shows", "width": 70, "align": "center"},
+        {"key": "tickets", "title": "Tickets", "width": 90, "align": "center"},
+        {"key": "gross", "title": "Gross (INR)", "width": 120, "align": "right"},
+        {"key": "occupancy", "title": "Occ %", "width": 70, "align": "center"},
+    ]
+    
+    table_width = sum(c["width"] for c in cols)
+    image_width = table_width + (padding * 2)
+    image_height = padding + 40 + 30 + header_height + row_height + (len(display_rows) * row_height) + row_height + padding
+    
+    img = Image.new('RGB', (image_width, image_height), color=(255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    font_large, font_header, font_bold, font_reg = get_fonts()
+
+    current_y = padding
+
+    # --- A. TITLE SECTION ---
+    draw.text((padding, current_y), movie_name, font=font_large, fill=COLOR_HEADER_BG)
+    current_y += 35
+    
+    gen_time = datetime.now().strftime("%I:%M %p")
+    subtitle = f"{city_name}  |  {show_date}  |  Generated: {gen_time}"
+    draw.text((padding, current_y), subtitle, font=font_reg, fill=(80, 80, 80))
+    current_y += 35
+
+    # --- B. HEADER ---
+    draw.rectangle([(padding, current_y), (image_width - padding, current_y + header_height)], fill=COLOR_HEADER_BG)
+    draw.text((image_width // 2, current_y + (header_height/2)), "Top Performing Theaters", font=font_header, fill=COLOR_TEXT_WHITE, anchor="mm")
+    current_y += header_height
+
+    # --- C. SUB-HEADER ---
+    draw.rectangle([(padding, current_y), (image_width - padding, current_y + row_height)], fill=COLOR_SUBHEADER_BG)
+    x_cursor = padding
+    for col in cols:
+        text_y = current_y + (row_height/2)
+        if col["align"] == "center":
+            draw.text((x_cursor + col["width"]/2, text_y), col["title"], font=font_bold, fill=COLOR_TEXT, anchor="mm")
+        elif col["align"] == "right":
+            draw.text((x_cursor + col["width"] - 10, text_y), col["title"], font=font_bold, fill=COLOR_TEXT, anchor="rm")
+        else:
+            draw.text((x_cursor + 10, text_y), col["title"], font=font_bold, fill=COLOR_TEXT, anchor="lm")
+        x_cursor += col["width"]
+    current_y += row_height
+
+    # --- D. ROWS ---
+    for index, row in enumerate(display_rows):
+        bg_color = COLOR_ROW_EVEN if index % 2 == 0 else COLOR_ROW_ODD
+        if "Others (" in row["venue"]: bg_color = (230, 230, 230)
+
+        draw.rectangle([(padding, current_y), (image_width - padding, current_y + row_height)], fill=bg_color)
+        x_cursor = padding
+        for col in cols:
+            val = row[col["key"]]
+            if col["key"] == "gross": val = f"{val:,.0f}"
+            elif col["key"] == "occupancy": val = f"{val}%"
+            else: val = str(val)
+
+            text_y = current_y + (row_height/2)
+            if col["align"] == "center":
+                draw.text((x_cursor + col["width"]/2, text_y), val, font=font_reg, fill=COLOR_TEXT, anchor="mm")
+            elif col["align"] == "right":
+                draw.text((x_cursor + col["width"] - 10, text_y), val, font=font_reg, fill=COLOR_TEXT, anchor="rm")
+            else:
+                trunc = truncate_text(draw, val, font_reg, col["width"] - 20)
+                draw.text((x_cursor + 10, text_y), trunc, font=font_reg, fill=COLOR_TEXT, anchor="lm")
+            x_cursor += col["width"]
+        current_y += row_height
+
+    # --- E. FOOTER (UPDATED FOR NEW ORDER) ---
+    draw.rectangle([(padding, current_y), (image_width - padding, current_y + row_height)], fill=COLOR_FOOTER_BG)
+    draw.text((padding + 10, current_y + (row_height/2)), "Grand Total", font=font_bold, fill=COLOR_TEXT, anchor="lm")
+    
+    # 0. Venue column width skipped
+    x_cursor = padding + cols[0]["width"] 
+    
+    # 1. Shows
+    draw.text((x_cursor + cols[1]["width"]/2, current_y + (row_height/2)), str(grand_total_shows), font=font_bold, fill=COLOR_TEXT, anchor="mm")
+    x_cursor += cols[1]["width"]
+    
+    # 2. Tickets
+    draw.text((x_cursor + cols[2]["width"]/2, current_y + (row_height/2)), str(grand_total_tickets), font=font_bold, fill=COLOR_TEXT, anchor="mm")
+    x_cursor += cols[2]["width"]
+
+    # 3. Gross
+    draw.text((x_cursor + cols[3]["width"] - 10, current_y + (row_height/2)), f"{grand_total_gross:,.0f}", font=font_bold, fill=COLOR_TEXT, anchor="rm")
+    x_cursor += cols[3]["width"]
+    
+    # 4. Occupancy
+    draw.text((x_cursor + cols[4]["width"]/2, current_y + (row_height/2)), f"{grand_avg_occupancy}%", font=font_bold, fill=COLOR_TEXT, anchor="mm")
+
+    img.save(output_path)
+    print(f"🖼️ Image Saved: {output_path}")
