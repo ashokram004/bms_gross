@@ -19,8 +19,1076 @@
             "slug": "adoni"
         },
         {
+            "name": "Agiripalli",
+            "slug": "agiripalli"
+        },
+        {
+            "name": "Akividu",
+            "slug": "akividu"
+        },
+        {
+            "name": "Allagadda",
+            "slug": "allagadda"
+        },
+        {
+            "name": "Amadalavalasa",
+            "slug": "amadalavalasa"
+        },
+        {
+            "name": "Amalapuram",
+            "slug": "amalapuram"
+        },
+        {
+            "name": "Amaravathi",
+            "slug": "amaravathi"
+        },
+        {
+            "name": "Anakapalle",
+            "slug": "anakapalle"
+        },
+        {
+            "name": "Anantapalli",
+            "slug": "anantapalli"
+        },
+        {
+            "name": "Anantapur",
+            "slug": "anantapur"
+        },
+        {
+            "name": "Anaparthi",
+            "slug": "anaparthi"
+        },
+        {
+            "name": "Angara",
+            "slug": "angara"
+        },
+        {
+            "name": "Annavaram",
+            "slug": "annavaram"
+        },
+        {
+            "name": "Atchampeta (AP)",
+            "slug": "atchampeta-ap"
+        },
+        {
+            "name": "Atmakur (Kurnool)",
+            "slug": "atmakur-kurnool"
+        },
+        {
+            "name": "Atmakur (Nellore)",
+            "slug": "atmakur-nellore"
+        },
+        {
+            "name": "Attili",
+            "slug": "attili"
+        },
+        {
+            "name": "B. Kothakota",
+            "slug": "b-kothakota"
+        },
+        {
+            "name": "Badvel",
+            "slug": "badvel"
+        },
+        {
+            "name": "Balijipeta",
+            "slug": "balijipeta"
+        },
+        {
+            "name": "Banaganapalli",
+            "slug": "banaganapalli"
+        },
+        {
+            "name": "Bangarupalem",
+            "slug": "bangarupalem"
+        },
+        {
+            "name": "Bantumilli",
+            "slug": "bantumilli"
+        },
+        {
+            "name": "Bapatla",
+            "slug": "bapatla"
+        },
+        {
+            "name": "Bestavaripeta",
+            "slug": "bestavaripeta"
+        },
+        {
+            "name": "Bethamcherla",
+            "slug": "bethamcherla"
+        },
+        {
+            "name": "Bhattiprolu",
+            "slug": "bhattiprolu"
+        },
+        {
+            "name": "Bhimadole",
+            "slug": "bhimadole"
+        },
+        {
+            "name": "Bhimavaram",
+            "slug": "bhimavaram"
+        },
+        {
+            "name": "Bhogapuram",
+            "slug": "bhogapuram"
+        },
+        {
+            "name": "Bobbili",
+            "slug": "bobbili"
+        },
+        {
+            "name": "Buchireddypalem",
+            "slug": "buchireddypalem"
+        },
+        {
+            "name": "Buttayagudem",
+            "slug": "buttayagudem"
+        },
+        {
+            "name": "Chagallu",
+            "slug": "chagallu"
+        },
+        {
+            "name": "Challapalli",
+            "slug": "challapalli"
+        },
+        {
+            "name": "Chebrolu",
+            "slug": "chebrolu"
+        },
+        {
+            "name": "Cheepurupalli",
+            "slug": "cheepurupalli"
+        },
+        {
+            "name": "Cherukupalli",
+            "slug": "cherukupalli"
+        },
+        {
+            "name": "Chilakaluripet",
+            "slug": "chilakaluripet"
+        },
+        {
+            "name": "Chinnamandem",
+            "slug": "chinnamandem"
+        },
+        {
+            "name": "Chintalapudi",
+            "slug": "chintalapudi"
+        },
+        {
+            "name": "Chinturu",
+            "slug": "chinturu"
+        },
+        {
+            "name": "Chirala",
+            "slug": "chirala"
+        },
+        {
+            "name": "Chittoor",
+            "slug": "chittoor"
+        },
+        {
+            "name": "Chodavaram",
+            "slug": "chodavaram"
+        },
+        {
+            "name": "Cumbum (AP)",
+            "slug": "cumbum-ap"
+        },
+        {
+            "name": "Darlapudi",
+            "slug": "darlapudi"
+        },
+        {
+            "name": "Darsi",
+            "slug": "darsi"
+        },
+        {
+            "name": "Davuluru",
+            "slug": "davuluru"
+        },
+        {
+            "name": "Devarapalle",
+            "slug": "devarapalle"
+        },
+        {
+            "name": "Devarapalli",
+            "slug": "devarapalli"
+        },
+        {
+            "name": "Dharmavaram",
+            "slug": "dharmavaram"
+        },
+        {
+            "name": "Dhone",
+            "slug": "dhone"
+        },
+        {
+            "name": "Dowlaiswaram",
+            "slug": "dowlaiswaram"
+        },
+        {
+            "name": "Draksharamam",
+            "slug": "draksharamam"
+        },
+        {
+            "name": "Duggirala",
+            "slug": "duggirala"
+        },
+        {
+            "name": "East Godavari",
+            "slug": "east-godavari"
+        },
+        {
+            "name": "Edlapadu",
+            "slug": "edlapadu"
+        },
+        {
+            "name": "Elesvaram",
+            "slug": "elesvaram"
+        },
+        {
+            "name": "Eluru",
+            "slug": "eluru"
+        },
+        {
+            "name": "G.Mamidada",
+            "slug": "gmamidada"
+        },
+        {
+            "name": "Gadivemula",
+            "slug": "gadivemula"
+        },
+        {
+            "name": "Gajapathinagaram",
+            "slug": "gajapathinagaram"
+        },
+        {
+            "name": "Gampalagudem",
+            "slug": "gampalagudem"
+        },
+        {
+            "name": "Ganapavaram",
+            "slug": "ganapavaram"
+        },
+        {
+            "name": "Gannavaram",
+            "slug": "gannavaram"
+        },
+        {
+            "name": "Giddalur",
+            "slug": "giddalur"
+        },
+        {
+            "name": "Gokavaram",
+            "slug": "gokavaram"
+        },
+        {
+            "name": "Gollaprolu",
+            "slug": "gollaprolu"
+        },
+        {
+            "name": "Gooty",
+            "slug": "gooty"
+        },
+        {
+            "name": "Gorantla",
+            "slug": "gorantla"
+        },
+        {
+            "name": "Gudivada",
+            "slug": "gudivada"
+        },
+        {
+            "name": "Gudlavalleru",
+            "slug": "gudlavalleru"
+        },
+        {
+            "name": "Gudur",
+            "slug": "gudur"
+        },
+        {
+            "name": "Guntakal",
+            "slug": "guntakal"
+        },
+        {
             "name": "Guntur",
             "slug": "guntur"
+        },
+        {
+            "name": "Gurazala",
+            "slug": "gurazala"
+        },
+        {
+            "name": "Hanuman Junction",
+            "slug": "hanuman-junction"
+        },
+        {
+            "name": "Hindupur",
+            "slug": "hindupur"
+        },
+        {
+            "name": "Hindupuram",
+            "slug": "hindupuram"
+        },
+        {
+            "name": "Hiramandalam",
+            "slug": "hiramandalam"
+        },
+        {
+            "name": "Ichchapuram",
+            "slug": "ichchapuram"
+        },
+        {
+            "name": "Indukurpeta",
+            "slug": "indukurpeta"
+        },
+        {
+            "name": "Jaggampeta",
+            "slug": "jaggampeta"
+        },
+        {
+            "name": "Jaggayyapeta",
+            "slug": "jaggayyapeta"
+        },
+        {
+            "name": "Jami",
+            "slug": "jami"
+        },
+        {
+            "name": "Jammalamadugu",
+            "slug": "jammalamadugu"
+        },
+        {
+            "name": "Jangareddy Gudem",
+            "slug": "jangareddy-gudem"
+        },
+        {
+            "name": "K.D Peta",
+            "slug": "kd-peta"
+        },
+        {
+            "name": "Kadapa",
+            "slug": "kadapa"
+        },
+        {
+            "name": "Kadiri",
+            "slug": "kadiri"
+        },
+        {
+            "name": "Kadiyam",
+            "slug": "kadiyam"
+        },
+        {
+            "name": "Kaikaluru",
+            "slug": "kaikaluru"
+        },
+        {
+            "name": "Kakarapalli",
+            "slug": "kakarapalli"
+        },
+        {
+            "name": "Kakinada",
+            "slug": "kakinada"
+        },
+        {
+            "name": "Kalikiri",
+            "slug": "kalikiri"
+        },
+        {
+            "name": "Kalla",
+            "slug": "kalla"
+        },
+        {
+            "name": "Kallur",
+            "slug": "kallur"
+        },
+        {
+            "name": "Kamavarapukota",
+            "slug": "kamavarapukota"
+        },
+        {
+            "name": "Kanchikacherla",
+            "slug": "kanchikacherla"
+        },
+        {
+            "name": "Kandukur",
+            "slug": "kandukur"
+        },
+        {
+            "name": "Kanigiri",
+            "slug": "kanigiri"
+        },
+        {
+            "name": "Kanipakam",
+            "slug": "kanipakam"
+        },
+        {
+            "name": "Kankipadu",
+            "slug": "kankipadu"
+        },
+        {
+            "name": "Kasibugga",
+            "slug": "kasibugga"
+        },
+        {
+            "name": "Kathipudi",
+            "slug": "kathipudi"
+        },
+        {
+            "name": "Katrenikona",
+            "slug": "katrenikona"
+        },
+        {
+            "name": "Kavali",
+            "slug": "kavali"
+        },
+        {
+            "name": "Kaviti",
+            "slug": "kaviti"
+        },
+        {
+            "name": "Khajipet",
+            "slug": "khajipet"
+        },
+        {
+            "name": "Kirlampudi",
+            "slug": "kirlampudi"
+        },
+        {
+            "name": "Kodumuru",
+            "slug": "kodumuru"
+        },
+        {
+            "name": "Koilkuntla",
+            "slug": "koilkuntla"
+        },
+        {
+            "name": "Kolluru",
+            "slug": "kolluru"
+        },
+        {
+            "name": "Kommugudem",
+            "slug": "kommugudem"
+        },
+        {
+            "name": "Konithiwada",
+            "slug": "konithiwada"
+        },
+        {
+            "name": "Korukonda",
+            "slug": "korukonda"
+        },
+        {
+            "name": "Kota (AP)",
+            "slug": "kota-ap"
+        },
+        {
+            "name": "Kotabommali",
+            "slug": "kotabommali"
+        },
+        {
+            "name": "Kotananduru",
+            "slug": "kotananduru"
+        },
+        {
+            "name": "Kothacheruvu",
+            "slug": "kothacheruvu"
+        },
+        {
+            "name": "Kothapalli",
+            "slug": "kothapalli"
+        },
+        {
+            "name": "Kothapeta",
+            "slug": "kothapeta"
+        },
+        {
+            "name": "Kothavalasa",
+            "slug": "kothavalasa"
+        },
+        {
+            "name": "Kotturu",
+            "slug": "kotturu"
+        },
+        {
+            "name": "Kovur (Nellore)",
+            "slug": "kovur-nellore"
+        },
+        {
+            "name": "Kovvur",
+            "slug": "kovvur"
+        },
+        {
+            "name": "Koyyalagudem",
+            "slug": "koyyalagudem"
+        },
+        {
+            "name": "Krishnadevipeta",
+            "slug": "krishnadevipeta"
+        },
+        {
+            "name": "Krosuru",
+            "slug": "krosuru"
+        },
+        {
+            "name": "Kruthivennu",
+            "slug": "kruthivennu"
+        },
+        {
+            "name": "Kuchipudi",
+            "slug": "kuchipudi"
+        },
+        {
+            "name": "Kurnool",
+            "slug": "kurnool"
+        },
+        {
+            "name": "Lakkavaram",
+            "slug": "lakkavaram"
+        },
+        {
+            "name": "Likabali",
+            "slug": "likabali"
+        },
+        {
+            "name": "Macherla",
+            "slug": "macherla"
+        },
+        {
+            "name": "Machilipatnam",
+            "slug": "machilipatnam"
+        },
+        {
+            "name": "Madanapalle",
+            "slug": "madanapalle"
+        },
+        {
+            "name": "Madhavaram",
+            "slug": "madhavaram"
+        },
+        {
+            "name": "Madugula",
+            "slug": "madugula"
+        },
+        {
+            "name": "Malikipuram",
+            "slug": "malikipuram"
+        },
+        {
+            "name": "Mandapeta",
+            "slug": "mandapeta"
+        },
+        {
+            "name": "Mandasa",
+            "slug": "mandasa"
+        },
+        {
+            "name": "Mangalagiri",
+            "slug": "mangalagiri"
+        },
+        {
+            "name": "Manikonda (AP)",
+            "slug": "manikonda-ap"
+        },
+        {
+            "name": "Markapur",
+            "slug": "markapur"
+        },
+        {
+            "name": "Martur",
+            "slug": "martur"
+        },
+        {
+            "name": "Medarametla",
+            "slug": "medarametla"
+        },
+        {
+            "name": "Mummidivaram",
+            "slug": "mummidivaram"
+        },
+        {
+            "name": "Mydukur",
+            "slug": "mydukur"
+        },
+        {
+            "name": "Mylavaram",
+            "slug": "mylavaram"
+        },
+        {
+            "name": "Nagari",
+            "slug": "nagari"
+        },
+        {
+            "name": "Nagayalanka",
+            "slug": "nagayalanka"
+        },
+        {
+            "name": "Naidupeta",
+            "slug": "naidupeta"
+        },
+        {
+            "name": "Nallajerla",
+            "slug": "nallajerla"
+        },
+        {
+            "name": "Nandigama",
+            "slug": "nandigama"
+        },
+        {
+            "name": "Nandikotkur",
+            "slug": "nandikotkur"
+        },
+        {
+            "name": "Nandyal",
+            "slug": "nandyal"
+        },
+        {
+            "name": "Narasannapeta",
+            "slug": "narasannapeta"
+        },
+        {
+            "name": "Narsapur",
+            "slug": "narsapur"
+        },
+        {
+            "name": "Narsipatnam",
+            "slug": "narsipatnam"
+        },
+        {
+            "name": "Neelapalli",
+            "slug": "neelapalli"
+        },
+        {
+            "name": "Nellimarla",
+            "slug": "nellimarla"
+        },
+        {
+            "name": "Nellore",
+            "slug": "nellore"
+        },
+        {
+            "name": "Nidadavolu",
+            "slug": "nidadavolu"
+        },
+        {
+            "name": "Nindra",
+            "slug": "nindra"
+        },
+        {
+            "name": "Nuzvid",
+            "slug": "nuzvid"
+        },
+        {
+            "name": "Ongole",
+            "slug": "ongole"
+        },
+        {
+            "name": "P. Dharmavaram",
+            "slug": "p-dharmavaram"
+        },
+        {
+            "name": "P.Gannavaram",
+            "slug": "pgannavaram"
+        },
+        {
+            "name": "Pakala",
+            "slug": "pakala"
+        },
+        {
+            "name": "Palakollu",
+            "slug": "palakollu"
+        },
+        {
+            "name": "Palakonda",
+            "slug": "palakonda"
+        },
+        {
+            "name": "Palamaner",
+            "slug": "palamaner"
+        },
+        {
+            "name": "Palasa",
+            "slug": "palasa"
+        },
+        {
+            "name": "Pamarru",
+            "slug": "pamarru"
+        },
+        {
+            "name": "Pamidi",
+            "slug": "pamidi"
+        },
+        {
+            "name": "Pamuru",
+            "slug": "pamuru"
+        },
+        {
+            "name": "Parchur",
+            "slug": "parchur"
+        },
+        {
+            "name": "Parvathipuram",
+            "slug": "parvathipuram"
+        },
+        {
+            "name": "Pathapatnam",
+            "slug": "pathapatnam"
+        },
+        {
+            "name": "Payakaraopeta",
+            "slug": "payakaraopeta"
+        },
+        {
+            "name": "Pedana",
+            "slug": "pedana"
+        },
+        {
+            "name": "Pedanandipadu",
+            "slug": "pedanandipadu"
+        },
+        {
+            "name": "Pedapadu",
+            "slug": "pedapadu"
+        },
+        {
+            "name": "Peddapuram",
+            "slug": "peddapuram"
+        },
+        {
+            "name": "Penuganchiprolu",
+            "slug": "penuganchiprolu"
+        },
+        {
+            "name": "Penugonda",
+            "slug": "penugonda"
+        },
+        {
+            "name": "Piduguralla",
+            "slug": "piduguralla"
+        },
+        {
+            "name": "Pileru",
+            "slug": "pileru"
+        },
+        {
+            "name": "Pithapuram",
+            "slug": "pithapuram"
+        },
+        {
+            "name": "Podalakur",
+            "slug": "podalakur"
+        },
+        {
+            "name": "Podili",
+            "slug": "podili"
+        },
+        {
+            "name": "Polavaram",
+            "slug": "polavaram"
+        },
+        {
+            "name": "Ponduru",
+            "slug": "ponduru"
+        },
+        {
+            "name": "Porumamilla",
+            "slug": "porumamilla"
+        },
+        {
+            "name": "Proddatur",
+            "slug": "proddatur"
+        },
+        {
+            "name": "Pulivendula",
+            "slug": "pulivendula"
+        },
+        {
+            "name": "Punganur",
+            "slug": "punganur"
+        },
+        {
+            "name": "Pusapatirega",
+            "slug": "pusapatirega"
+        },
+        {
+            "name": "Puttur (Andhra Pradesh)",
+            "slug": "puttur-andhra-pradesh"
+        },
+        {
+            "name": "Railway Koduru",
+            "slug": "railway-koduru"
+        },
+        {
+            "name": "Rajam",
+            "slug": "rajam"
+        },
+        {
+            "name": "Rajamahendravaram (Rajahmundry)",
+            "slug": "rajamahendravaram-rajahmundry"
+        },
+        {
+            "name": "Rajavommangi",
+            "slug": "rajavommangi"
+        },
+        {
+            "name": "Ramachandrapuram",
+            "slug": "ramachandrapuram"
+        },
+        {
+            "name": "Rampachodavaram",
+            "slug": "rampachodavaram"
+        },
+        {
+            "name": "Ranastalam",
+            "slug": "ranastalam"
+        },
+        {
+            "name": "Rapur",
+            "slug": "rapur"
+        },
+        {
+            "name": "Ravulapalem",
+            "slug": "ravulapalem"
+        },
+        {
+            "name": "Rayachoti",
+            "slug": "rayachoti"
+        },
+        {
+            "name": "Rayavaram",
+            "slug": "rayavaram"
+        },
+        {
+            "name": "Razole",
+            "slug": "razole"
+        },
+        {
+            "name": "Rentachintala",
+            "slug": "rentachintala"
+        },
+        {
+            "name": "Repalle",
+            "slug": "repalle"
+        },
+        {
+            "name": "Routhulapudi",
+            "slug": "routhulapudi"
+        },
+        {
+            "name": "Sabbavaram",
+            "slug": "sabbavaram"
+        },
+        {
+            "name": "Salihundam",
+            "slug": "salihundam"
+        },
+        {
+            "name": "Salur",
+            "slug": "salur"
+        },
+        {
+            "name": "Samalkota",
+            "slug": "samalkota"
+        },
+        {
+            "name": "Sattenapalle",
+            "slug": "sattenapalle"
+        },
+        {
+            "name": "Seethanagaram",
+            "slug": "seethanagaram"
+        },
+        {
+            "name": "Singarayakonda",
+            "slug": "singarayakonda"
+        },
+        {
+            "name": "Sompeta",
+            "slug": "sompeta"
+        },
+        {
+            "name": "Sri Sathya Sai",
+            "slug": "sri-sathya-sai"
+        },
+        {
+            "name": "Srikakulam",
+            "slug": "srikakulam"
+        },
+        {
+            "name": "T.Narasapuram",
+            "slug": "tnarasapuram"
+        },
+        {
+            "name": "Tadepalligudem",
+            "slug": "tadepalligudem"
+        },
+        {
+            "name": "Tadikalapudi",
+            "slug": "tadikalapudi"
+        },
+        {
+            "name": "Tadipatri",
+            "slug": "tadipatri"
+        },
+        {
+            "name": "Tallapudi",
+            "slug": "tallapudi"
+        },
+        {
+            "name": "Tallarevu",
+            "slug": "tallarevu"
+        },
+        {
+            "name": "Tangutur",
+            "slug": "tangutur"
+        },
+        {
+            "name": "Tanuku",
+            "slug": "tanuku"
+        },
+        {
+            "name": "Tatipaka",
+            "slug": "tatipaka"
+        },
+        {
+            "name": "Tekkali",
+            "slug": "tekkali"
+        },
+        {
+            "name": "Tenali",
+            "slug": "tenali"
+        },
+        {
+            "name": "Thimmapuram (Addu Road)",
+            "slug": "thimmapuram-addu-road"
+        },
+        {
+            "name": "Thullur",
+            "slug": "thullur"
+        },
+        {
+            "name": "Tirupati",
+            "slug": "tirupati"
+        },
+        {
+            "name": "Tiruvuru",
+            "slug": "tiruvuru"
+        },
+        {
+            "name": "Tuni",
+            "slug": "tuni"
+        },
+        {
+            "name": "Turputallu",
+            "slug": "turputallu"
+        },
+        {
+            "name": "Undavalli",
+            "slug": "undavalli"
+        },
+        {
+            "name": "Uppada",
+            "slug": "uppada"
+        },
+        {
+            "name": "Valaparla",
+            "slug": "valaparla"
+        },
+        {
+            "name": "Valluru",
+            "slug": "valluru"
+        },
+        {
+            "name": "Varadaiahpalem",
+            "slug": "varadaiahpalem"
+        },
+        {
+            "name": "Vatsavai",
+            "slug": "vatsavai"
+        },
+        {
+            "name": "Veeraghattam",
+            "slug": "veeraghattam"
+        },
+        {
+            "name": "Velangi",
+            "slug": "velangi"
+        },
+        {
+            "name": "Vellampalli",
+            "slug": "vellampalli"
+        },
+        {
+            "name": "Velugodu",
+            "slug": "velugodu"
+        },
+        {
+            "name": "Vempalli",
+            "slug": "vempalli"
+        },
+        {
+            "name": "Vetapalem",
+            "slug": "vetapalem"
+        },
+        {
+            "name": "Vijayarai",
+            "slug": "vijayarai"
+        },
+        {
+            "name": "Vijayawada",
+            "slug": "vijayawada"
+        },
+        {
+            "name": "Vinjamur",
+            "slug": "vinjamur"
+        },
+        {
+            "name": "Vinukonda",
+            "slug": "vinukonda"
+        },
+        {
+            "name": "Vissannapeta",
+            "slug": "vissannapeta"
+        },
+        {
+            "name": "Vizag (Visakhapatnam)",
+            "slug": "vizag-visakhapatnam"
+        },
+        {
+            "name": "Vizianagaram",
+            "slug": "vizianagaram"
+        },
+        {
+            "name": "Vuyyuru",
+            "slug": "vuyyuru"
+        },
+        {
+            "name": "Yanam",
+            "slug": "yanam"
+        },
+        {
+            "name": "Yeleswaram",
+            "slug": "yeleswaram"
+        },
+        {
+            "name": "Yellamanchili",
+            "slug": "yellamanchili"
+        },
+        {
+            "name": "Yemmiganur",
+            "slug": "yemmiganur"
+        },
+        {
+            "name": "Yerragondapalem",
+            "slug": "yerragondapalem"
+        },
+        {
+            "name": "Yerraguntla",
+            "slug": "yerraguntla"
         }
     ],
     "Arunachal Pradesh": [
