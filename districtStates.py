@@ -20,10 +20,9 @@ SHOW_DATE = "2026-01-24"
 
 def get_driver():
     options = Options()
-    options.add_argument("--headless=new")
+    options.add_argument("--headless")
     options.add_argument("start-maximized")
-    service = Service(ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=options)
+    return webdriver.Chrome(options=options)
 
 def extract_city_data(driver, state_name, city_name, city_slug, processed_ids):
     url = f"{MOVIE_BASE_URL}{city_slug}-MV203929?fromdate={SHOW_DATE}"
@@ -182,7 +181,7 @@ def generate_consolidated_report(all_results):
     ws3.append(["Overall Occupancy (%)", overall_occ])
     ws3.append(["Generated At", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
-    filename = f"district_multistate_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    filename = f"district_states_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     filepath = os.path.join(reports_dir, filename)
     wb.save(filepath)
     print(f"\n📊 Excel Report with 5 Sheets Saved: {filepath}")
@@ -225,7 +224,7 @@ if __name__ == "__main__":
 
     if final_data:
         generate_consolidated_report(final_data)
-        img_path = f"reports/district_multistate_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        img_path = f"reports/district_states_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
         
         # Now passing URL instead of hardcoded strings
         generate_multi_state_image_report(final_data, MOVIE_BASE_URL + "city?fromdate=" + SHOW_DATE, img_path)

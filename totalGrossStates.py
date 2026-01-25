@@ -42,8 +42,7 @@ def get_driver():
     options.add_argument(f"user-agent={ua.random}")
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_argument("--disable-web-security")
-    service = Service(ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=options)
+    return webdriver.Chrome(options=options)
 
 # ================= PART 1: DISTRICT LOGIC =================
 def fetch_district_data(driver):

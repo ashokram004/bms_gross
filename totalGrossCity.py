@@ -37,8 +37,7 @@ def get_driver():
     options.add_argument("start-maximized")
     options.add_argument(f"user-agent={ua.random}")
     options.add_argument("--disable-web-security")
-    service = Service(ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=options)
+    return webdriver.Chrome(options=options)
 
 # ================= DISTRICT LOGIC =================
 def fetch_district_data(driver):
@@ -218,7 +217,7 @@ def fetch_bms_data():
                         "occupancy": occ
                     })
                 except: pass
-                time.sleep(0.5)
+                time.sleep(1)
         
         print(f"✅ BMS: Found {len(results)} shows.")
 
