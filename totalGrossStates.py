@@ -92,7 +92,7 @@ def fetch_district_data(driver):
             
             try:
                 driver.get(url)
-                time.sleep(2)
+                time.sleep(1)
                 html = driver.page_source
                 
                 marker = 'id="__NEXT_DATA__"'
@@ -506,6 +506,6 @@ if __name__ == "__main__":
         
         # Use a fallback URL if BMS didn't run
         ref_url_final = last_valid_url if last_valid_url else (DISTRICT_URL_BASE + "city")
-        generate_hybrid_image_report(final_data, ref_url_final, f"reports/Total_States_Report_{ts_final}.png")
+        generate_hybrid_image_report(final_data, BMS_URL_TEMPLATE, f"reports/Total_States_Report_{ts_final}.png", "bms")
     else:
         print("❌ No data found.")

@@ -14,7 +14,7 @@ def parse_metadata(reference_url, source_type="district"):
         parsed = urlparse(reference_url)
         path_parts = [p for p in parsed.path.split('/') if p]
         
-        movie_name = "Hybrid Collection Report"
+        movie_name = "Collection Report"
         show_date = datetime.now().strftime("%d %b %Y")
 
         if source_type == "district":
@@ -38,7 +38,7 @@ def parse_metadata(reference_url, source_type="district"):
 
         return movie_name, show_date
     except:
-        return "Hybrid Collection Report", datetime.now().strftime("%d %b %Y")
+        return "Collection Report", datetime.now().strftime("%d %b %Y")
 
 def get_fonts():
     try:
