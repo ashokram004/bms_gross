@@ -7,7 +7,7 @@ from openpyxl import Workbook
 from utils.generateImageReport import generate_city_image_report
 
 # Example URL provided by you
-url = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-hyderabad-MV203929"
+url = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-vizag-MV203929"
 MOVIE_DATE = "2026-01-25"
 
 

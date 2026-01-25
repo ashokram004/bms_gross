@@ -1,8 +1,8 @@
 import json
 
 # Define file names
-input_file = 'tempInput.txt'
-output_file = 'cities_config.json'
+input_file = 'districtCitiesInput.txt'
+output_file = 'district_cities_config.json'
 
 def convert_to_state_dictionary():
     try:

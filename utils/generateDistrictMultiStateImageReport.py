@@ -9,28 +9,22 @@ FONT_PATH_BOLD = "arialbd.ttf"
 FONT_PATH_REG = "arial.ttf"
 
 def parse_url_metadata(url):
-    """
-    Dynamically extracts movie name and date from District URL.
-    """
     try:
         parsed_url = urlparse(url)
         path_parts = [p for p in parsed_url.path.split('/') if p]
         query_params = parse_qs(parsed_url.query)
 
-        # 1. Movie Name: Extract from /movies/{name}-movie-tickets-in-...
         movie_name = "Movie Collection Report"
         if len(path_parts) >= 2 and path_parts[0] == "movies":
             slug = path_parts[1]
             if "-movie-tickets-in-" in slug:
                 movie_name = slug.split("-movie-tickets-in-")[0].replace("-", " ").title()
 
-        # 2. Date: Extract from 'fromdate' query param (Default to Jan 25)
         raw_date = query_params.get('fromdate', [None])[0]
         if raw_date:
             show_date = datetime.strptime(raw_date, "%Y-%m-%d").strftime("%d %b %Y")
         else:
             show_date = datetime.now().strftime("%d %b %Y")
-
         return movie_name, show_date
     except:
         return "Movie Collection", datetime.now().strftime("%d %b %Y")
@@ -64,11 +58,13 @@ def generate_multi_state_image_report(all_results, reference_url, output_path):
         target["shows"] += 1
         target["seats"] += r["total_tickets"]
 
-    # --- 2. ASH'S SELECTION LOGIC ---
+    # --- 2. SELECTION LOGIC ---
     num_states = len(state_groups)
     cities_per_state = MAX_TOTAL_CITY_ROWS // num_states if num_states > 0 else 50
     
     city_list, state_summary = [], []
+    grand_total_seats = 0 # To calculate global occupancy
+    
     for state, cities in state_groups.items():
         st_gross = sum(c["gross"] for c in cities.values())
         st_tkts = sum(c["tickets"] for c in cities.values())
@@ -76,6 +72,7 @@ def generate_multi_state_image_report(all_results, reference_url, output_path):
         st_seats = sum(c["seats"] for c in cities.values())
         st_occ = round((st_tkts / st_seats) * 100, 1) if st_seats else 0
         state_summary.append({"state": state, "gross": st_gross, "tickets": st_tkts, "shows": st_shows, "occ": st_occ})
+        grand_total_seats += st_seats # Summing total capacity
 
         sorted_cities = sorted(cities.items(), key=lambda x: x[1]["gross"], reverse=True)
         for name, data in sorted_cities[:cities_per_state]:
@@ -91,9 +88,9 @@ def generate_multi_state_image_report(all_results, reference_url, output_path):
     # --- 3. COLORS & LAYOUT ---
     C_ORANGE, C_BLUE, C_GREY, C_GREEN = (237, 125, 49), (189, 215, 238), (217, 217, 217), (169, 208, 142)
     padding, row_h, head_h = 25, 30, 45
-    col_w = [300, 80, 100, 140, 80] # Header columns
+    col_w = [300, 80, 100, 140, 80]
     img_w = sum(col_w) + (padding * 2)
-    img_h = padding + 150 + (len(state_summary) * row_h) + (len(city_list) * row_h) + (head_h * 2) + padding
+    img_h = padding + 150 + (len(state_summary) * row_h) + (len(city_list) * row_h) + (head_h * 2) + padding + 20 # Extra 20px padding at bottom
 
     img = Image.new('RGB', (img_w, img_h), (255, 255, 255))
     draw = ImageDraw.Draw(img)
@@ -116,7 +113,6 @@ def generate_multi_state_image_report(all_results, reference_url, output_path):
         draw.rectangle([(padding, curr_y), (img_w-padding, curr_y+row_h)], fill=C_GREY)
         draw.text((padding+10, curr_y+row_h/2), st["state"], font=f_bold, fill=(0,0,0), anchor="lm")
         x = padding + 300
-        # Columns: Shows, Tickets, Gross, Occ
         draw.text((x+40, curr_y+row_h/2), str(st["shows"]), font=f_bold, fill=(0,0,0), anchor="mm")
         draw.text((x+130, curr_y+row_h/2), str(st["tickets"]), font=f_bold, fill=(0,0,0), anchor="mm")
         draw.text((x+310, curr_y+row_h/2), f"{st['gross']:,.0f}", font=f_bold, fill=(0,0,0), anchor="rm")
@@ -127,16 +123,13 @@ def generate_multi_state_image_report(all_results, reference_url, output_path):
 
     # SECTION: Top Cities Breakdown
     draw.rectangle([(padding, curr_y), (img_w-padding, curr_y+head_h)], fill=C_ORANGE)
-    draw.text((img_w//2, curr_y+head_h/2), f"TOP {len(city_list)} CITIES BY REVENUE", font=f_header, fill=(255, 255, 255), anchor="mm")
+    draw.text((img_w//2, curr_y+head_h/2), f"TOP {len(city_list)} AREAS BY REVENUE", font=f_header, fill=(255, 255, 255), anchor="mm")
     curr_y += head_h
 
     draw.rectangle([(padding, curr_y), (img_w-padding, curr_y+row_h)], fill=C_BLUE)
-    headers = ["City (State)", "Shows", "Tickets", "Gross (INR)", "Occ %"]
-    x = padding
+    headers, x = ["City (State)", "Shows", "Tickets", "Gross (INR)", "Occ %"], padding
     for i, h in enumerate(headers):
-        anchor = "lm" if i==0 else "mm"
-        pos = x+10 if i==0 else x+col_w[i]/2
-        draw.text((pos, curr_y+row_h/2), h, font=f_bold, fill=(0,0,0), anchor=anchor)
+        draw.text((x+10 if i==0 else x+col_w[i]/2, curr_y+row_h/2), h, font=f_bold, fill=(0,0,0), anchor="lm" if i==0 else "mm")
         x += col_w[i]
     curr_y += row_h
 
@@ -145,21 +138,29 @@ def generate_multi_state_image_report(all_results, reference_url, output_path):
         draw.rectangle([(padding, curr_y), (img_w-padding, curr_y+row_h)], fill=bg)
         draw.text((padding+10, curr_y+row_h/2), f"{ct['city']} ({ct['state'][:2].upper()})", font=f_reg, fill=(0,0,0), anchor="lm")
         x = padding + 300
-        # Columns: Shows, Tickets, Gross, Occ
         draw.text((x+40, curr_y+row_h/2), str(ct["shows"]), font=f_reg, fill=(0,0,0), anchor="mm")
         draw.text((x+130, curr_y+row_h/2), str(ct["tickets"]), font=f_reg, fill=(0,0,0), anchor="mm")
         draw.text((x+310, curr_y+row_h/2), f"{ct['gross']:,.0f}", font=f_reg, fill=(0,0,0), anchor="rm")
         draw.text((x+360, curr_y+row_h/2), f"{ct['occ']}%", font=f_reg, fill=(0,0,0), anchor="mm")
         curr_y += row_h
 
-    # SECTION: Footer (Grand Total)
+    # SECTION: Footer (Grand Total) with Occupancy
     draw.rectangle([(padding, curr_y), (img_w-padding, curr_y+row_h)], fill=C_GREEN)
     draw.text((padding+10, curr_y+row_h/2), "GRAND TOTAL (ALL STATES)", font=f_bold, fill=(0,0,0), anchor="lm")
-    t_gross, t_tkts, t_shows = sum(s["gross"] for s in state_summary), sum(s["tickets"] for s in state_summary), sum(s["shows"] for s in state_summary)
+    
+    t_gross = sum(s["gross"] for s in state_summary)
+    t_tkts = sum(s["tickets"] for s in state_summary)
+    t_shows = sum(s["shows"] for s in state_summary)
+    
+    # Calculate Global Occupancy
+    t_occ = round((t_tkts / grand_total_seats) * 100, 1) if grand_total_seats > 0 else 0
+
     x = padding + 300
     draw.text((x+40, curr_y+row_h/2), str(t_shows), font=f_bold, fill=(0,0,0), anchor="mm")
     draw.text((x+130, curr_y+row_h/2), str(t_tkts), font=f_bold, fill=(0,0,0), anchor="mm")
     draw.text((x+310, curr_y+row_h/2), f"{t_gross:,.0f}", font=f_bold, fill=(0,0,0), anchor="rm")
+    # Added Grand Total Occupancy here
+    draw.text((x+360, curr_y+row_h/2), f"{t_occ}%", font=f_bold, fill=(0,0,0), anchor="mm")
 
     img.save(output_path)
     print(f"🖼️ Full Image Report Saved: {output_path}")
