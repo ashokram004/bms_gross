@@ -20,7 +20,7 @@ from utils.generateDistrictMultiStateImageReport import generate_multi_state_ima
 from utils.generateHybridStatesImageReport import generate_hybrid_image_report
 
 # =========================== CONFIGURATION ===========================
-INPUT_STATE_LIST = ["Andhra Pradesh"] 
+INPUT_STATE_LIST = ["Andhra Pradesh", "Telangana"] 
 SHOW_DATE = "2026-01-25"
 
 # Config Paths
@@ -92,7 +92,7 @@ def fetch_district_data(driver):
             
             try:
                 driver.get(url)
-                time.sleep(1.5)
+                time.sleep(2)
                 html = driver.page_source
                 
                 marker = 'id="__NEXT_DATA__"'
