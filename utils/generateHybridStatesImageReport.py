@@ -156,7 +156,7 @@ def generate_hybrid_image_report(all_results, ref_url, output_path, ref_source="
 
     # Footer
     draw.rectangle([(padding, y), (w-padding, y+row_h)], fill=colors[3])
-    draw.text((padding+10, y+row_h/2), "GRAND TOTAL", font=f_bold, fill=(0,0,0), anchor="lm")
+    draw.text((padding+10, y+row_h/2), "Total", font=f_bold, fill=(0,0,0), anchor="lm")
     tg = sum(s["gross"] for s in state_summary)
     tk = sum(s["tickets"] for s in state_summary)
     ts = sum(s["shows"] for s in state_summary)

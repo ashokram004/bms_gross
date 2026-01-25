@@ -167,7 +167,7 @@ def generate_city_image_report(results, source_url, output_path, source_type="di
 
     # Footer
     draw.rectangle([(padding, curr_y), (img_w-padding, curr_y+row_h)], fill=COLOR_FOOTER_BG)
-    draw.text((padding+10, curr_y+row_h/2), "Grand Total", font=f_bold, fill=COLOR_TEXT, anchor="lm")
+    draw.text((padding+10, curr_y+row_h/2), "Total", font=f_bold, fill=COLOR_TEXT, anchor="lm")
     x = padding + cols[0]["width"]
     draw.text((x + cols[1]["width"]/2, curr_y+row_h/2), str(grand_total_shows), font=f_bold, fill=COLOR_TEXT, anchor="mm")
     x += cols[1]["width"]

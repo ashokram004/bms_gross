@@ -206,7 +206,7 @@ def generate_multi_city_image_report(all_results, reference_url, output_path):
 
     # --- E. FOOTER ---
     draw.rectangle([(padding, current_y), (image_width - padding, current_y + row_height)], fill=COLOR_FOOTER_BG)
-    draw.text((padding + 10, current_y + (row_height/2)), "Grand Total", font=font_bold, fill=COLOR_TEXT, anchor="lm")
+    draw.text((padding + 10, current_y + (row_height/2)), "Total", font=font_bold, fill=COLOR_TEXT, anchor="lm")
     
     x_cursor = padding + cols[0]["width"] 
     # Shows

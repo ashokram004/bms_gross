@@ -146,7 +146,7 @@ def generate_multi_state_image_report(all_results, reference_url, output_path):
 
     # SECTION: Footer (Grand Total) with Occupancy
     draw.rectangle([(padding, curr_y), (img_w-padding, curr_y+row_h)], fill=C_GREEN)
-    draw.text((padding+10, curr_y+row_h/2), "GRAND TOTAL (ALL STATES)", font=f_bold, fill=(0,0,0), anchor="lm")
+    draw.text((padding+10, curr_y+row_h/2), "Total", font=f_bold, fill=(0,0,0), anchor="lm")
     
     t_gross = sum(s["gross"] for s in state_summary)
     t_tkts = sum(s["tickets"] for s in state_summary)

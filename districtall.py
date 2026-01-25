@@ -13,7 +13,7 @@ from utils.generateDistrictMultiStateImageReport import generate_multi_state_ima
 inputStateList = ["Andhra Pradesh"] 
 
 
-# --- CONFIGURATION ---
+# --- CONFIGURATION --- Check district_cities_config file under utils folder to find states 
 CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
 MOVIE_BASE_URL = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-"
 SHOW_DATE = "2026-01-24"
@@ -182,7 +182,7 @@ def generate_consolidated_report(all_results):
     ws3.append(["Overall Occupancy (%)", overall_occ])
     ws3.append(["Generated At", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
-    filename = f"district_consolidated_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    filename = f"district_multistate_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     filepath = os.path.join(reports_dir, filename)
     wb.save(filepath)
     print(f"\n📊 Excel Report with 5 Sheets Saved: {filepath}")

@@ -427,7 +427,7 @@ def generate_excel(results, total):
 
     # ================= SAVE FILE =================
     file_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"bms_collections_{file_ts}.xlsx"
+    filename = f"bms_city_report_{file_ts}.xlsx"
     filepath = os.path.join(reports_dir, filename)
 
     wb.save(filepath)

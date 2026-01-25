@@ -167,7 +167,7 @@ def generate_excel(results, total):
 
     # Save File
     file_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = os.path.join(reports_dir, f"district_collections_{file_ts}.xlsx")
+    filename = os.path.join(reports_dir, f"district_city_report_{file_ts}.xlsx")
     wb.save(filename)
     print(f"📊 Full Report with Summary Saved: {filename}")
 

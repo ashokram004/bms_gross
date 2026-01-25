@@ -15,26 +15,22 @@ from fake_useragent import UserAgent
 
 # --- IMPORT IMAGE GENERATORS ---
 from utils.generateDistrictMultiStateImageReport import generate_multi_state_image_report
-from utils.generateHybridImageReport import generate_hybrid_image_report
+from utils.generateHybridStatesImageReport import generate_hybrid_image_report
 
 # ================= CONFIGURATION =================
-# District Settings
-DISTRICT_STATES = ["Andhra Pradesh", "Telangana"] 
-DISTRICT_CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
-DISTRICT_URL_BASE = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-"
-SHOW_DATE = "2026-01-25" 
+# Shared Settings
+INPUT_STATE_LIST = ["Andhra Pradesh", "Telangana"] 
+SHOW_DATE = "2026-01-25"
 
-# BMS Settings
-BMS_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
+# Config Paths
+DISTRICT_CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
+BMS_CONFIG_PATH = os.path.join("utils", "bms_cities_config.json")
+
+# URLs
+DISTRICT_URL_BASE = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-"
 BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260124"
-BMS_CITIES = [
-    "anakapalle", "vizag-Visakhapatnam", "Vijayawada", "Guntur", "Nellore",
-    "rajamahendravaram-rajahmundry", "Kurnool", "Kakinada", "Kadapa", "Tirupati",
-    "tadepalligudem", "mangalagiri", "Anantapur", "Ongole", "Vizianagaram", "Eluru",
-    "Proddatur", "Nandyal", "Adoni", "Madanapalle", "machilipatnam", "Tenali",
-    "Chittoor", "Hindupur", "Srikakulam", "Bhimavaram", "Guntakal", "Dharmavaram",
-    "Gudivada", "Narasaraopet", "Kadiri", "Tadipatri", "Chilakaluripet", "Hyderabad", "Secunderabad"
-]
+
+BMS_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 BOOKED_CODES = {"2"} 
 
 # ================= SHARED DRIVER =================
@@ -49,42 +45,25 @@ def get_driver():
     service = Service(ChromeDriverManager().install())
     return webdriver.Chrome(service=service, options=options)
 
-# ================= HELPER: STATE LOOKUP =================
-def get_city_state_map():
-    """Builds a dictionary to look up State by City Name or Slug from config."""
-    if not os.path.exists(DISTRICT_CONFIG_PATH): return {}
-    
-    with open(DISTRICT_CONFIG_PATH, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    
-    mapping = {}
-    for state, cities in data.items():
-        for city in cities:
-            # Map both slug and name
-            if (city['slug'] == None or city['name'] == None):
-                continue
-            mapping[city['slug'].lower()] = state
-            mapping[city['name'].lower()] = state
-            # Handle slug parts (e.g. "vizag" from "vizag-visakhapatnam")
-            if "-" in city['slug']:
-                for p in city['slug'].split("-"): mapping[p.lower()] = state
-    return mapping
-
 # ================= PART 1: DISTRICT LOGIC =================
 def fetch_district_data(driver):
     print("\n🚀 STARTING DISTRICT APP PROCESS...")
     if not os.path.exists(DISTRICT_CONFIG_PATH):
-        print(f"❌ Config file missing: {DISTRICT_CONFIG_PATH}")
+        print(f"❌ District Config missing: {DISTRICT_CONFIG_PATH}")
         return []
 
     with open(DISTRICT_CONFIG_PATH, 'r', encoding='utf-8') as f:
         config = json.load(f)
     
     results = []
-    processed_sids = set() # Track SIDs to prevent cross-city duplicates within District
+    processed_sids = set() 
     
-    for state in DISTRICT_STATES:
+    for state in INPUT_STATE_LIST:
         cities = config.get(state, [])
+        if not cities:
+            print(f"⚠️ No District cities found for {state}")
+            continue
+
         for city in cities:
             url = f"{DISTRICT_URL_BASE}{city['slug']}-MV203929?fromdate={SHOW_DATE}"
             print(f"🌐 [{state}] Fetching {city['name']}...", end="\r")
@@ -112,7 +91,6 @@ def fetch_district_data(driver):
                     for s in cin.get('sessions', []):
                         sid = s.get('sid', '')
 
-                        # ✅ PREVENT DUPLICATE PROCESSING (Neighboring cities showing same theater)
                         if sid in processed_sids: continue
                         processed_sids.add(sid)
                         
@@ -205,127 +183,129 @@ def calculate_bms_collection(decrypted, price_map):
     return t_tkts, b_tkts, int(t_gross), int(b_gross), occ
 
 def fetch_bms_data():
-    print("\n🚀 STARTING BMS PROCESS (Fresh Driver per City)...")
+    print("\n🚀 STARTING BMS PROCESS (Dynamic from Config)...")
     
-    # Load State Map for dynamic assignment
-    state_lookup = get_city_state_map()
+    if not os.path.exists(BMS_CONFIG_PATH):
+        print(f"❌ BMS Config missing at {BMS_CONFIG_PATH}")
+        return []
+
+    # Load BMS Config
+    with open(BMS_CONFIG_PATH, 'r', encoding='utf-8') as f:
+        bms_config = json.load(f)
+
     results = []
     
-    for city_str in BMS_CITIES:
-        clean_city = city_str.split('-')[-1].title() if '-' in city_str else city_str.title()
+    # Loop through Requested States
+    for state in INPUT_STATE_LIST:
+        cities = bms_config.get(state, [])
         
-        # --- DYNAMIC STATE DETECTION ---
-        # Default to AP, but try to find real state from config
-        city_key = city_str.lower()
-        assigned_state = state_lookup.get(city_key, "Andhra Pradesh")
-        
-        # Hard override if config misses Hyderabad
-        if assigned_state == "Andhra Pradesh" and "hyderabad" in city_key:
-            assigned_state = "Telangana"
+        if not cities:
+            print(f"⚠️ No BMS cities found for state: {state}")
+            continue
 
-        url = BMS_URL_TEMPLATE.format(city=city_str)
-        print(f"🌍 BMS Fetching: {clean_city} ({assigned_state})...", end="\r")
+        print(f"📍 Processing {len(cities)} cities in {state} for BMS...")
 
-        # ✅ FRESH DRIVER FOR ROBUSTNESS
-        driver = get_driver() 
-        try:
-            driver.get(url)
-            time.sleep(2.5)
-            html = driver.page_source
+        for city_obj in cities:
+            clean_city = city_obj['name']
+            city_slug = city_obj['slug']
             
-            marker = "window.__INITIAL_STATE__"
-            start = html.find(marker)
-            if start == -1: 
-                print(f"⚠️ BMS Skipped {clean_city}: Blocked or Invalid.")
-                continue
+            url = BMS_URL_TEMPLATE.format(city=city_slug)
+            print(f"🌍 BMS Fetching: {clean_city} ({state})...", end="\r")
 
-            start = html.find("{", start)
-            brace, end = 0, start
-            while end < len(html):
-                if html[end] == "{": brace += 1
-                elif html[end] == "}": brace -= 1
-                if brace == 0: break
-                end += 1
-            
-            state_data = json.loads(html[start:end+1])
-            venues = []
+            # FRESH DRIVER PER CITY
+            driver = get_driver()
             try:
-                sbe = state_data.get("showtimesByEvent")
-                dc = sbe.get("currentDateCode")
-                widgets = sbe["showDates"][dc]["dynamic"]["data"]["showtimeWidgets"]
-                for w in widgets:
-                    if w.get("type") == "groupList":
-                        for g in w["data"]:
-                            if g.get("type") == "venueGroup": venues = g["data"]
-            except: venues = []
-
-            city_res = []
-            for v in venues:
-                v_name = v["additionalData"]["venueName"]
-                v_code = v["additionalData"]["venueCode"]
+                driver.get(url)
+                time.sleep(2)
+                html = driver.page_source
                 
-                for show in v.get("showtimes", []):
-                    sid = show["additionalData"]["sessionId"]
-                    show_time = show["title"]
-                    cats = show["additionalData"].get("categories", [])
-                    price_map = {c["areaCatCode"]: float(c["curPrice"]) for c in cats}
+                marker = "window.__INITIAL_STATE__"
+                start = html.find(marker)
+                if start == -1: 
+                    # print(f"⚠️ Blocked/Invalid: {clean_city}")
+                    continue
+
+                start = html.find("{", start)
+                brace, end = 0, start
+                while end < len(html):
+                    if html[end] == "{": brace += 1
+                    elif html[end] == "}": brace -= 1
+                    if brace == 0: break
+                    end += 1
+                
+                state_data = json.loads(html[start:end+1])
+                venues = []
+                try:
+                    sbe = state_data.get("showtimesByEvent")
+                    dc = sbe.get("currentDateCode")
+                    widgets = sbe["showDates"][dc]["dynamic"]["data"]["showtimeWidgets"]
+                    for w in widgets:
+                        if w.get("type") == "groupList":
+                            for g in w["data"]:
+                                if g.get("type") == "venueGroup": venues = g["data"]
+                except: venues = []
+
+                city_res = []
+                for v in venues:
+                    v_name = v["additionalData"]["venueName"]
+                    v_code = v["additionalData"]["venueCode"]
                     
-                    # API Call
-                    api = "https://services-in.bookmyshow.com/doTrans.aspx"
-                    js = f"""
-                    var cb = arguments[0]; var x = new XMLHttpRequest();
-                    x.open("POST", "{api}", true);
-                    x.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-                    x.onload = function() {{ cb(x.responseText); }};
-                    x.send("strCommand=GETSEATLAYOUT&strAppCode=WEB&strVenueCode={v_code}&strParam1={sid}&strParam2=WEB&strParam5=Y&strFormat=json");
-                    """
-                    
-                    try:
-                        resp = driver.execute_async_script(js)
-                        j_resp = json.loads(resp)["BookMyShow"]
+                    for show in v.get("showtimes", []):
+                        sid = show["additionalData"]["sessionId"]
+                        show_time = show["title"]
+                        cats = show["additionalData"].get("categories", [])
+                        price_map = {c["areaCatCode"]: float(c["curPrice"]) for c in cats}
                         
-                        # --- SOLD OUT / FALLBACK LOGIC ---
-                        if j_resp.get("blnSuccess") == "true":
-                            decrypted = decrypt_data(j_resp.get("strData"))
-                            t_tkts, b_tkts, t_gross, b_gross, occ = calculate_bms_collection(decrypted, price_map)
-                        else:
-                            # Fallback if API fails (likely sold out)
-                            if not price_map: continue
+                        api = "https://services-in.bookmyshow.com/doTrans.aspx"
+                        js = f"""
+                        var cb = arguments[0]; var x = new XMLHttpRequest();
+                        x.open("POST", "{api}", true);
+                        x.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+                        x.onload = function() {{ cb(x.responseText); }};
+                        x.send("strCommand=GETSEATLAYOUT&strAppCode=WEB&strVenueCode={v_code}&strParam1={sid}&strParam2=WEB&strParam5=Y&strFormat=json");
+                        """
+                        
+                        try:
+                            resp = driver.execute_async_script(js)
+                            j_resp = json.loads(resp)["BookMyShow"]
                             
-                            FALLBACK_SEATS = 200
-                            max_price = max(price_map.values()) if price_map else 100
-                            t_tkts = FALLBACK_SEATS
-                            b_tkts = FALLBACK_SEATS # Assume full
-                            t_gross = int(FALLBACK_SEATS * max_price)
-                            b_gross = t_gross
-                            occ = 100.0
+                            if j_resp.get("blnSuccess") == "true":
+                                decrypted = decrypt_data(j_resp.get("strData"))
+                                t_tkts, b_tkts, t_gross, b_gross, occ = calculate_bms_collection(decrypted, price_map)
+                            else:
+                                if not price_map: continue
+                                FALLBACK_SEATS = 200
+                                max_price = max(price_map.values()) if price_map else 100
+                                t_tkts, b_tkts = FALLBACK_SEATS, FALLBACK_SEATS
+                                t_gross = int(FALLBACK_SEATS * max_price)
+                                b_gross, occ = t_gross, 100.0
 
-                        city_res.append({
-                            "source": "bms",
-                            "sid": str(sid),
-                            "state": assigned_state, # DYNAMIC STATE
-                            "city": clean_city,
-                            "venue": v_name,
-                            "showTime": show_time,
-                            "total_tickets": t_tkts,
-                            "booked_tickets": b_tkts,
-                            "total_gross": t_gross,
-                            "booked_gross": b_gross,
-                            "occupancy": occ
-                        })
-                    except: pass
-            
-            if city_res:
-                gross = sum(x['booked_gross'] for x in city_res)
-                print(f"✅ BMS {clean_city:<15} | Shows: {len(city_res):<3} | Gross: ₹{gross:<10,}")
-                results.extend(city_res)
-            else:
-                print(f"⚪ BMS {clean_city:<15} | No shows found.                        ")
+                            city_res.append({
+                                "source": "bms",
+                                "sid": str(sid),
+                                "state": state,         # Uses loop variable
+                                "city": clean_city,     # Uses JSON name
+                                "venue": v_name,
+                                "showTime": show_time,
+                                "total_tickets": t_tkts,
+                                "booked_tickets": b_tkts,
+                                "total_gross": t_gross,
+                                "booked_gross": b_gross,
+                                "occupancy": occ
+                            })
+                        except: pass
+                    
+                        time.sleep(1)
+                
+                if city_res:
+                    gross = sum(x['booked_gross'] for x in city_res)
+                    print(f"✅ BMS {clean_city:<15} | Shows: {len(city_res):<3} | Gross: ₹{gross:<10,}")
+                    results.extend(city_res)
 
-        except Exception as e:
-            print(f"❌ Error fetching {clean_city}: {e}")
-        finally:
-            driver.quit() # Cleanup
+            except Exception as e:
+                pass
+            finally:
+                driver.quit()
 
     return results
 
@@ -347,20 +327,18 @@ def generate_consolidated_excel(all_results, filename):
         st = r["state"]
         if st not in state_map:
             state_map[st] = {"shows":0, "t_seats":0, "b_seats":0, "p_gross":0, "b_gross":0}
-            city_tracker[st] = set()
-            theatre_tracker[st] = set()
+            city_tracker[st] = set(); theatre_tracker[st] = set()
         
         d = state_map[st]
         d["shows"] += 1; d["t_seats"] += r["total_tickets"]; d["b_seats"] += r["booked_tickets"]
         d["p_gross"] += r["total_gross"]; d["b_gross"] += r["booked_gross"]
-        city_tracker[st].add(r["city"])
-        theatre_tracker[st].add(r["venue"])
+        city_tracker[st].add(r["city"]); theatre_tracker[st].add(r["venue"])
 
     for st, d in state_map.items():
         avg_occ = round((d["b_seats"] / d["t_seats"]) * 100, 2) if d["t_seats"] > 0 else 0
         ws_state.append([st, len(city_tracker[st]), len(theatre_tracker[st]), d["shows"], d["t_seats"], d["b_seats"], d["p_gross"], d["b_gross"], avg_occ])
 
-    # 2. CITY WISE (Corrected Columns)
+    # 2. CITY WISE
     ws_city = wb.create_sheet(title="City Wise")
     ws_city.append(["State", "City", "Theatres", "Shows", "Total Seats", "Booked Seats", "Total Gross ₹", "Booked Gross ₹", "Occ %"])
     city_map, city_theatre_tracker = {}, {}
@@ -377,7 +355,6 @@ def generate_consolidated_excel(all_results, filename):
 
     for (st, ct), d in city_map.items():
         avg_occ = round((d["b_seats"] / d["t_seats"]) * 100, 2) if d["t_seats"] > 0 else 0
-        # Map: State -> Col 1, City -> Col 2
         ws_city.append([st, ct, len(city_theatre_tracker[(st, ct)]), d["shows"], d["t_seats"], d["b_seats"], d["p_gross"], d["b_gross"], avg_occ])
 
     # 3. THEATRE WISE
@@ -399,12 +376,9 @@ def generate_consolidated_excel(all_results, filename):
     ws_show = wb.create_sheet(title="Show Wise")
     ws_show.append(["Source", "State", "City", "Venue", "Time", "SID", "Total Seats", "Booked Seats", "Total Gross ₹", "Booked Gross ₹", "Occ %"])
     for r in all_results:
-        ws_show.append([
-            r["source"], r["state"], r["city"], r["venue"], r["showTime"], r["sid"],
-            r["total_tickets"], r["booked_tickets"], r["total_gross"], r["booked_gross"], r["occupancy"]
-        ])
+        ws_show.append([r["source"], r["state"], r["city"], r["venue"], r["showTime"], r["sid"], r["total_tickets"], r["booked_tickets"], r["total_gross"], r["booked_gross"], r["occupancy"]])
 
-    # 5. SUMMARY (Expanded with extra metrics)
+    # 5. SUMMARY
     ws_sum = wb.create_sheet(title="Summary")
     agg_p_gross = sum(r["total_gross"] for r in all_results)
     agg_b_gross = sum(r["booked_gross"] for r in all_results)
@@ -414,7 +388,7 @@ def generate_consolidated_excel(all_results, filename):
     overall_occ = round((agg_b_seats / agg_t_seats) * 100, 2) if agg_t_seats > 0 else 0
     
     ws_sum.append(["Metric", "Value"])
-    ws_sum.append(["Total States", len(state_map)])
+    ws_sum.append(["States Processed", len(state_map)])
     ws_sum.append(["Total Cities", len(city_map)])
     ws_sum.append(["Total Theatres", len(th_map)])
     ws_sum.append(["Total Shows", agg_shows])
@@ -465,20 +439,16 @@ if __name__ == "__main__":
         
         if key in merged_map:
             existing = merged_map[key]
-            # Override if BMS found higher gross (e.g. latest update)
+            # Override if BMS found higher gross
             if r["booked_gross"] > existing["booked_gross"]:
                 merged_map[key] = r 
         else:
             merged_map[key] = r # New exclusive BMS show
 
-    final_consolidated_data = list(merged_map.values())
-    
-    # 4. FINAL REPORT
-    if final_consolidated_data:
+    final_data = list(merged_map.values())
+    if final_data:
         ts_final = datetime.now().strftime("%Y%m%d_%H%M%S")
-        generate_consolidated_excel(final_consolidated_data, f"Total_collections_{ts_final}.xlsx")
-        
-        h_img_path = f"reports/Total_collections_{ts_final}.png"
-        generate_hybrid_image_report(final_consolidated_data, DISTRICT_URL_BASE, h_img_path)
+        generate_consolidated_excel(final_data, f"Total_States_Report_{ts_final}.xlsx")
+        generate_hybrid_image_report(final_data, DISTRICT_URL_BASE, f"reports/Total_States_Report_{ts_final}.png")
     else:
-        print("❌ No data found from either source.")
+        print("❌ No data found.")

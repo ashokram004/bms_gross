@@ -1,75 +1,42 @@
 import json
 import time
+import os
 from base64 import b64decode
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 from openpyxl import Workbook
 from fake_useragent import UserAgent
 from datetime import datetime
-import os
 
 from utils.generateBMSMultiCityImageReport import generate_multi_city_image_report
 
-# --- CONFIGURATION ---
-# ONLY TEMPLATE IS NEEDED. NO HARDCODED DATES/NAMES
-MOVIE_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260124"
+# --- CONFIGURATION --- Check bms_cities_config file under utils folder to find states 
+INPUT_STATE_LIST = ["Andhra Pradesh", "Telangana"]  # Add states here
+BMS_CONFIG_PATH = os.path.join("utils", "bms_cities_config.json")
 
-CITIES = [
-    "anakapalle",
-    "vizag-Visakhapatnam",
-    "Vijayawada",
-    "Guntur",
-    "Nellore",
-    "rajamahendravaram-rajahmundry",
-    "Kurnool",
-    "Kakinada",
-    "Kadapa",
-    "Tirupati",
-    "tadepalligudem",
-    "mangalagiri",
-    "Anantapur",
-    "Ongole",
-    "Vizianagaram",
-    "Eluru",
-    "Proddatur",
-    "Nandyal",
-    "Adoni",
-    "Madanapalle",
-    "machilipatnam",
-    "Tenali",
-    "Chittoor",
-    "Hindupur",
-    "Srikakulam",
-    "Bhimavaram",
-    "Tadepalligudem",
-    "Guntakal",
-    "Dharmavaram",
-    "Gudivada",
-    "Narasaraopet",
-    "Kadiri",
-    "Tadipatri",
-    "Chilakaluripet"
-]
+# URL Template
+MOVIE_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260124"
 
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 BOOKED_STATES = {"2"}
 SLEEP_TIME = 1
-
 
 # ---------------- DRIVER ----------------
 def get_driver():
     ua = UserAgent()
     options = Options()
     options.add_argument(f"user-agent={ua.random}")
-    options.add_argument("--headless")
+    options.add_argument("--headless=new")
     options.add_argument("start-maximized")
     options.add_argument("--disable-web-security")
     options.add_argument("--disable-site-isolation-trials")
     options.add_argument("disable-csp")
-    return webdriver.Chrome(options=options)
-
+    service = Service(ChromeDriverManager().install())
+    return webdriver.Chrome(service=service, options=options)
 
 # ---------------- INITIAL STATE ----------------
 def extract_initial_state_from_page(driver, url: str):
@@ -98,7 +65,6 @@ def extract_initial_state_from_page(driver, url: str):
 
     return json.loads(html[start:end + 1])
 
-
 # ---------------- VENUES ----------------
 def extract_venues(state):
     if not state: return []
@@ -119,7 +85,6 @@ def extract_venues(state):
     except Exception as e:
         print(f"⚠️ Error parsing venues: {e}")
     return []
-
 
 # ---------------- SEAT LAYOUT ----------------
 def get_seat_layout(driver, venue_code, session_id):
@@ -165,7 +130,6 @@ def get_seat_layout(driver, venue_code, session_id):
             return None
     return None
 
-
 # ---------------- PRICE & DECRYPT ----------------
 def extract_price_map_from_show(show):
     price_map = {}
@@ -186,7 +150,6 @@ def extract_category_map(decrypted):
         if len(pieces) >= 3:
             category_map[pieces[1]] = pieces[2]
     return category_map
-
 
 # ---------------- CALCULATION ----------------
 def calculate_show_collection(decrypted, price_map):
@@ -236,9 +199,8 @@ def calculate_show_collection(decrypted, price_map):
         "booked_gross": int(booked_gross)
     }
 
-
 # ---------------- PROCESS SINGLE MOVIE ----------------
-def process_movie(driver, url, city_name):
+def process_movie(driver, url, city_name, state_name):
     try:
         state = extract_initial_state_from_page(driver, url)
         if not state:
@@ -295,14 +257,18 @@ def process_movie(driver, url, city_name):
                 tag = "(SOLD OUT HEURISTIC)" if soldOut else ""
                 print(f"   🎬 {venue_name} | {show_time} | Occ: {data['occupancy']}% | Gross: ₹{data['booked_gross']} {tag}")
 
-                data.update({"city": city_name, "venue": venue_name, "showTime": show_time})
+                data.update({
+                    "state": state_name,
+                    "city": city_name, 
+                    "venue": venue_name, 
+                    "showTime": show_time
+                })
                 results.append(data)
                 grand_total += data["booked_gross"]
             
             time.sleep(SLEEP_TIME)
 
     return results, grand_total
-
 
 # ---------------- EXCEL GENERATION ----------------
 def generate_excel(all_results):
@@ -314,27 +280,27 @@ def generate_excel(all_results):
     # SHEET 1: CITY WISE
     city_sheet = wb.active
     city_sheet.title = "City Wise Collections"
-    city_sheet.append(["City", "Show Count", "Total Seats", "Booked Seats", "Occupancy %", "Total Gross", "Booked Gross"])
+    city_sheet.append(["State", "City", "Show Count", "Total Seats", "Booked Seats", "Occupancy %", "Total Gross", "Booked Gross"])
 
     city_totals = {}
     for r in all_results:
-        city = r["city"]
-        if city not in city_totals:
-            city_totals[city] = {
+        key = (r["state"], r["city"])
+        if key not in city_totals:
+            city_totals[key] = {
                 "show_count": 0, "total_seats": 0, "booked_seats": 0,
                 "occupancies": [], "total_gross": 0, "booked_gross": 0
             }
-        city_totals[city]["show_count"] += 1
-        city_totals[city]["total_seats"] += r["total_tickets"]
-        city_totals[city]["booked_seats"] += r["booked_tickets"]
-        city_totals[city]["occupancies"].append(r["occupancy"])
-        city_totals[city]["total_gross"] += r["total_gross"]
-        city_totals[city]["booked_gross"] += r["booked_gross"]
+        city_totals[key]["show_count"] += 1
+        city_totals[key]["total_seats"] += r["total_tickets"]
+        city_totals[key]["booked_seats"] += r["booked_tickets"]
+        city_totals[key]["occupancies"].append(r["occupancy"])
+        city_totals[key]["total_gross"] += r["total_gross"]
+        city_totals[key]["booked_gross"] += r["booked_gross"]
 
-    for city, data in city_totals.items():
+    for (st, ct), data in city_totals.items():
         avg_occ = round(sum(data["occupancies"]) / data["show_count"], 2) if data["show_count"] else 0
         city_sheet.append([
-            city, data["show_count"], data["total_seats"], data["booked_seats"],
+            st, ct, data["show_count"], data["total_seats"], data["booked_seats"],
             avg_occ, data["total_gross"], data["booked_gross"]
         ])
 
@@ -344,15 +310,15 @@ def generate_excel(all_results):
     tc_gross = sum(d["total_gross"] for d in city_totals.values())
     tc_bgross = sum(d["booked_gross"] for d in city_totals.values())
     tc_occ = round((tc_booked / tc_seats) * 100, 2) if tc_seats else 0
-    city_sheet.append(["TOTAL", tc_shows, tc_seats, tc_booked, tc_occ, tc_gross, tc_bgross])
+    city_sheet.append(["TOTAL", "", tc_shows, tc_seats, tc_booked, tc_occ, tc_gross, tc_bgross])
 
     # SHEET 2: THEATRE WISE
     theatre_sheet = wb.create_sheet(title="Theatre Wise Collections")
-    theatre_sheet.append(["City", "Venue", "Show count", "Total Seats", "Booked Seats", "Occupancy %", "Total Gross", "Booked Gross"])
+    theatre_sheet.append(["State", "City", "Venue", "Show count", "Total Seats", "Booked Seats", "Occupancy %", "Total Gross", "Booked Gross"])
 
     theatre_data = {}
     for r in all_results:
-        key = (r["city"], r["venue"])
+        key = (r["state"], r["city"], r["venue"])
         if key not in theatre_data:
             theatre_data[key] = {
                 "num_shows": 0, "total_tickets": 0, "booked_tickets": 0,
@@ -368,16 +334,16 @@ def generate_excel(all_results):
     for key, data in theatre_data.items():
         avg_occ = round(sum(data["occupancies"]) / data["num_shows"], 2) if data["num_shows"] else 0
         theatre_sheet.append([
-            key[0], key[1], data["num_shows"], data["total_tickets"], data["booked_tickets"],
+            key[0], key[1], key[2], data["num_shows"], data["total_tickets"], data["booked_tickets"],
             avg_occ, data["total_gross"], data["booked_gross"]
         ])
 
     # SHEET 3: SHOW WISE
     show_sheet = wb.create_sheet(title="Show Wise Collections")
-    show_sheet.append(["City", "Venue", "Show Time", "Total Seats", "Booked Seats", "Occupancy %", "Total Gross", "Booked Gross"])
+    show_sheet.append(["State", "City", "Venue", "Show Time", "Total Seats", "Booked Seats", "Occupancy %", "Total Gross", "Booked Gross"])
     for r in all_results:
         show_sheet.append([
-            r["city"], r["venue"], r["showTime"], r["total_tickets"], r["booked_tickets"],
+            r["state"], r["city"], r["venue"], r["showTime"], r["total_tickets"], r["booked_tickets"],
             r["occupancy"], r["total_gross"], r["booked_gross"]
         ])
 
@@ -393,48 +359,63 @@ def generate_excel(all_results):
     summary.append(["Report Generated At", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
     file_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"bms_consolidated_{file_ts}.xlsx"
+    filename = f"bms_multistate_{file_ts}.xlsx"
     filepath = os.path.join(reports_dir, filename)
     wb.save(filepath)
     print(f"✅ Excel report saved at: {filepath}")
 
-
 # ---------------- MAIN EXECUTION ----------------
 if __name__ == "__main__":
+    if not os.path.exists(BMS_CONFIG_PATH):
+        print(f"❌ BMS config not found at {BMS_CONFIG_PATH}")
+        exit()
+
+    with open(BMS_CONFIG_PATH, 'r', encoding='utf-8') as f:
+        bms_config = json.load(f)
+
     all_results = []
-    last_valid_url = "" # Stores a valid URL to extract metadata later
+    last_valid_url = "" 
 
-    for city in CITIES:
-        print(f"\n🌍 Fetching: {city}...")
-        driver = None
-        try:
+    print(f"🚀 Starting BMS Scraping for States: {', '.join(INPUT_STATE_LIST)}")
+
+    for state in INPUT_STATE_LIST:
+        cities = bms_config.get(state, [])
+        if not cities:
+            print(f"⚠️ No cities found for {state}")
+            continue
+            
+        print(f"📍 Fetching {len(cities)} cities for {state}...")
+
+        for city_obj in cities:
+            city_name = city_obj['name']
+            city_slug = city_obj['slug']
+            
+            print(f"\n🌍 Fetching: {city_name} ({state})...")
+            
+            # FRESH DRIVER PER CITY
             driver = get_driver()
-            
-            # Using Template
-            url = MOVIE_URL_TEMPLATE.format(city=city)
-            last_valid_url = url # Save for later
-            
-            results_city, total_city = process_movie(driver, url, city)
-            
-            all_results.extend(results_city)
-            print(f"   💰 {city} Total: ₹{total_city}")
+            try:
+                url = MOVIE_URL_TEMPLATE.format(city=city_slug)
+                last_valid_url = url 
+                
+                results_city, total_city = process_movie(driver, url, city_name, state)
+                
+                all_results.extend(results_city)
+                print(f"   💰 {city_name} Total: ₹{total_city}")
 
-        except Exception as e:
-            print(f"   ❌ Critical Error for {city}: {e}")
-        finally:
-            if driver:
-                driver.quit()
-        
-        time.sleep(2)
+            except Exception as e:
+                print(f"   ❌ Critical Error for {city_name}: {e}")
+            finally:
+                driver.quit() # Close driver to prevent blocking
+            
+            time.sleep(2) # Short pause between cities
 
     if all_results:
         # 1. Generate Excel
         generate_excel(all_results)
         
-        # 2. Generate Multi-City Image Report (Using metadata from the last processed URL)
-        img_path = f"reports/bms_multicity_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-        
-        # Now passing URL instead of hardcoded strings
+        # 2. Generate Multi-City Image Report
+        img_path = f"reports/bms_multistate_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
         generate_multi_city_image_report(all_results, last_valid_url, img_path)
     else:
         print("No data collected.")
