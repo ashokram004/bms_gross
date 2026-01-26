@@ -10,13 +10,42 @@ from openpyxl import Workbook
 from utils.generateDistrictMultiStateImageReport import generate_multi_state_image_report
 
 # Add states for reporting
-inputStateList = ["Andhra Pradesh"] 
-
+inputStateList = ["Andhra Pradesh", "Telangana"] 
 
 # --- CONFIGURATION --- Check district_cities_config file under utils folder to find states 
 CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
+# Mapping Path for District App only
+DISTRICT_MAP_PATH = os.path.join("utils", "district_area_city_mapping.json")
+
 MOVIE_BASE_URL = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-"
 SHOW_DATE = "2026-01-24"
+
+# =========================== MAPPING LOGIC ===========================
+
+def load_district_mapping():
+    """Loads the district mapping file into a {(state, city): reporting_city} dictionary."""
+    lookup = {}
+    if os.path.exists(DISTRICT_MAP_PATH):
+        try:
+            with open(DISTRICT_MAP_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                for state, cities in data.items():
+                    if isinstance(cities, list):
+                        for entry in cities:
+                            if "name" in entry and "reporting_city" in entry:
+                                lookup[(state, entry["name"])] = entry["reporting_city"]
+        except Exception as e:
+            print(f"⚠️ Warning loading mapping {DISTRICT_MAP_PATH}: {e}")
+    return lookup
+
+# Pre-load mapping globally
+DISTRICT_CITY_MAP = load_district_mapping()
+
+def get_normalized_city(state, raw_city_name):
+    """Returns reporting_city if mapped, else raw_city_name (safe fallback)."""
+    return DISTRICT_CITY_MAP.get((state, raw_city_name), raw_city_name)
+
+# =========================== CORE FUNCTIONS ===========================
 
 def get_driver():
     options = Options()
@@ -30,7 +59,7 @@ def extract_city_data(driver, state_name, city_name, city_slug, processed_ids):
     
     try:
         driver.get(url)
-        time.sleep(2) 
+        time.sleep(1) 
         html = driver.page_source
 
         marker = 'id="__NEXT_DATA__"'
@@ -47,6 +76,9 @@ def extract_city_data(driver, state_name, city_name, city_slug, processed_ids):
         # Use nearbyCinemas for city-specific targeting
         nearby_cinemas = sessions_container[dynamic_key]['pageData']['nearbyCinemas']
         
+        # Normalize City Name based on mapping logic
+        reporting_city = get_normalized_city(state_name, city_name)
+
         city_results = []
         for cinema in nearby_cinemas:
             venue = cinema['cinemaInfo']['name']
@@ -69,7 +101,7 @@ def extract_city_data(driver, state_name, city_name, city_slug, processed_ids):
                     
                 occ = round((b_tkts / t_tkts) * 100, 2) if t_tkts > 0 else 0
                 city_results.append({
-                    "state": state_name, "city": city_name, "venue": venue,
+                    "state": state_name, "city": reporting_city, "venue": venue,
                     "showTime": s['showTime'], "total_tickets": t_tkts,
                     "booked_tickets": b_tkts, "total_gross": p_gross, 
                     "booked_gross": b_gross, "occupancy": occ
@@ -77,7 +109,6 @@ def extract_city_data(driver, state_name, city_name, city_slug, processed_ids):
         return city_results
     except Exception:
         return []
-    
 
 def generate_consolidated_report(all_results):
     wb = Workbook()
@@ -186,6 +217,7 @@ def generate_consolidated_report(all_results):
     wb.save(filepath)
     print(f"\n📊 Excel Report with 5 Sheets Saved: {filepath}")
 
+# ================= MAIN EXECUTION =================
 
 if __name__ == "__main__":
     if not os.path.exists(CONFIG_PATH):
@@ -217,7 +249,7 @@ if __name__ == "__main__":
                     print(f"✅ {city['name']:<15} | Shows: {len(res):<3} | Total Gross: ₹{city_p_gross:<10,} | Booked Gross: ₹{city_b_gross:<10,} | Occ: {city_occ:>6}%")
                     final_data.extend(res)
                 else:
-                    print(f"⚪ {city['name']:<15} | No new shows found.                                                                           ")
+                    print(f"⚪ {city['name']:<15} | No new shows found.                                                             ")
 
     finally:
         driver.quit()

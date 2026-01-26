@@ -21,29 +21,62 @@ from utils.generateHybridStatesImageReport import generate_hybrid_image_report
 
 # =========================== CONFIGURATION ===========================
 INPUT_STATE_LIST = ["Andhra Pradesh", "Telangana"] 
-SHOW_DATE = "2026-01-25"
+SHOW_DATE = "2026-01-26"
 
 # Config Paths
 DISTRICT_CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
 BMS_CONFIG_PATH = os.path.join("utils", "bms_cities_config.json")
 
+# Mapping Paths
+DISTRICT_MAP_PATH = os.path.join("utils", "district_area_city_mapping.json")
+BMS_MAP_PATH = os.path.join("utils", "bms_area_city_mapping.json")
+
 # URLs
 DISTRICT_URL_BASE = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-"
-BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260125"
+BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260126"
 
 # BMS Settings
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 BOOKED_STATES = {"2"}
 SLEEP_TIME = 1.0        # Sleep between shows inside a worker
-MAX_WORKERS = 3         # ⚡ Number of parallel browsers for BMS
+MAX_WORKERS = 3         # Number of parallel browsers for BMS
 
-# ⚡ SPEED OPTIMIZATION FLAG
-# If True: Skip BMS scraping for shows already found in District App
+# SPEED OPTIMIZATION FLAG
 SKIP_DUPLICATES_IN_BMS = True 
 
-# 🛡️ PROXY LIST (Optional)
+# PROXY LIST
 PROXY_LIST = [] 
 proxy_pool = cycle(PROXY_LIST) if PROXY_LIST else None
+
+# =========================== MAPPING SYSTEM ===========================
+
+def load_mapping_dict(file_path):
+    """Returns {(state, city_name): reporting_city} or empty dict if fails."""
+    mapping = {}
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                for state, cities in data.items():
+                    if isinstance(cities, list):
+                        for entry in cities:
+                            if "name" in entry and "reporting_city" in entry:
+                                mapping[(state, entry["name"])] = entry["reporting_city"]
+        except Exception as e:
+            print(f"⚠️ Warning: Could not parse mapping {file_path}: {e}")
+    return mapping
+
+# Pre-load mappings globally
+DISTRICT_CITY_MAP = load_mapping_dict(DISTRICT_MAP_PATH)
+BMS_CITY_MAP = load_mapping_dict(BMS_MAP_PATH)
+
+def get_normalized_city_name(state, raw_city, source):
+    """
+    If the state exists in mapping and city is found, returns reporting_city.
+    Otherwise, returns raw_city (ensures cross-state safety).
+    """
+    lookup = DISTRICT_CITY_MAP if source == "district" else BMS_CITY_MAP
+    return lookup.get((state, raw_city), raw_city)
 
 # =========================== CORE FUNCTIONS ===========================
 
@@ -69,7 +102,7 @@ def get_driver(proxy=None):
 
     return webdriver.Chrome(options=options)
 
-# ================= DISTRICT LOGIC (Single Threaded - Fast) =================
+# ================= DISTRICT LOGIC =================
 def fetch_district_data(driver):
     print("\n🚀 STARTING DISTRICT APP PROCESS...")
     if not os.path.exists(DISTRICT_CONFIG_PATH):
@@ -107,11 +140,14 @@ def fetch_district_data(driver):
                 key = list(sessions.keys())[0]
                 cinemas = sessions[key]['pageData']['nearbyCinemas']
 
+                # --- NORMALIZE CITY ---
+                reporting_city = get_normalized_city_name(state, city['name'], "district")
+
                 city_res = []
                 for cin in cinemas:
                     venue = cin['cinemaInfo']['name']
                     for s in cin.get('sessions', []):
-                        sid = s.get('sid', '')
+                        sid = str(s.get('sid', ''))
 
                         if sid in processed_sids: continue
                         processed_sids.add(sid)
@@ -126,8 +162,8 @@ def fetch_district_data(driver):
                         occ = round((b_tkts/t_tkts)*100, 2) if t_tkts else 0
                         
                         city_res.append({
-                            "source": "district", "sid": str(sid),
-                            "state": state, "city": city['name'], "venue": venue,
+                            "source": "district", "sid": sid,
+                            "state": state, "city": reporting_city, "venue": venue,
                             "showTime": s['showTime'], "total_tickets": t_tkts,
                             "booked_tickets": b_tkts, "total_gross": p_gross,
                             "booked_gross": b_gross, "occupancy": occ
@@ -135,13 +171,13 @@ def fetch_district_data(driver):
                 
                 if city_res:
                     gross = sum(x['booked_gross'] for x in city_res)
-                    print(f"✅ {city['name']:<15} | Shows: {len(city_res):<3} | Gross: ₹{gross:<10,}")
+                    print(f"✅ {city['name']:<15} -> {reporting_city:<15} | Shows: {len(city_res):<3} | Gross: ₹{gross:<10,}")
                     results.extend(city_res)
             except Exception: pass
             
     return results
 
-# ================= BMS LOGIC (Parallel Worker) =================
+# ================= BMS LOGIC =================
 
 def extract_initial_state_from_page(driver, url):
     try:
@@ -241,23 +277,22 @@ def calculate_show_collection(decrypted, price_map):
 
 def process_single_city(task_data):
     """ Worker Function for BMS Parallel Execution """
-    # Unpack district_sids here
     city_name, city_slug, state_name, district_sids = task_data
-    
     current_proxy = next(proxy_pool) if proxy_pool else None
     
-    print(f"🚀 Starting BMS: {city_name}...")
+    # --- NORMALIZE CITY ---
+    reporting_city = get_normalized_city_name(state_name, city_name, "bms")
+
+    print(f"🚀 Starting BMS: {city_name} -> {reporting_city}...")
     url = BMS_URL_TEMPLATE.format(city=city_slug)
-    
     driver = get_driver(current_proxy)
     city_results = []
     city_total = 0
 
     try:
-        state = extract_initial_state_from_page(driver, url)
-        if not state: return [], 0, None
-
-        venues = extract_venues(state)
+        state_data = extract_initial_state_from_page(driver, url)
+        if not state_data: return [], 0, None
+        venues = extract_venues(state_data)
         
         for venue in venues:
             v_name = venue["additionalData"]["venueName"]
@@ -267,22 +302,17 @@ def process_single_city(task_data):
                 sid = str(show["additionalData"]["sessionId"])
                 show_time = show["title"]
                 
-                # --- SPEED OPTIMIZATION ---
                 if SKIP_DUPLICATES_IN_BMS and sid in district_sids:
-                    print(f"   ⏩ [{city_name[:10]}] Skipped {v_name[:15]} (Found in District)")
                     continue 
-                # --------------------------
 
                 soldOut = False
                 try:
                     cats = show["additionalData"].get("categories", [])
                     price_map = {c["areaCatCode"]: float(c["curPrice"]) for c in cats}
-                    
                     enc = get_seat_layout(driver, v_code, sid)
                     
                     data = None
                     if not enc:
-                        # Fallback
                         if not price_map: continue
                         fallback_p = max(price_map.values())
                         data = {
@@ -294,17 +324,14 @@ def process_single_city(task_data):
                         decrypted = decrypt_data(enc)
                         res = calculate_show_collection(decrypted, price_map)
                         data = {
-                            "total_tickets": res[0], "booked_tickets": res[1],
-                            "total_gross": res[2], "booked_gross": res[3], "occupancy": res[4]
+                            "total_tickets": abs(res[0]), "booked_tickets": min(abs(res[1]), abs(res[0])),
+                            "total_gross": abs(res[2]), "booked_gross": min(abs(res[3]), abs(res[2])), "occupancy": min(100, abs(res[4]))
                         }
 
                     if data and data['total_tickets'] > 0:
-                        tag = "(SOLD OUT)" if soldOut else ""
-                        print(f"   [{city_name[:10]}] 🎬 {v_name[:15]:<15} | {show_time} | Occ: {data['occupancy']:>5}% | ₹{data['booked_gross']:<8} {tag}")
-
                         data.update({
                             "source": "bms", "sid": sid,
-                            "state": state_name, "city": city_name,
+                            "state": state_name, "city": reporting_city,
                             "venue": v_name, "showTime": show_time
                         })
                         city_results.append(data)
@@ -312,11 +339,8 @@ def process_single_city(task_data):
 
                 except Exception: continue
                 time.sleep(SLEEP_TIME) 
-
     except Exception: pass
     finally: driver.quit()
-        
-    print(f"✅ BMS Finished: {city_name} | Total: ₹{city_total}")
     return city_results, city_total, url
 
 # ================= PART 3: EXCEL GENERATOR =================
@@ -330,9 +354,7 @@ def generate_consolidated_excel(all_results, filename):
     ws_state = wb.active
     ws_state.title = "State Wise"
     ws_state.append(["State", "Cities", "Theatres", "Shows", "Total Seats", "Booked Seats", "Total Gross ₹", "Booked Gross ₹", "Occ %"])
-    
-    state_map = {}
-    city_tracker, theatre_tracker = {}, {}
+    state_map, city_tracker, theatre_tracker = {}, {}, {}
 
     for r in all_results:
         st = r["state"]
@@ -349,7 +371,7 @@ def generate_consolidated_excel(all_results, filename):
         avg_occ = round((d["b_seats"] / d["t_seats"]) * 100, 2) if d["t_seats"] > 0 else 0
         ws_state.append([st, len(city_tracker[st]), len(theatre_tracker[st]), d["shows"], d["t_seats"], d["b_seats"], d["p_gross"], d["b_gross"], avg_occ])
 
-    # 2. CITY WISE
+    # 2. CITY WISE (Aggregates Reporting Cities)
     ws_city = wb.create_sheet(title="City Wise")
     ws_city.append(["State", "City", "Theatres", "Shows", "Total Seats", "Booked Seats", "Total Gross ₹", "Booked Gross ₹", "Occ %"])
     city_map, city_theatre_tracker = {}, {}
@@ -395,17 +417,12 @@ def generate_consolidated_excel(all_results, filename):
     agg_b_gross = sum(r["booked_gross"] for r in all_results)
     agg_t_seats = sum(r["total_tickets"] for r in all_results)
     agg_b_seats = sum(r["booked_tickets"] for r in all_results)
-    agg_shows = len(all_results)
     overall_occ = round((agg_b_seats / agg_t_seats) * 100, 2) if agg_t_seats > 0 else 0
     
     ws_sum.append(["Metric", "Value"])
     ws_sum.append(["States Processed", len(state_map)])
     ws_sum.append(["Total Cities", len(city_map)])
-    ws_sum.append(["Total Theatres", len(th_map)])
-    ws_sum.append(["Total Shows", agg_shows])
-    ws_sum.append(["Total Seats (Capacity)", agg_t_seats])
-    ws_sum.append(["Total Booked Tickets", agg_b_seats])
-    ws_sum.append(["Total Potential Gross (₹)", agg_p_gross])
+    ws_sum.append(["Total Shows", len(all_results)])
     ws_sum.append(["Total Booked Gross (₹)", agg_b_gross])
     ws_sum.append(["Overall Occupancy %", overall_occ])
     ws_sum.append(["Generated At", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
@@ -416,86 +433,59 @@ def generate_consolidated_excel(all_results, filename):
 
 # ================= MAIN EXECUTION FLOW =================
 if __name__ == "__main__":
-    # 1. DISTRICT (Fast, One Driver)
+    # 1. DISTRICT
     d_driver = get_driver()
     district_data = []
-    
-    # Pre-collect processed SIDs from District to skip later
     district_known_sids = set()
 
     try:
         district_data = fetch_district_data(d_driver)
+        for r in district_data:
+            if r["sid"]: district_known_sids.add(r["sid"])
+        
         if district_data:
-            # Collect SIDs immediately
-            for r in district_data:
-                if r["sid"]: district_known_sids.add(r["sid"])
-                
             ts = datetime.now().strftime("%H%M")
             generate_consolidated_excel(district_data, f"District_Only_{ts}.xlsx")
-            img_path = f"reports/District_Report_{ts}.png"
-            ref_url = DISTRICT_URL_BASE + "city?fromdate=" + SHOW_DATE
-            generate_multi_state_image_report(district_data, ref_url, img_path)
     finally:
         d_driver.quit() 
 
-    # 2. BMS (Parallel Workers)
-    if not os.path.exists(BMS_CONFIG_PATH):
-        print("❌ BMS Config missing.")
-        exit()
+    # 2. BMS
+    if os.path.exists(BMS_CONFIG_PATH):
+        with open(BMS_CONFIG_PATH, 'r', encoding='utf-8') as f:
+            bms_config = json.load(f)
 
-    with open(BMS_CONFIG_PATH, 'r', encoding='utf-8') as f:
-        bms_config = json.load(f)
+        bms_tasks = []
+        for state in INPUT_STATE_LIST:
+            for city in bms_config.get(state, []):
+                bms_tasks.append((city['name'], city['slug'], state, district_known_sids))
 
-    bms_tasks = []
-    for state in INPUT_STATE_LIST:
-        cities = bms_config.get(state, [])
-        for city in cities:
-            # ✅ PASS DISTRICT SIDs to worker task tuple
-            bms_tasks.append((city['name'], city['slug'], state, district_known_sids))
+        print(f"🔥 Launching {MAX_WORKERS} Workers for {len(bms_tasks)} BMS cities...")
+        bms_data = []
+        last_valid_url = ""
+        executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
+        futures = [executor.submit(process_single_city, task) for task in bms_tasks]
 
-    print(f"🔥 Launching {MAX_WORKERS} Parallel Workers for {len(bms_tasks)} BMS cities...")
-    
-    bms_data = []
-    last_valid_url = ""
-    
-    executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
-    futures = [executor.submit(process_single_city, task) for task in bms_tasks]
-
-    try:
-        for future in as_completed(futures):
-            try:
+        try:
+            for future in as_completed(futures):
                 res, total, url = future.result()
                 if res:
                     bms_data.extend(res)
                     if url: last_valid_url = url
-            except Exception as exc:
-                print(f"💥 Thread Exception: {exc}")
-    except KeyboardInterrupt:
-        print("\n🛑 Stopping Parallel Workers...")
-        executor.shutdown(wait=False, cancel_futures=True)
+        except KeyboardInterrupt:
+            executor.shutdown(wait=False)
 
     # 3. MERGE LOGIC
-    # Note: If skip duplicates was ON, bms_data won't have the duplicates anyway.
-    # But if skip was OFF, the merge logic below handles the "Higher Gross Wins".
     print("\n🔄 Merging Data Sources...")
     merged_map = {}
-    
-    # Load District first
     for r in district_data:
-        sid = r["sid"]
-        key = sid if sid else f"{r['city']}_{r['venue']}_{r['showTime']}"
+        key = r["sid"] if r["sid"] else f"{r['city']}_{r['venue']}_{r['showTime']}"
         merged_map[key] = r
 
-    # Merge BMS
     for r in bms_data:
-        sid = r["sid"]
-        key = sid if sid else f"{r['city']}_{r['venue']}_{r['showTime']}"
-        
+        key = r["sid"] if r["sid"] else f"{r['city']}_{r['venue']}_{r['showTime']}"
         if key in merged_map:
-            if not SKIP_DUPLICATES_IN_BMS: # Double check if we want to override
-                existing = merged_map[key]
-                if r["booked_gross"] > existing["booked_gross"]:
-                    merged_map[key] = r 
+            if not SKIP_DUPLICATES_IN_BMS and r["booked_gross"] > merged_map[key]["booked_gross"]:
+                merged_map[key] = r 
         else:
             merged_map[key] = r
 
@@ -504,7 +494,6 @@ if __name__ == "__main__":
         ts_final = datetime.now().strftime("%Y%m%d_%H%M%S")
         generate_consolidated_excel(final_data, f"Total_States_Report_{ts_final}.xlsx")
         
-        # Use a fallback URL if BMS didn't run
         ref_url_final = last_valid_url if last_valid_url else (DISTRICT_URL_BASE + "city")
         generate_hybrid_image_report(final_data, BMS_URL_TEMPLATE, f"reports/Total_States_Report_{ts_final}.png", "bms")
     else:

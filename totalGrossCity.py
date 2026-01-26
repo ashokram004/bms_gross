@@ -212,9 +212,9 @@ def fetch_bms_data():
                     results.append({
                         "source": "bms", "sid": str(sid),
                         "venue": v_name, "showTime": show_time,
-                        "total_tickets": t_tkts, "booked_tickets": b_tkts,
-                        "total_gross": t_gross, "booked_gross": b_gross,
-                        "occupancy": occ
+                        "total_tickets": abs(t_tkts), "booked_tickets": min(abs(b_tkts), abs(t_tkts)),
+                        "total_gross": abs(t_gross), "booked_gross": min(abs(b_gross), abs(t_gross)),
+                        "occupancy": min(100, abs(occ))
                     })
                 except: pass
                 time.sleep(1)

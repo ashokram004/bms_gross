@@ -19,8 +19,11 @@ from datetime import datetime
 from utils.generateBMSMultiStateImageReport import generate_multi_state_image_report
 
 # =========================== CONFIGURATION ===========================
-INPUT_STATE_LIST = ["Andhra Pradesh"]
+INPUT_STATE_LIST = ["Andhra Pradesh", "Telangana"]
 BMS_CONFIG_PATH = os.path.join("utils", "bms_cities_config.json")
+# NEW: BMS Mapping Path
+BMS_MAP_PATH = os.path.join("utils", "bms_area_city_mapping.json")
+
 MOVIE_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260125"
 
 # AES Key
@@ -34,6 +37,32 @@ MAX_WORKERS = 3         # ⚡ Number of parallel browsers
 # 🛡️ PROXY LIST (Optional)
 PROXY_LIST = [] 
 proxy_pool = cycle(PROXY_LIST) if PROXY_LIST else None
+
+# =========================== MAPPING LOGIC ===========================
+
+def load_bms_mapping():
+    """Loads the BMS mapping file into a {(state, city): reporting_city} dictionary."""
+    lookup = {}
+    if os.path.exists(BMS_MAP_PATH):
+        try:
+            with open(BMS_MAP_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                for state, cities in data.items():
+                    if isinstance(cities, list):
+                        for entry in cities:
+                            if "name" in entry and "reporting_city" in entry:
+                                # Create a composite key of (State, CityName)
+                                lookup[(state, entry["name"])] = entry["reporting_city"]
+        except Exception as e:
+            print(f"⚠️ Warning loading mapping {BMS_MAP_PATH}: {e}")
+    return lookup
+
+# Pre-load mapping globally for worker safety
+BMS_CITY_MAP = load_bms_mapping()
+
+def get_normalized_city(state, raw_city_name):
+    """Returns reporting_city if mapped, else raw_city_name (safe fallback)."""
+    return BMS_CITY_MAP.get((state, raw_city_name), raw_city_name)
 
 # =========================== CORE FUNCTIONS ===========================
 
@@ -194,7 +223,10 @@ def process_single_city(task_data):
     # 1. Select Proxy (if available)
     current_proxy = next(proxy_pool) if proxy_pool else None
     
-    print(f"🚀 Starting: {city_name}...")
+    # --- Apply Normalization (NEW) ---
+    reporting_city = get_normalized_city(state_name, city_name)
+    
+    print(f"🚀 Starting: {city_name} -> {reporting_city}...")
     url = MOVIE_URL_TEMPLATE.format(city=city_slug)
     
     driver = get_driver(current_proxy)
@@ -242,11 +274,11 @@ def process_single_city(task_data):
                         # calculate_show_collection returns a tuple: (t_tkts, b_tkts, t_gross, b_gross, occ)
                         res_tuple = calculate_show_collection(decrypted, price_map)
                         data = {
-                            "total_tickets": res_tuple[0],
-                            "booked_tickets": res_tuple[1],
-                            "total_gross": res_tuple[2],
-                            "booked_gross": res_tuple[3],
-                            "occupancy": res_tuple[4]
+                            "total_tickets": abs(res_tuple[0]),
+                            "booked_tickets": min(abs(res_tuple[1]), abs(res_tuple[0])),
+                            "total_gross": abs(res_tuple[2]),
+                            "booked_gross": min(abs(res_tuple[3]), abs(res_tuple[2])),
+                            "occupancy": min(100, abs(res_tuple[4]))
                         }
 
                     if data and data['total_tickets'] > 0:
@@ -256,7 +288,8 @@ def process_single_city(task_data):
                         print(f"   [{city_name[:10]}] 🎬 {venue_name[:20]:<20} | {show_time} | Occ: {data['occupancy']:>5}% | Gross: ₹{data['booked_gross']:<8} {tag}")
 
                         data.update({
-                            "state": state_name, "city": city_name,
+                            "state": state_name, 
+                            "city": reporting_city, # <--- Using Normalized City Here
                             "venue": venue_name, "showTime": show_time,
                             "sid": str(session_id)
                         })

@@ -217,11 +217,11 @@ def calculate_show_collection(decrypted, price_map):
     occupancy = round((booked_tickets / total_tickets) * 100, 2) if total_tickets else 0
 
     return {
-        "total_tickets": total_tickets,
-        "booked_tickets": booked_tickets,
-        "occupancy": occupancy,
-        "total_gross": int(total_gross),
-        "booked_gross": int(booked_gross)
+        "total_tickets": abs(total_tickets),
+        "booked_tickets": min(abs(booked_tickets), abs(total_tickets)),
+        "occupancy": min(100, abs(occupancy)),
+        "total_gross": abs(int(total_gross)),
+        "booked_gross": min(abs(int(booked_gross)), abs(int(total_gross)))
     }
 
 
