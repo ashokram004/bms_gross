@@ -11,14 +11,11 @@ from datetime import datetime
 from utils.generateImageReport import generate_city_image_report
 import os
 
-url = "https://in.bookmyshow.com/movies/hyderabad/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260124"
+url = "https://in.bookmyshow.com/movies/guntur/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260126"
 
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 
 # ✅ SEAT RULE
-# 0 = empty/aisle/invalid
-# 1 = available
-# 2 = booked
 BOOKED_STATES = {"2"}
 SLEEP_TIME = 1
 
@@ -80,6 +77,9 @@ def extract_venues(state):
 
 # ---------------- SEAT LAYOUT ----------------
 def get_seat_layout(venue_code, session_id):
+    """
+    Returns tuple: (EncryptedDataString, ErrorMessage)
+    """
     global SLEEP_TIME
     api_url = "https://services-in.bookmyshow.com/doTrans.aspx"
     max_retries = 2
@@ -102,25 +102,31 @@ def get_seat_layout(venue_code, session_id):
             "&strFormat=json"
         );
         """ % (api_url, venue_code, session_id)
-        response = driver.execute_async_script(js)
+        
+        try:
+            response = driver.execute_async_script(js)
+            data = json.loads(response)["BookMyShow"]
 
-        data = json.loads(response)["BookMyShow"]
-
-        if data.get("blnSuccess") == "true":
-            return data.get("strData")
-        else:
-            exception = data.get("strException", "")
-            if "Rate limit exceeded" in exception and attempt < max_retries:
-                print(f"Rate limit hit, retrying in 60 seconds... (attempt {attempt + 1}/{max_retries + 1})")
-                time.sleep(60)
-                # Increase global sleep after first rate limit
-                if SLEEP_TIME < 2.0:
-                    SLEEP_TIME = 2.0
-                    print("🐢 Increasing global sleep time to 1.0s")
-                continue
+            if data.get("blnSuccess") == "true":
+                return data.get("strData"), None
             else:
-                print(exception)
-                return None
+                exception = data.get("strException", "")
+                
+                # Rate Limit Handling (Keep existing logic)
+                if "Rate limit exceeded" in exception and attempt < max_retries:
+                    print(f"Rate limit hit, retrying in 60 seconds... (attempt {attempt + 1}/{max_retries + 1})")
+                    time.sleep(60)
+                    if SLEEP_TIME < 2.0:
+                        SLEEP_TIME = 2.0
+                        print("🐢 Increasing global sleep time to 2.0s")
+                    continue
+                else:
+                    # Return the specific error message to the caller
+                    return None, exception
+        except Exception as e:
+            return None, str(e)
+            
+    return None, "Unknown Error"
 
 
 # ---------------- PRICE MAP ----------------
@@ -140,12 +146,6 @@ def decrypt_data(enc):
 
 # ---------------- CATEGORY MAP ----------------
 def extract_category_map(decrypted):
-    """
-    Maps:
-    A -> 0000000002
-    B -> 0000000004
-    C -> 0000000005
-    """
     header = decrypted.split("||")[0]
     category_map = {}
 
@@ -170,33 +170,20 @@ def calculate_show_collection(decrypted, price_map):
     booked_map = {}
 
     for row in rows:
-        if not row:
-            continue
+        if not row: continue
 
         parts = row.split(":")
-
-        # A000 / B000 / C000 → take first letter
-        #Skip invalid row
-        if len(parts) < 3:
-            continue
-        elif len(parts) > 3:
-            block_letter = parts[3][0]
-        else:
-            block_letter = parts[2][0]
+        if len(parts) < 3: continue
+        elif len(parts) > 3: block_letter = parts[3][0]
+        else: block_letter = parts[2][0]
 
         area_code = category_map.get(block_letter)
-
-        if not area_code:
-            continue
+        if not area_code: continue
 
         for seat in parts:
-            #Skip invalid seats
-            if len(seat) < 2:
-                continue
-
+            if len(seat) < 2: continue
             status = seat[1]
 
-            # count total seats (ignore aisle/void only if explicitly 0+0. 1 means available, 2 means filled)
             if seat[0] == block_letter and status in ("1", "2"):
                 seats_map[area_code] = seats_map.get(area_code, 0) + 1
 
@@ -245,22 +232,36 @@ def process_movie(url):
 
             try:
                 price_map = extract_price_map_from_show(show)
-                enc = get_seat_layout(venue_code, session_id)
+                
+                # ✅ UPDATED: Get both data and error message
+                enc, error_msg = get_seat_layout(venue_code, session_id)
+                
                 if not enc:
-                    # 🔴 SOLD OUT FALLBACK (HEURISTIC)
-                    FALLBACK_TOTAL_SEATS = 200
-
                     if not price_map:
-                        raise ValueError("Price map missing for sold-out show")
+                        raise ValueError("Price map missing for error show")
 
                     fallback_price = max(price_map.values())
+                    
+                    # ✅ LOGIC BRANCHING BASED ON ERROR MESSAGE
+                    if error_msg and "sold out" in error_msg.lower():
+                        # CASE 1: SOLD OUT -> 100% Occupancy
+                        FALLBACK_SEATS = 200
+                        FALLBACK_BOOKED = 200
+                        FALLBACK_OCC = 100.0
+                        print(f"   ⚠️ Sold Out Detected: {venue_name} | {show_time}")
+                    else:
+                        # CASE 2: UNKNOWN ERROR -> 50% Occupancy (Conservative)
+                        FALLBACK_SEATS = 200
+                        FALLBACK_BOOKED = 100
+                        FALLBACK_OCC = 50.0
+                        print(f"   ⚠️ API Error ({error_msg}): Using 50% fallback for {venue_name}")
 
                     data = {
-                        "total_tickets": FALLBACK_TOTAL_SEATS,
-                        "booked_tickets": FALLBACK_TOTAL_SEATS,
-                        "occupancy": 100.0,
-                        "total_gross": int(FALLBACK_TOTAL_SEATS * fallback_price),
-                        "booked_gross": int(FALLBACK_TOTAL_SEATS * fallback_price)
+                        "total_tickets": FALLBACK_SEATS,
+                        "booked_tickets": FALLBACK_BOOKED,
+                        "occupancy": FALLBACK_OCC,
+                        "total_gross": int(FALLBACK_SEATS * fallback_price),
+                        "booked_gross": int(FALLBACK_BOOKED * fallback_price)
                     }
                 else:
                     decrypted = decrypt_data(enc)
@@ -269,9 +270,6 @@ def process_movie(url):
             except Exception as e:
                 print(f"❌ Skipping {venue_name} | {show_time} : {e}")
                 continue
-
-            if data['total_tickets'] == 0:
-                print(f"Something is wrong with this show data: {venue_name} | {show_time}")
 
             print(
                 f"Show no: {curShowNo}\n"
@@ -295,7 +293,6 @@ def process_movie(url):
 # ---------------- EXCEL ----------------
 
 def generate_excel(results, total):
-    # ---------------- CREATE REPORTS FOLDER ----------------
     reports_dir = "reports"
     os.makedirs(reports_dir, exist_ok=True)
 

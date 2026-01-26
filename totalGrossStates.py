@@ -213,6 +213,9 @@ def extract_venues(state):
     return []
 
 def get_seat_layout(driver, venue_code, session_id):
+    """
+    Returns tuple: (EncryptedDataString, ErrorMessage)
+    """
     api_url = "https://services-in.bookmyshow.com/doTrans.aspx"
     max_retries = 2
     js = """
@@ -227,13 +230,29 @@ def get_seat_layout(driver, venue_code, session_id):
         try:
             resp = driver.execute_async_script(js)
             data = json.loads(resp).get("BookMyShow", {})
-            if data.get("blnSuccess") == "true": return data.get("strData")
-            if "Rate limit" in data.get("strException", "") and i < max_retries:
-                time.sleep(60)
-                continue
-            return None
-        except: return None
-    return None
+            
+            # 1. Success
+            if data.get("blnSuccess") == "true": 
+                return data.get("strData"), None
+            
+            # 2. Extract Error
+            error_msg = data.get("strException", "")
+            
+            # 3. Handle Rate Limit
+            if "Rate limit" in error_msg:
+                if i < max_retries:
+                    time.sleep(60)
+                    continue
+                else:
+                    return None, "Rate limit exceeded"
+            
+            # 4. Return other errors (Sold Out, etc)
+            return None, error_msg
+            
+        except Exception as e:
+            return None, str(e)
+            
+    return None, "Unknown Error"
 
 def decrypt_data(enc):
     decoded = b64decode(enc)
@@ -309,17 +328,41 @@ def process_single_city(task_data):
                 try:
                     cats = show["additionalData"].get("categories", [])
                     price_map = {c["areaCatCode"]: float(c["curPrice"]) for c in cats}
-                    enc = get_seat_layout(driver, v_code, sid)
+                    
+                    # ✅ Updated to capture error messages
+                    enc, error_msg = get_seat_layout(driver, v_code, sid)
                     
                     data = None
                     if not enc:
                         if not price_map: continue
-                        fallback_p = max(price_map.values())
-                        data = {
-                            "total_tickets": 200, "booked_tickets": 200, "occupancy": 100.0,
-                            "total_gross": int(200*fallback_p), "booked_gross": int(200*fallback_p)
-                        }
-                        soldOut = True
+                        max_price = max(price_map.values())
+                        
+                        # ✅ SMART FALLBACK LOGIC
+                        if error_msg and "sold out" in error_msg.lower():
+                            # Case 1: Sold Out -> 100%
+                            t_tkts = 200; b_tkts = 200
+                            t_gross = int(t_tkts * max_price)
+                            b_gross = t_gross
+                            occ = 100.0
+                            soldOut = True
+                            data = {
+                                "total_tickets": t_tkts, "booked_tickets": b_tkts,
+                                "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ
+                            }
+                        elif error_msg and "Rate limit" in error_msg:
+                            # Case 2: Rate Limit -> Skip
+                            print(f"   ⚠️ Skipping {v_name[:15]} due to Rate Limit")
+                            continue 
+                        else:
+                            # Case 3: Unknown/Other -> 50% Safe Fallback
+                            t_tkts = 200; b_tkts = 100
+                            t_gross = int(t_tkts * max_price)
+                            b_gross = int(b_tkts * max_price)
+                            occ = 50.0
+                            data = {
+                                "total_tickets": t_tkts, "booked_tickets": b_tkts,
+                                "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ
+                            }
                     else:
                         decrypted = decrypt_data(enc)
                         res = calculate_show_collection(decrypted, price_map)
@@ -329,6 +372,9 @@ def process_single_city(task_data):
                         }
 
                     if data and data['total_tickets'] > 0:
+                        tag = "(SOLD OUT)" if soldOut else ""
+                        print(f"   [{city_name[:10]}] 🎬 {v_name[:15]:<15} | {show_time} | Occ: {data['occupancy']:>5}% | ₹{data['booked_gross']:<8} {tag}")
+
                         data.update({
                             "source": "bms", "sid": sid,
                             "state": state_name, "city": reporting_city,

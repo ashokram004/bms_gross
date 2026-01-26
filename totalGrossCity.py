@@ -18,9 +18,9 @@ from utils.generateHybridCityImageReport import generate_hybrid_city_image_repor
 # ================= CONFIGURATION =================
 # User Inputs
 DISTRICT_URL = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-guntur-MV203929"
-BMS_URL = "https://in.bookmyshow.com/movies/guntur/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260125"
+BMS_URL = "https://in.bookmyshow.com/movies/guntur/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260126"
 
-SHOW_DATE = "2026-01-25"  # Ensure this matches the date in BMS URL
+SHOW_DATE = "2026-01-26"  # Ensure this matches the date in BMS URL
 
 # Appended URL for District API
 DISTRICT_FULL_URL = f"{DISTRICT_URL}?fromdate={SHOW_DATE}"
@@ -194,29 +194,69 @@ def fetch_bms_data():
                 
                 try:
                     resp = driver.execute_async_script(js)
-                    j_resp = json.loads(resp)["BookMyShow"]
+                    j_resp = json.loads(resp).get("BookMyShow", {})
                     
+                    data = None
+                    soldOut = False
+                    
+                    # 1. SUCCESS: Standard Calculation
                     if j_resp.get("blnSuccess") == "true":
                         decrypted = decrypt_data(j_resp.get("strData"))
                         t_tkts, b_tkts, t_gross, b_gross, occ = calculate_bms_collection(decrypted, price_map)
+                        data = {
+                            "total_tickets": t_tkts, "booked_tickets": b_tkts,
+                            "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ
+                        }
+                    
+                    # 2. FAILURE: Check Error Message
                     else:
+                        error_msg = j_resp.get("strException", "")
                         if not price_map: continue
-                        # Fallback
-                        t_tkts = 200; b_tkts = 200
-                        t_gross = int(200 * max(price_map.values()))
-                        b_gross, occ = t_gross, 100.0
+                        max_price = max(price_map.values())
 
-                    # LOGGING
-                    print(f"   🎬 {v_name[:20]:<20} | {show_time} | Occ: {occ:>5}% | Gross: ₹{b_gross:<8,}")
+                        if error_msg and "sold out" in error_msg.lower():
+                            # CASE A: Sold Out -> 100%
+                            t_tkts = 200; b_tkts = 200
+                            t_gross = int(t_tkts * max_price)
+                            b_gross = t_gross
+                            occ = 100.0
+                            soldOut = True
+                            data = {
+                                "total_tickets": t_tkts, "booked_tickets": b_tkts,
+                                "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ
+                            }
+                        
+                        elif error_msg and "Rate limit" in error_msg:
+                            # CASE B: Rate Limit -> SKIP (Safe)
+                            print(f"   ⚠️ Skipping {v_name[:15]} (Rate Limit)")
+                            time.sleep(60)
+                            continue
+                        
+                        else:
+                            # CASE C: Unknown Error -> 50% Fallback
+                            t_tkts = 200; b_tkts = 100
+                            t_gross = int(t_tkts * max_price)
+                            b_gross = int(b_tkts * max_price)
+                            occ = 50.0
+                            data = {
+                                "total_tickets": t_tkts, "booked_tickets": b_tkts,
+                                "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ
+                            }
 
-                    results.append({
-                        "source": "bms", "sid": str(sid),
-                        "venue": v_name, "showTime": show_time,
-                        "total_tickets": abs(t_tkts), "booked_tickets": min(abs(b_tkts), abs(t_tkts)),
-                        "total_gross": abs(t_gross), "booked_gross": min(abs(b_gross), abs(t_gross)),
-                        "occupancy": min(100, abs(occ))
-                    })
-                except: pass
+                    if data:
+                        tag = "(SOLD OUT)" if soldOut else ""
+                        print(f"   🎬 {v_name[:20]:<20} | {show_time} | Occ: {data['occupancy']:>5}% | Gross: ₹{data['booked_gross']:<8,} {tag}")
+
+                        results.append({
+                            "source": "bms", "sid": str(sid),
+                            "venue": v_name, "showTime": show_time,
+                            "total_tickets": abs(data["total_tickets"]), 
+                            "booked_tickets": min(abs(data["booked_tickets"]), abs(data["total_tickets"])),
+                            "total_gross": abs(data["total_gross"]), 
+                            "booked_gross": min(abs(data["booked_gross"]), abs(data["total_gross"])),
+                            "occupancy": min(100, abs(data["occupancy"]))
+                        })
+                except Exception: pass
                 time.sleep(1)
         
         print(f"✅ BMS: Found {len(results)} shows.")
