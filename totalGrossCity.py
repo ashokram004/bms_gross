@@ -216,7 +216,7 @@ def fetch_bms_data():
 
                         if error_msg and "sold out" in error_msg.lower():
                             # CASE A: Sold Out -> 100%
-                            t_tkts = 200; b_tkts = 200
+                            t_tkts = 400; b_tkts = 400
                             t_gross = int(t_tkts * max_price)
                             b_gross = t_gross
                             occ = 100.0
@@ -234,7 +234,7 @@ def fetch_bms_data():
                         
                         else:
                             # CASE C: Unknown Error -> 50% Fallback
-                            t_tkts = 200; b_tkts = 100
+                            t_tkts = 400; b_tkts = 200
                             t_gross = int(t_tkts * max_price)
                             b_gross = int(b_tkts * max_price)
                             occ = 50.0

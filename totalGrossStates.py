@@ -340,7 +340,7 @@ def process_single_city(task_data):
                         # ✅ SMART FALLBACK LOGIC
                         if error_msg and "sold out" in error_msg.lower():
                             # Case 1: Sold Out -> 100%
-                            t_tkts = 200; b_tkts = 200
+                            t_tkts = 400; b_tkts = 400
                             t_gross = int(t_tkts * max_price)
                             b_gross = t_gross
                             occ = 100.0
@@ -355,7 +355,7 @@ def process_single_city(task_data):
                             continue 
                         else:
                             # Case 3: Unknown/Other -> 50% Safe Fallback
-                            t_tkts = 200; b_tkts = 100
+                            t_tkts = 400; b_tkts = 200
                             t_gross = int(t_tkts * max_price)
                             b_gross = int(b_tkts * max_price)
                             occ = 50.0

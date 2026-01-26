@@ -245,14 +245,14 @@ def process_movie(url):
                     # ✅ LOGIC BRANCHING BASED ON ERROR MESSAGE
                     if error_msg and "sold out" in error_msg.lower():
                         # CASE 1: SOLD OUT -> 100% Occupancy
-                        FALLBACK_SEATS = 200
-                        FALLBACK_BOOKED = 200
+                        FALLBACK_SEATS = 400
+                        FALLBACK_BOOKED = 400
                         FALLBACK_OCC = 100.0
                         print(f"   ⚠️ Sold Out Detected: {venue_name} | {show_time}")
                     else:
                         # CASE 2: UNKNOWN ERROR -> 50% Occupancy (Conservative)
-                        FALLBACK_SEATS = 200
-                        FALLBACK_BOOKED = 100
+                        FALLBACK_SEATS = 400
+                        FALLBACK_BOOKED = 200
                         FALLBACK_OCC = 50.0
                         print(f"   ⚠️ API Error ({error_msg}): Using 50% fallback for {venue_name}")
 
