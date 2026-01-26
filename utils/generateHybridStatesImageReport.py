@@ -159,7 +159,7 @@ def generate_hybrid_image_report(all_results, ref_url, output_path, ref_source="
 
     # --- CITY BREAKDOWN SECTION ---
     draw.rectangle([(padding, y), (w-padding, y+head_h)], fill=colors[0])
-    draw.text((w//2, y+head_h/2), f"TOP {len(city_list)} AREAS", font=f_header, fill=(255,255,255), anchor="mm")
+    draw.text((w//2, y+head_h/2), f"TOP {len(city_list)} CITIES", font=f_header, fill=(255,255,255), anchor="mm")
     y += head_h
     draw.rectangle([(padding, y), (w-padding, y+row_h)], fill=colors[1])
     

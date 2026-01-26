@@ -28,6 +28,7 @@ DISTRICT_FULL_URL = f"{DISTRICT_URL}?fromdate={SHOW_DATE}"
 # BMS Settings
 BMS_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 BOOKED_CODES = {"2"}
+SLEEP_TIME = 1.0
 
 # ================= SHARED DRIVER =================
 def get_driver():
@@ -138,6 +139,41 @@ def calculate_bms_collection(decrypted, price_map):
     occ = round((b_tkts / t_tkts) * 100, 2) if t_tkts else 0
     return t_tkts, b_tkts, int(t_gross), int(b_gross), occ
 
+def get_seat_layout(driver, venue_code, session_id):
+    """ Returns tuple: (EncryptedDataString, ErrorMessage) """
+    api = "https://services-in.bookmyshow.com/doTrans.aspx"
+    js = f"""
+    var cb = arguments[0]; var x = new XMLHttpRequest();
+    x.open("POST", "{api}", true);
+    x.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    x.onload = function() {{ cb(x.responseText); }};
+    x.send("strCommand=GETSEATLAYOUT&strAppCode=WEB&strVenueCode={venue_code}&strParam1={session_id}&strParam2=WEB&strParam5=Y&strFormat=json");
+    """
+    
+    max_retries = 2
+    for attempt in range(max_retries + 1):
+        try:
+            resp = driver.execute_async_script(js)
+            j_resp = json.loads(resp).get("BookMyShow", {})
+            
+            if j_resp.get("blnSuccess") == "true":
+                return j_resp.get("strData"), None
+            
+            error_msg = j_resp.get("strException", "")
+            if "Rate limit" in error_msg:
+                if attempt < max_retries:
+                    time.sleep(60)
+                    continue
+                else:
+                    return None, "Rate limit exceeded"
+            
+            return None, error_msg
+
+        except Exception as e:
+            return None, str(e)
+            
+    return None, "Unknown Error"
+
 def fetch_bms_data():
     print("\n🚀 STARTING BMS FETCH...")
     results = []
@@ -177,63 +213,67 @@ def fetch_bms_data():
             v_name = v["additionalData"]["venueName"]
             v_code = v["additionalData"]["venueCode"]
             
-            for show in v.get("showtimes", []):
+            # 1. Init Capacity Map for THIS Venue
+            screen_capacity_map = {}
+
+            # 2. Sort Shows: Available (3,2,1) First, Sold Out (0) Last
+            # This helps us learn capacity from available shows before hitting sold out ones
+            shows = v.get("showtimes", [])
+            shows.sort(key=lambda s: s["additionalData"].get("availStatus", "0"), reverse=True)
+
+            for show in shows:
                 sid = show["additionalData"]["sessionId"]
                 show_time = show["title"]
+                
+                # 3. Determine Screen Name (or default to Main Screen)
+                raw_screen = show.get("screenAttr", "")
+                screenName = raw_screen if raw_screen else "Main Screen"
+
                 cats = show["additionalData"].get("categories", [])
                 price_map = {c["areaCatCode"]: float(c["curPrice"]) for c in cats}
                 
-                api = "https://services-in.bookmyshow.com/doTrans.aspx"
-                js = f"""
-                var cb = arguments[0]; var x = new XMLHttpRequest();
-                x.open("POST", "{api}", true);
-                x.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-                x.onload = function() {{ cb(x.responseText); }};
-                x.send("strCommand=GETSEATLAYOUT&strAppCode=WEB&strVenueCode={v_code}&strParam1={sid}&strParam2=WEB&strParam5=Y&strFormat=json");
-                """
-                
                 try:
-                    resp = driver.execute_async_script(js)
-                    j_resp = json.loads(resp).get("BookMyShow", {})
+                    # Get Data & Error
+                    enc, error_msg = get_seat_layout(driver, v_code, sid)
                     
                     data = None
                     soldOut = False
                     
-                    # 1. SUCCESS: Standard Calculation
-                    if j_resp.get("blnSuccess") == "true":
-                        decrypted = decrypt_data(j_resp.get("strData"))
-                        t_tkts, b_tkts, t_gross, b_gross, occ = calculate_bms_collection(decrypted, price_map)
-                        data = {
-                            "total_tickets": t_tkts, "booked_tickets": b_tkts,
-                            "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ
-                        }
-                    
-                    # 2. FAILURE: Check Error Message
-                    else:
-                        error_msg = j_resp.get("strException", "")
+                    if not enc:
+                        # FAILURE HANDLING
                         if not price_map: continue
                         max_price = max(price_map.values())
 
+                        # SMART FALLBACK LOGIC
                         if error_msg and "sold out" in error_msg.lower():
-                            # CASE A: Sold Out -> 100%
-                            t_tkts = 400; b_tkts = 400
+                            # Case 1: Sold Out -> 100%
+                            
+                            # Check if we know the capacity for this screen
+                            if screenName in screen_capacity_map:
+                                FALLBACK_SEATS = screen_capacity_map[screenName]
+                                print(f"   ⚡ Smart Fallback: Using {FALLBACK_SEATS} seats for {screenName}")
+                            else:
+                                FALLBACK_SEATS = 400
+                                print(f"   ⚠️ No history for {screenName}, using default {FALLBACK_SEATS}")
+
+                            t_tkts = FALLBACK_SEATS; b_tkts = FALLBACK_SEATS
                             t_gross = int(t_tkts * max_price)
                             b_gross = t_gross
                             occ = 100.0
                             soldOut = True
+                            
                             data = {
                                 "total_tickets": t_tkts, "booked_tickets": b_tkts,
                                 "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ
                             }
                         
                         elif error_msg and "Rate limit" in error_msg:
-                            # CASE B: Rate Limit -> SKIP (Safe)
+                            # Case 2: Rate Limit -> Skip
                             print(f"   ⚠️ Skipping {v_name[:15]} (Rate Limit)")
-                            time.sleep(60)
                             continue
                         
                         else:
-                            # CASE C: Unknown Error -> 50% Fallback
+                            # Case 3: Other -> 50%
                             t_tkts = 400; b_tkts = 200
                             t_gross = int(t_tkts * max_price)
                             b_gross = int(b_tkts * max_price)
@@ -243,9 +283,22 @@ def fetch_bms_data():
                                 "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ
                             }
 
+                    else:
+                        # SUCCESS HANDLING
+                        decrypted = decrypt_data(enc)
+                        res = calculate_bms_collection(decrypted, price_map)
+                        data = {
+                            "total_tickets": res[0], "booked_tickets": res[1],
+                            "total_gross": res[2], "booked_gross": res[3], "occupancy": res[4]
+                        }
+                        
+                        # Cache Capacity for this Screen
+                        if data["total_tickets"] > 0:
+                            screen_capacity_map[screenName] = data["total_tickets"]
+
                     if data:
                         tag = "(SOLD OUT)" if soldOut else ""
-                        print(f"   🎬 {v_name[:20]:<20} | {show_time} | Occ: {data['occupancy']:>5}% | Gross: ₹{data['booked_gross']:<8,} {tag}")
+                        print(f"   🎬 {v_name[:15]:<15} | {show_time} | Occ: {data['occupancy']:>5}% | Gross: ₹{data['booked_gross']:<8,} {tag}")
 
                         results.append({
                             "source": "bms", "sid": str(sid),
@@ -257,7 +310,7 @@ def fetch_bms_data():
                             "occupancy": min(100, abs(data["occupancy"]))
                         })
                 except Exception: pass
-                time.sleep(1)
+                time.sleep(SLEEP_TIME)
         
         print(f"✅ BMS: Found {len(results)} shows.")
 

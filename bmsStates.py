@@ -316,10 +316,21 @@ def process_single_city(task_data):
         for venue in venues:
             v_name = venue["additionalData"]["venueName"]
             v_code = venue["additionalData"]["venueCode"]
+            
+            # 1. Init Capacity Map
+            screen_capacity_map = {}
 
-            for show in venue.get("showtimes", []):
+            # 2. Get and Sort Shows (Available first)
+            shows = venue.get("showtimes", [])
+            shows.sort(key=lambda s: s["additionalData"].get("availStatus", "0"), reverse=True)
+
+            for show in shows:
                 sid = str(show["additionalData"]["sessionId"])
                 show_time = show["title"]
+                
+                # 3. Determine Screen Name
+                raw_screen = show.get("screenAttr", "")
+                screenName = raw_screen if raw_screen else "Main Screen"
                 
                 if SKIP_DUPLICATES_IN_BMS and sid in district_sids:
                     continue 
@@ -329,7 +340,6 @@ def process_single_city(task_data):
                     cats = show["additionalData"].get("categories", [])
                     price_map = {c["areaCatCode"]: float(c["curPrice"]) for c in cats}
                     
-                    # Call new get_seat_layout which returns tuple
                     enc, error_msg = get_seat_layout(driver, v_code, sid)
                     
                     data = None
@@ -340,21 +350,28 @@ def process_single_city(task_data):
                         # SMART FALLBACK LOGIC
                         if error_msg and "sold out" in error_msg.lower():
                             # Case 1: Sold Out -> 100%
-                            t_tkts = 400; b_tkts = 400
+                            
+                            # Check Map
+                            if screenName in screen_capacity_map:
+                                FALLBACK_SEATS = screen_capacity_map[screenName]
+                            else:
+                                FALLBACK_SEATS = 400
+                            
+                            t_tkts = FALLBACK_SEATS; b_tkts = FALLBACK_SEATS
                             t_gross = int(t_tkts * max_price)
                             b_gross = t_gross
                             occ = 100.0
                             soldOut = True
+                            
                             data = {
                                 "total_tickets": t_tkts, "booked_tickets": b_tkts,
                                 "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ
                             }
                         elif error_msg and "Rate limit" in error_msg:
-                            # Case 2: Rate Limit -> Skip
                             print(f"   Skipping {v_name[:15]} due to Rate Limit")
                             continue 
                         else:
-                            # Case 3: Unknown/Other -> 50% Safe Fallback
+                            # Case 3: Other -> 50%
                             t_tkts = 400; b_tkts = 200
                             t_gross = int(t_tkts * max_price)
                             b_gross = int(b_tkts * max_price)
@@ -370,6 +387,10 @@ def process_single_city(task_data):
                             "total_tickets": abs(res[0]), "booked_tickets": min(abs(res[1]), abs(res[0])),
                             "total_gross": abs(res[2]), "booked_gross": min(abs(res[3]), abs(res[2])), "occupancy": min(100, abs(res[4]))
                         }
+                        
+                        # Cache Capacity if successful
+                        if data["total_tickets"] > 0:
+                            screen_capacity_map[screenName] = data["total_tickets"]
 
                     if data and data['total_tickets'] > 0:
                         tag = "(SOLD OUT)" if soldOut else ""

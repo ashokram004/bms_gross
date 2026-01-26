@@ -11,7 +11,7 @@ from datetime import datetime
 from utils.generateImageReport import generate_city_image_report
 import os
 
-url = "https://in.bookmyshow.com/movies/guntur/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260126"
+url = "https://in.bookmyshow.com/movies/vizag-visakhapatnam/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260126"
 
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 
@@ -112,7 +112,7 @@ def get_seat_layout(venue_code, session_id):
             else:
                 exception = data.get("strException", "")
                 
-                # Rate Limit Handling (Keep existing logic)
+                # Rate Limit Handling
                 if "Rate limit exceeded" in exception and attempt < max_retries:
                     print(f"Rate limit hit, retrying in 60 seconds... (attempt {attempt + 1}/{max_retries + 1})")
                     time.sleep(60)
@@ -121,7 +121,6 @@ def get_seat_layout(venue_code, session_id):
                         print("🐢 Increasing global sleep time to 2.0s")
                     continue
                 else:
-                    # Return the specific error message to the caller
                     return None, exception
         except Exception as e:
             return None, str(e)
@@ -224,16 +223,30 @@ def process_movie(url):
     for venue in venues:
         venue_code = venue["additionalData"]["venueCode"]
         venue_name = venue["additionalData"]["venueName"]
+        
+        # 1. Initialize Capacity Map for THIS venue only
+        # Ensures no collision with other theatres
+        screen_capacity_map = {} 
 
-        for show in venue.get("showtimes", []):
+        # 2. Sort shows: Available First (3,2,1), Sold Out Last (0)
+        # This increases the chance of caching the capacity before hitting a sold out show
+        shows = venue.get("showtimes", [])
+        shows.sort(key=lambda s: s["additionalData"].get("availStatus", "0"), reverse=True)
+
+        for show in shows:
             curShowNo += 1
             session_id = show["additionalData"]["sessionId"]
             show_time = show["title"]
+            
+            # 3. Normalize Screen Name
+            # If screenAttr is None or Empty, treat it as a Single Screen Theatre
+            raw_screen = show.get("screenAttr", "")
+            screenName = raw_screen if raw_screen else "Main Screen"
 
             try:
                 price_map = extract_price_map_from_show(show)
                 
-                # ✅ UPDATED: Get both data and error message
+                # Get data and error
                 enc, error_msg = get_seat_layout(venue_code, session_id)
                 
                 if not enc:
@@ -242,15 +255,25 @@ def process_movie(url):
 
                     fallback_price = max(price_map.values())
                     
-                    # ✅ LOGIC BRANCHING BASED ON ERROR MESSAGE
+                    # LOGIC BRANCHING
                     if error_msg and "sold out" in error_msg.lower():
                         # CASE 1: SOLD OUT -> 100% Occupancy
-                        FALLBACK_SEATS = 400
-                        FALLBACK_BOOKED = 400
+                        
+                        # --- SMART FALLBACK ---
+                        if screenName in screen_capacity_map:
+                            # Use exact capacity from previous shows in THIS theatre
+                            FALLBACK_SEATS = screen_capacity_map[screenName]
+                            print(f"   ⚡ Smart Fallback: Using {FALLBACK_SEATS} seats for {screenName}")
+                        else:
+                            # No history found, use default
+                            FALLBACK_SEATS = 400 
+                            print(f"   ⚠️ No history for {screenName}, using default {FALLBACK_SEATS}")
+
+                        FALLBACK_BOOKED = FALLBACK_SEATS
                         FALLBACK_OCC = 100.0
                         print(f"   ⚠️ Sold Out Detected: {venue_name} | {show_time}")
                     else:
-                        # CASE 2: UNKNOWN ERROR -> 50% Occupancy (Conservative)
+                        # CASE 2: UNKNOWN ERROR -> 50% Occupancy
                         FALLBACK_SEATS = 400
                         FALLBACK_BOOKED = 200
                         FALLBACK_OCC = 50.0
@@ -266,6 +289,11 @@ def process_movie(url):
                 else:
                     decrypted = decrypt_data(enc)
                     data = calculate_show_collection(decrypted, price_map)
+                    
+                    # --- CACHE CAPACITY ---
+                    # If scrape successful, save capacity for this screen
+                    if data["total_tickets"] > 0:
+                        screen_capacity_map[screenName] = data["total_tickets"]
 
             except Exception as e:
                 print(f"❌ Skipping {venue_name} | {show_time} : {e}")
@@ -273,7 +301,7 @@ def process_movie(url):
 
             print(
                 f"Show no: {curShowNo}\n"
-                f"🎬 {venue_name} | {show_time}\n"
+                f"🎬 {venue_name} | {show_time} ({screenName})\n"
                 f"   Seats: {data['total_tickets']} | "
                 f"Booked: {data['booked_tickets']} | "
                 f"Occ: {data['occupancy']}% | "

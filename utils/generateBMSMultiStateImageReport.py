@@ -157,7 +157,7 @@ def generate_multi_state_image_report(all_results, reference_url, output_path):
 
     # SECTION: Top Cities Breakdown
     draw.rectangle([(padding, curr_y), (img_w-padding, curr_y+head_h)], fill=C_ORANGE)
-    draw.text((img_w//2, curr_y+head_h/2), f"TOP {len(city_list)} AREAS BY REVENUE", font=f_header, fill=(255, 255, 255), anchor="mm")
+    draw.text((img_w//2, curr_y+head_h/2), f"TOP {len(city_list)} CITIES BY REVENUE", font=f_header, fill=(255, 255, 255), anchor="mm")
     curr_y += head_h
 
     draw.rectangle([(padding, curr_y), (img_w-padding, curr_y+row_h)], fill=C_BLUE)

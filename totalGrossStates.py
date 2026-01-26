@@ -63,7 +63,7 @@ def load_mapping_dict(file_path):
                             if "name" in entry and "reporting_city" in entry:
                                 mapping[(state, entry["name"])] = entry["reporting_city"]
         except Exception as e:
-            print(f"⚠️ Warning: Could not parse mapping {file_path}: {e}")
+            print(f"Warning: Could not parse mapping {file_path}: {e}")
     return mapping
 
 # Pre-load mappings globally
@@ -104,9 +104,9 @@ def get_driver(proxy=None):
 
 # ================= DISTRICT LOGIC =================
 def fetch_district_data(driver):
-    print("\n🚀 STARTING DISTRICT APP PROCESS...")
+    print("\nSTARTING DISTRICT APP PROCESS...")
     if not os.path.exists(DISTRICT_CONFIG_PATH):
-        print(f"❌ District Config missing: {DISTRICT_CONFIG_PATH}")
+        print(f"District Config missing: {DISTRICT_CONFIG_PATH}")
         return []
 
     with open(DISTRICT_CONFIG_PATH, 'r', encoding='utf-8') as f:
@@ -121,7 +121,7 @@ def fetch_district_data(driver):
 
         for city in cities:
             url = f"{DISTRICT_URL_BASE}{city['slug']}-MV203929?fromdate={SHOW_DATE}"
-            print(f"🌐 [{state}] Fetching {city['name']}...", end="\r")
+            print(f"[{state}] Fetching {city['name']}...", end="\r")
             
             try:
                 driver.get(url)
@@ -302,7 +302,7 @@ def process_single_city(task_data):
     # --- NORMALIZE CITY ---
     reporting_city = get_normalized_city_name(state_name, city_name, "bms")
 
-    print(f"🚀 Starting BMS: {city_name} -> {reporting_city}...")
+    print(f"Starting BMS: {city_name} -> {reporting_city}...")
     url = BMS_URL_TEMPLATE.format(city=city_slug)
     driver = get_driver(current_proxy)
     city_results = []
@@ -316,10 +316,21 @@ def process_single_city(task_data):
         for venue in venues:
             v_name = venue["additionalData"]["venueName"]
             v_code = venue["additionalData"]["venueCode"]
+            
+            # 1. Init Capacity Map
+            screen_capacity_map = {}
 
-            for show in venue.get("showtimes", []):
+            # 2. Get and Sort Shows (Available first)
+            shows = venue.get("showtimes", [])
+            shows.sort(key=lambda s: s["additionalData"].get("availStatus", "0"), reverse=True)
+
+            for show in shows:
                 sid = str(show["additionalData"]["sessionId"])
                 show_time = show["title"]
+                
+                # 3. Determine Screen Name
+                raw_screen = show.get("screenAttr", "")
+                screenName = raw_screen if raw_screen else "Main Screen"
                 
                 if SKIP_DUPLICATES_IN_BMS and sid in district_sids:
                     continue 
@@ -329,7 +340,6 @@ def process_single_city(task_data):
                     cats = show["additionalData"].get("categories", [])
                     price_map = {c["areaCatCode"]: float(c["curPrice"]) for c in cats}
                     
-                    # ✅ Updated to capture error messages
                     enc, error_msg = get_seat_layout(driver, v_code, sid)
                     
                     data = None
@@ -337,24 +347,31 @@ def process_single_city(task_data):
                         if not price_map: continue
                         max_price = max(price_map.values())
                         
-                        # ✅ SMART FALLBACK LOGIC
+                        # SMART FALLBACK LOGIC
                         if error_msg and "sold out" in error_msg.lower():
                             # Case 1: Sold Out -> 100%
-                            t_tkts = 400; b_tkts = 400
+                            
+                            # Check Map
+                            if screenName in screen_capacity_map:
+                                FALLBACK_SEATS = screen_capacity_map[screenName]
+                            else:
+                                FALLBACK_SEATS = 400
+                            
+                            t_tkts = FALLBACK_SEATS; b_tkts = FALLBACK_SEATS
                             t_gross = int(t_tkts * max_price)
                             b_gross = t_gross
                             occ = 100.0
                             soldOut = True
+                            
                             data = {
                                 "total_tickets": t_tkts, "booked_tickets": b_tkts,
                                 "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ
                             }
                         elif error_msg and "Rate limit" in error_msg:
-                            # Case 2: Rate Limit -> Skip
-                            print(f"   ⚠️ Skipping {v_name[:15]} due to Rate Limit")
+                            print(f"   Skipping {v_name[:15]} due to Rate Limit")
                             continue 
                         else:
-                            # Case 3: Unknown/Other -> 50% Safe Fallback
+                            # Case 3: Other -> 50%
                             t_tkts = 400; b_tkts = 200
                             t_gross = int(t_tkts * max_price)
                             b_gross = int(b_tkts * max_price)
@@ -370,10 +387,14 @@ def process_single_city(task_data):
                             "total_tickets": abs(res[0]), "booked_tickets": min(abs(res[1]), abs(res[0])),
                             "total_gross": abs(res[2]), "booked_gross": min(abs(res[3]), abs(res[2])), "occupancy": min(100, abs(res[4]))
                         }
+                        
+                        # Cache Capacity if successful
+                        if data["total_tickets"] > 0:
+                            screen_capacity_map[screenName] = data["total_tickets"]
 
                     if data and data['total_tickets'] > 0:
                         tag = "(SOLD OUT)" if soldOut else ""
-                        print(f"   [{city_name[:10]}] 🎬 {v_name[:15]:<15} | {show_time} | Occ: {data['occupancy']:>5}% | ₹{data['booked_gross']:<8} {tag}")
+                        print(f"   [{city_name[:10]}] {v_name[:15]:<15} | {show_time} | Occ: {data['occupancy']:>5}% | {data['booked_gross']:<8} {tag}")
 
                         data.update({
                             "source": "bms", "sid": sid,
@@ -391,7 +412,7 @@ def process_single_city(task_data):
 
 # ================= PART 3: EXCEL GENERATOR =================
 def generate_consolidated_excel(all_results, filename):
-    print("\n📊 Generating Consolidated Excel Report...")
+    print("\nGenerating Consolidated Excel Report...")
     wb = Workbook()
     reports_dir = "reports"
     os.makedirs(reports_dir, exist_ok=True)
@@ -399,7 +420,7 @@ def generate_consolidated_excel(all_results, filename):
     # 1. STATE WISE
     ws_state = wb.active
     ws_state.title = "State Wise"
-    ws_state.append(["State", "Cities", "Theatres", "Shows", "Total Seats", "Booked Seats", "Total Gross ₹", "Booked Gross ₹", "Occ %"])
+    ws_state.append(["State", "Cities", "Theatres", "Shows", "Total Seats", "Booked Seats", "Total Gross", "Booked Gross", "Occ %"])
     state_map, city_tracker, theatre_tracker = {}, {}, {}
 
     for r in all_results:
@@ -419,7 +440,7 @@ def generate_consolidated_excel(all_results, filename):
 
     # 2. CITY WISE (Aggregates Reporting Cities)
     ws_city = wb.create_sheet(title="City Wise")
-    ws_city.append(["State", "City", "Theatres", "Shows", "Total Seats", "Booked Seats", "Total Gross ₹", "Booked Gross ₹", "Occ %"])
+    ws_city.append(["State", "City", "Theatres", "Shows", "Total Seats", "Booked Seats", "Total Gross", "Booked Gross", "Occ %"])
     city_map, city_theatre_tracker = {}, {}
 
     for r in all_results:
@@ -438,7 +459,7 @@ def generate_consolidated_excel(all_results, filename):
 
     # 3. THEATRE WISE
     ws_th = wb.create_sheet(title="Theatre Wise")
-    ws_th.append(["Source", "State", "City", "Venue", "Shows", "Total Seats", "Booked Seats", "Total Gross ₹", "Booked Gross ₹", "Occ %"])
+    ws_th.append(["Source", "State", "City", "Venue", "Shows", "Total Seats", "Booked Seats", "Total Gross", "Booked Gross", "Occ %"])
     th_map = {}
     for r in all_results:
         k = (r["source"], r["state"], r["city"], r["venue"])
@@ -453,7 +474,7 @@ def generate_consolidated_excel(all_results, filename):
 
     # 4. SHOW WISE
     ws_show = wb.create_sheet(title="Show Wise")
-    ws_show.append(["Source", "State", "City", "Venue", "Time", "SID", "Total Seats", "Booked Seats", "Total Gross ₹", "Booked Gross ₹", "Occ %"])
+    ws_show.append(["Source", "State", "City", "Venue", "Time", "SID", "Total Seats", "Booked Seats", "Total Gross", "Booked Gross", "Occ %"])
     for r in all_results:
         ws_show.append([r["source"], r["state"], r["city"], r["venue"], r["showTime"], r["sid"], r["total_tickets"], r["booked_tickets"], r["total_gross"], r["booked_gross"], r["occupancy"]])
 
@@ -469,13 +490,13 @@ def generate_consolidated_excel(all_results, filename):
     ws_sum.append(["States Processed", len(state_map)])
     ws_sum.append(["Total Cities", len(city_map)])
     ws_sum.append(["Total Shows", len(all_results)])
-    ws_sum.append(["Total Booked Gross (₹)", agg_b_gross])
+    ws_sum.append(["Total Booked Gross", agg_b_gross])
     ws_sum.append(["Overall Occupancy %", overall_occ])
     ws_sum.append(["Generated At", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
     path = os.path.join(reports_dir, filename)
     wb.save(path)
-    print(f"📊 Consolidated Excel Saved: {path}")
+    print(f"Consolidated Excel Saved: {path}")
 
 # ================= MAIN EXECUTION FLOW =================
 if __name__ == "__main__":
@@ -505,7 +526,7 @@ if __name__ == "__main__":
             for city in bms_config.get(state, []):
                 bms_tasks.append((city['name'], city['slug'], state, district_known_sids))
 
-        print(f"🔥 Launching {MAX_WORKERS} Workers for {len(bms_tasks)} BMS cities...")
+        print(f"Launching {MAX_WORKERS} Workers for {len(bms_tasks)} BMS cities...")
         bms_data = []
         last_valid_url = ""
         executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
@@ -521,7 +542,7 @@ if __name__ == "__main__":
             executor.shutdown(wait=False)
 
     # 3. MERGE LOGIC
-    print("\n🔄 Merging Data Sources...")
+    print("\nMerging Data Sources...")
     merged_map = {}
     for r in district_data:
         key = r["sid"] if r["sid"] else f"{r['city']}_{r['venue']}_{r['showTime']}"
@@ -543,4 +564,4 @@ if __name__ == "__main__":
         ref_url_final = last_valid_url if last_valid_url else (DISTRICT_URL_BASE + "city")
         generate_hybrid_image_report(final_data, BMS_URL_TEMPLATE, f"reports/Total_States_Report_{ts_final}.png", "bms")
     else:
-        print("❌ No data found.")
+        print("No data found.")
