@@ -15,12 +15,14 @@ from fake_useragent import UserAgent
 
 from utils.generateHybridCityImageReport import generate_hybrid_city_image_report
 
+processed_sids = set()
+
 # ================= CONFIGURATION =================
 # User Inputs
-DISTRICT_URL = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-guntur-MV203929"
-BMS_URL = "https://in.bookmyshow.com/movies/guntur/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260126"
+DISTRICT_URL = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-vizag-MV203929"
+BMS_URL = "https://in.bookmyshow.com/movies/vizag-visakhapatnam/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260127"
 
-SHOW_DATE = "2026-01-26"  # Ensure this matches the date in BMS URL
+SHOW_DATE = "2026-01-27"  # Ensure this matches the date in BMS URL
 
 # Appended URL for District API
 DISTRICT_FULL_URL = f"{DISTRICT_URL}?fromdate={SHOW_DATE}"
@@ -67,7 +69,10 @@ def fetch_district_data(driver):
             venue = cin['entityName']
             for s in cin.get('sessions', []):
                 sid = str(s.get('sid', ''))
-                
+
+                if sid in processed_sids: continue
+                processed_sids.add(sid)
+
                 b_gross, p_gross, b_tkts, t_tkts = 0, 0, 0, 0
                 for a in s.get('areas', []):
                     tot, av, pr = a['sTotal'], a['sAvail'], a['price']
@@ -224,7 +229,10 @@ def fetch_bms_data():
             for show in shows:
                 sid = show["additionalData"]["sessionId"]
                 show_time = show["title"]
-                
+
+                if sid in processed_sids: continue
+                processed_sids.add(sid)
+
                 # 3. Determine Screen Name (or default to Main Screen)
                 raw_screen = show.get("screenAttr", "")
                 screenName = raw_screen if raw_screen else "Main Screen"

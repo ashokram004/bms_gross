@@ -41,8 +41,7 @@ BOOKED_STATES = {"2"}
 SLEEP_TIME = 1.0        # Sleep between shows inside a worker
 MAX_WORKERS = 3         # Number of parallel browsers for BMS
 
-# SPEED OPTIMIZATION FLAG
-SKIP_DUPLICATES_IN_BMS = True 
+processed_sids = set()
 
 # PROXY LIST
 PROXY_LIST = [] 
@@ -296,7 +295,7 @@ def calculate_show_collection(decrypted, price_map):
 
 def process_single_city(task_data):
     """ Worker Function for BMS Parallel Execution """
-    city_name, city_slug, state_name, processed_sids = task_data
+    city_name, city_slug, state_name = task_data
     current_proxy = next(proxy_pool) if proxy_pool else None
     
     # --- NORMALIZE CITY ---
@@ -333,9 +332,7 @@ def process_single_city(task_data):
                 screenName = raw_screen if raw_screen else "Main Screen"
                 
                 
-                if sid in processed_sids:
-                    continue 
-
+                if sid in processed_sids: continue
                 processed_sids.add(sid)
 
                 soldOut = False
@@ -506,12 +503,11 @@ if __name__ == "__main__":
     # 1. DISTRICT
     d_driver = get_driver()
     district_data = []
-    district_known_sids = set()
 
     try:
         district_data = fetch_district_data(d_driver)
         for r in district_data:
-            if r["sid"]: district_known_sids.add(r["sid"])
+            if r["sid"]: processed_sids.add(r["sid"])
         
         if district_data:
             ts = datetime.now().strftime("%H%M")
@@ -527,7 +523,7 @@ if __name__ == "__main__":
         bms_tasks = []
         for state in INPUT_STATE_LIST:
             for city in bms_config.get(state, []):
-                bms_tasks.append((city['name'], city['slug'], state, district_known_sids))
+                bms_tasks.append((city['name'], city['slug'], state))
 
         print(f"Launching {MAX_WORKERS} Workers for {len(bms_tasks)} BMS cities...")
         bms_data = []
@@ -553,10 +549,7 @@ if __name__ == "__main__":
 
     for r in bms_data:
         key = r["sid"] if r["sid"] else f"{r['city']}_{r['venue']}_{r['showTime']}"
-        if key in merged_map:
-            if not SKIP_DUPLICATES_IN_BMS and r["booked_gross"] > merged_map[key]["booked_gross"]:
-                merged_map[key] = r 
-        else:
+        if key not in merged_map:
             merged_map[key] = r
 
     final_data = list(merged_map.values())
