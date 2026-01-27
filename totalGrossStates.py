@@ -21,7 +21,7 @@ from utils.generateHybridStatesImageReport import generate_hybrid_image_report
 
 # =========================== CONFIGURATION ===========================
 INPUT_STATE_LIST = ["Andhra Pradesh", "Telangana"] 
-SHOW_DATE = "2026-01-26"
+SHOW_DATE = "2026-01-27"
 
 # Config Paths
 DISTRICT_CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
@@ -33,7 +33,7 @@ BMS_MAP_PATH = os.path.join("utils", "bms_area_city_mapping.json")
 
 # URLs
 DISTRICT_URL_BASE = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-"
-BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260126"
+BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260127"
 
 # BMS Settings
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
@@ -296,7 +296,7 @@ def calculate_show_collection(decrypted, price_map):
 
 def process_single_city(task_data):
     """ Worker Function for BMS Parallel Execution """
-    city_name, city_slug, state_name, district_sids = task_data
+    city_name, city_slug, state_name, processed_sids = task_data
     current_proxy = next(proxy_pool) if proxy_pool else None
     
     # --- NORMALIZE CITY ---
@@ -332,8 +332,11 @@ def process_single_city(task_data):
                 raw_screen = show.get("screenAttr", "")
                 screenName = raw_screen if raw_screen else "Main Screen"
                 
-                if SKIP_DUPLICATES_IN_BMS and sid in district_sids:
+                
+                if sid in processed_sids:
                     continue 
+
+                processed_sids.add(sid)
 
                 soldOut = False
                 try:
