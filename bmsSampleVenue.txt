@@ -1,0 +1,329 @@
+{
+                                                "type": "venue-card",
+                                                "additionalData": {
+                                                    "venueCode": "JTYS",
+                                                    "seatLegendIds": ["1", "88", "2"],
+                                                    "favouriteActionState": "unfavourite",
+                                                    "venueName": "Sangam Theatre 4K Dolby Atmos: Vizag",
+                                                    "uuid": "13ad2b2c-fea9-4369-83e1-f62f6fd15dc7"
+                                                },
+                                                "filters": ["pf1", "pf2", "tf4"],
+                                                "sortInfo": {
+                                                    "distance": {
+                                                        "value": 4900000,
+                                                        "enabled": true,
+                                                        "uuid": "177cf466-0448-4f96-954a-c391d083362c"
+                                                    },
+                                                    "popularityRank": {
+                                                        "value": 4,
+                                                        "enabled": true,
+                                                        "uuid": "aa9b15a5-c434-42d9-9dfc-578340955155"
+                                                    },
+                                                    "uuid": "72f5350b-c39d-426e-9780-6c6216043b8f"
+                                                },
+                                                "header": {
+                                                    "data": {
+                                                        "styleId": "header-container-style",
+                                                        "components": [{
+                                                            "type": "image",
+                                                            "data": {
+                                                                "url": "https://assets-in.bmscdn.com/moviesmaster/movies-showtimes/v4/cinema-icon/default.png",
+                                                                "styleId": "cinema-icon",
+                                                                "cta": {
+                                                                    "type": "redirection",
+                                                                    "id": "venueLink",
+                                                                    "analytics": {
+                                                                        "event_action": "venue_info",
+                                                                        "event_name": "showtime_actions",
+                                                                        "event_type": "click",
+                                                                        "uuid": "3ac389f0-34df-48fe-ba9b-ca67ab22df31"
+                                                                    },
+                                                                    "additionalData": {
+                                                                        "venueCode": "JTYS",
+                                                                        "venueName": "Sangam Theatre 4K Dolby Atmos: Vizag",
+                                                                        "redirectionUrl": "https://in.bookmyshow.com/cinemas/vizag-visakhapatnam/sangam-theatre-4k-dolby-atmos-vizag/buytickets/JTYS/20260127",
+                                                                        "uuid": "2d135dcb-10d0-43d5-8381-6fb4c9ffe58a"
+                                                                    },
+                                                                    "uuid": "27db85f9-4c3e-411c-a40b-76bfe7d90fd6"
+                                                                },
+                                                                "elementType": "a",
+                                                                "elementAttributes": {
+                                                                    "alt": "Sangam Theatre 4K Dolby Atmos: Vizag",
+                                                                    "href": "https://in.bookmyshow.com/cinemas/vizag-visakhapatnam/sangam-theatre-4k-dolby-atmos-vizag/buytickets/JTYS/20260127",
+                                                                    "uuid": "40eaca00-d430-4adc-abd5-ec76a3382749"
+                                                                },
+                                                                "uuid": "6671bac4-8bc4-4216-883a-5e88dc4197a2"
+                                                            },
+                                                            "uuid": "4f332f04-7a75-4ea2-85ed-f054b81c79e8"
+                                                        }, {
+                                                            "styleId": "header-title-container",
+                                                            "type": "text",
+                                                            "data": {
+                                                                "data": [{
+                                                                    "components": [{
+                                                                        "text": "Sangam Theatre 4K Dolby Atmos: Vizag",
+                                                                        "styleId": "header-subtitle",
+                                                                        "type": "text",
+                                                                        "uuid": "1a05ea8e-f454-4b76-a005-e21fc767cf53"
+                                                                    }, {
+                                                                        "styleId": "cinema-info-image-v2",
+                                                                        "imageUrl": "https://assets-in.bmscdn.com/moviesmaster/movies-showtimes/v4/common/infoV2.png",
+                                                                        "type": "image",
+                                                                        "uuid": "2b3b29fc-e39d-420c-87b3-841980a31876"
+                                                                    }],
+                                                                    "cta": {
+                                                                        "type": "bottomsheet",
+                                                                        "id": "venueInfo",
+                                                                        "analytics": {
+                                                                            "event_action": "venue_info",
+                                                                            "event_name": "showtime_actions",
+                                                                            "event_type": "click",
+                                                                            "uuid": "0bd2867f-22ac-42a9-b87a-9e964a38c5f2"
+                                                                        },
+                                                                        "additionalData": {
+                                                                            "venueCode": "JTYS",
+                                                                            "venueName": "Sangam Theatre 4K Dolby Atmos: Vizag",
+                                                                            "uuid": "f385f7bf-a76f-4cd5-a492-95966f1b0e47"
+                                                                        },
+                                                                        "uuid": "79e4f024-59a2-4664-bb6a-338dc444e9ea"
+                                                                    },
+                                                                    "uuid": "f1093daf-9012-4712-880a-a21aa4ceef25"
+                                                                }],
+                                                                "uuid": "1c9c060f-da07-4635-aa5a-1f0aca5e530f"
+                                                            },
+                                                            "uuid": "1dca5471-f9c8-4446-af40-f1a90126b99b"
+                                                        }, {
+                                                            "styleId": "favourite-icon",
+                                                            "type": "action",
+                                                            "data": {
+                                                                "id": "actionStates",
+                                                                "cta": {
+                                                                    "type": "venueFavourite",
+                                                                    "analytics": {
+                                                                        "event_name": "favourite_venue_selected",
+                                                                        "event_type": "click",
+                                                                        "venue_code": "JTYS",
+                                                                        "uuid": "f70cccdb-9630-456e-a4f2-4e02d678728a"
+                                                                    },
+                                                                    "uuid": "21a4f365-a1b7-4e42-b35c-ecd7a9ecbb58"
+                                                                },
+                                                                "uuid": "f70e8c6f-3cb7-4d55-b408-7e5cb07eb264"
+                                                            },
+                                                            "uuid": "154a15cf-9973-4a8e-8c23-f9b05fc7d43d"
+                                                        }],
+                                                        "uuid": "8a823b05-2a45-4d59-b15e-f65184b03214"
+                                                    },
+                                                    "uuid": "e48c64ce-60ee-4087-bcc9-4fcc449be2eb"
+                                                },
+                                                "infoList": [{
+                                                    "label": "Non-cancellable",
+                                                    "textColor": "#666666",
+                                                    "uuid": "028c10dd-43a3-426b-91d2-b030c1c15808"
+                                                }],
+                                                "showtimes": [{
+                                                    "title": "10:00 PM",
+                                                    "styleId": "green-pill-with-border",
+                                                    "cta": {
+                                                        "type": "showTimeRedirect",
+                                                        "analytics": {
+                                                            "company_code": "JTAP",
+                                                            "event_name": "showtime_selected",
+                                                            "event_type": "click",
+                                                            "format": "",
+                                                            "show_session_id": "10747",
+                                                            "show_time": "22:00",
+                                                            "type": "default_icon",
+                                                            "uuid": "0c40630b-fec3-4a50-a1f5-8d26299863ee"
+                                                        },
+                                                        "additionalData": {
+                                                            "showCutOffBottomSheet": true,
+                                                            "cta": {
+                                                                "type": "bottomsheet",
+                                                                "id": "cutOffBottomSheet",
+                                                                "uuid": "00b4f24e-d16c-4461-a082-cc3104382474"
+                                                            },
+                                                            "uuid": "b64fc8dc-bdaf-4715-a4cd-e1ae436f5bde"
+                                                        },
+                                                        "uuid": "b4580012-ac77-4870-a9ec-516167900195"
+                                                    },
+                                                    "additionalData": {
+                                                        "sessionId": "10747",
+                                                        "availStatus": "3",
+                                                        "cutOffDateTime": "202601272230",
+                                                        "cutOffDateTimeEpoch": "1769533200",
+                                                        "showDateCode": "20260127",
+                                                        "showDateTime": "202601272200",
+                                                        "showTimeCode": "2200",
+                                                        "showTime": "10:00 PM",
+                                                        "categories": [{
+                                                            "priceCode": "1001",
+                                                            "additionalData": "0",
+                                                            "curPrice": "145.00",
+                                                            "areaCatCode": "1001",
+                                                            "availStatus": "3",
+                                                            "seatLayout": true,
+                                                            "priceDesc": "A-Box",
+                                                            "categoryRange": "1|2|3|4",
+                                                            "uuid": "427fdd85-33fe-4c86-be1a-f82892377096"
+                                                        }, {
+                                                            "priceCode": "2002",
+                                                            "additionalData": "0",
+                                                            "curPrice": "145.00",
+                                                            "areaCatCode": "2002",
+                                                            "availStatus": "3",
+                                                            "seatLayout": true,
+                                                            "priceDesc": "B-Box",
+                                                            "categoryRange": "1|2|3|4",
+                                                            "uuid": "ff753498-bc5d-40eb-8034-d74151c12eff"
+                                                        }, {
+                                                            "priceCode": "3003",
+                                                            "additionalData": "0",
+                                                            "curPrice": "145.00",
+                                                            "areaCatCode": "3003",
+                                                            "availStatus": "3",
+                                                            "seatLayout": true,
+                                                            "priceDesc": "Premium",
+                                                            "categoryRange": "1|2|3|4",
+                                                            "uuid": "127fb919-26c6-426a-bceb-ec06af95e967"
+                                                        }, {
+                                                            "priceCode": "4004",
+                                                            "additionalData": "0",
+                                                            "curPrice": "100.00",
+                                                            "areaCatCode": "4004",
+                                                            "availStatus": "3",
+                                                            "seatLayout": true,
+                                                            "priceDesc": "Non-Premium",
+                                                            "categoryRange": "1|2|3|4",
+                                                            "uuid": "4d0acb39-1ff8-4164-af46-cd95ddaae85e"
+                                                        }],
+                                                        "categoryRange": "1|2|3|4",
+                                                        "uuid": "6dd59e35-9c96-4114-a0b1-20a23a21f9c0"
+                                                    },
+                                                    "filters": ["pf1", "pf2", "tf4"],
+                                                    "customGestureCTA": {
+                                                        "gestureType": "doubleTap",
+                                                        "type": "bottomsheet",
+                                                        "additionalData": {
+                                                            "bottomSheetData": {
+                                                                "backgroundColor": "#ffffff",
+                                                                "handleColor": "#000000",
+                                                                "widgets": [{
+                                                                    "type": "header-text-list",
+                                                                    "backgroundColor": "#EBF0FF",
+                                                                    "data": [{
+                                                                        "components": [{
+                                                                            "type": "text",
+                                                                            "styleId": "title",
+                                                                            "text": "Telugu · 2D",
+                                                                            "uuid": "e72345fa-ed68-4f2d-829a-a78a143a3d92"
+                                                                        }],
+                                                                        "uuid": "d0d06b08-d9f0-4d09-bae9-0f32968332b3"
+                                                                    }],
+                                                                    "uuid": "06ff135e-ba53-4bdf-96be-9fdd39d2c2a0"
+                                                                }, {
+                                                                    "type": "vertical-text-list",
+                                                                    "data": [{
+                                                                        "text": "Seat category and price",
+                                                                        "styleId": "info-header",
+                                                                        "uuid": "79c52a99-cf25-428e-b168-44f9a8913414"
+                                                                    }],
+                                                                    "uuid": "980aa8e3-75ed-4c8a-8998-615f6d3bcf27"
+                                                                }, {
+                                                                    "type": "info-row-list",
+                                                                    "data": [{
+                                                                        "title": {
+                                                                            "text": "A-Box",
+                                                                            "styleId": "category-bold",
+                                                                            "uuid": "dd248b3c-2e06-44a6-83ab-d62ca7982525"
+                                                                        },
+                                                                        "subtitle": {
+                                                                            "text": "AVAILABLE",
+                                                                            "styleId": "category-gesture-green-pill",
+                                                                            "uuid": "0a9f78a9-2771-43e6-9539-0a92c90b556e"
+                                                                        },
+                                                                        "description": {
+                                                                            "text": "₹ 145.00",
+                                                                            "styleId": "price-bold",
+                                                                            "uuid": "b22a3e8c-b51d-4f8d-a25b-babf3881c30f"
+                                                                        },
+                                                                        "uuid": "9b9a17a2-8362-4183-8256-1cf46398bb23"
+                                                                    }, {
+                                                                        "title": {
+                                                                            "text": "B-Box",
+                                                                            "styleId": "category-bold",
+                                                                            "uuid": "63765aa5-7f49-4d18-a87d-21a502ea5bff"
+                                                                        },
+                                                                        "subtitle": {
+                                                                            "text": "AVAILABLE",
+                                                                            "styleId": "category-gesture-green-pill",
+                                                                            "uuid": "658c6c6b-e836-4d8c-a9ce-3505cc51f7d4"
+                                                                        },
+                                                                        "description": {
+                                                                            "text": "₹ 145.00",
+                                                                            "styleId": "price-bold",
+                                                                            "uuid": "7b12ff6c-ef97-4548-87bc-afe7968c7739"
+                                                                        },
+                                                                        "uuid": "fe29f418-7ac5-400a-93a6-63945a000d0c"
+                                                                    }, {
+                                                                        "title": {
+                                                                            "text": "Premium",
+                                                                            "styleId": "category-bold",
+                                                                            "uuid": "bceb44c9-49f9-474a-b798-60ba86c63948"
+                                                                        },
+                                                                        "subtitle": {
+                                                                            "text": "AVAILABLE",
+                                                                            "styleId": "category-gesture-green-pill",
+                                                                            "uuid": "3cc34405-3da9-4751-b2a3-a27c32480c90"
+                                                                        },
+                                                                        "description": {
+                                                                            "text": "₹ 145.00",
+                                                                            "styleId": "price-bold",
+                                                                            "uuid": "0c6c1c27-d930-4030-a1e5-2e6ac5e3f9a6"
+                                                                        },
+                                                                        "uuid": "fce4690e-083b-4078-a270-675a480bef7f"
+                                                                    }, {
+                                                                        "title": {
+                                                                            "text": "Non-Premium",
+                                                                            "styleId": "category-bold",
+                                                                            "uuid": "1bc502a0-3d19-4785-a7b2-61b3257c8b18"
+                                                                        },
+                                                                        "subtitle": {
+                                                                            "text": "AVAILABLE",
+                                                                            "styleId": "category-gesture-green-pill",
+                                                                            "uuid": "f1c982ba-b1b1-41f5-b420-557bb4c9c183"
+                                                                        },
+                                                                        "description": {
+                                                                            "text": "₹ 100.00",
+                                                                            "styleId": "price-bold",
+                                                                            "uuid": "eb7c1039-cc8c-42fe-a1fd-7692f42dba6e"
+                                                                        },
+                                                                        "uuid": "79c946ba-d58e-4d6a-8e39-c46ec3ae72fc"
+                                                                    }],
+                                                                    "uuid": "db6fbd15-76b9-4b86-9ead-63eacd51cd92"
+                                                                }],
+                                                                "uuid": "ab31f288-f978-4780-93a1-5569728aceef"
+                                                            },
+                                                            "uuid": "f25f7797-3972-4ee8-ab83-b146fe4e2a50"
+                                                        },
+                                                        "analytics": {
+                                                            "event_action": "showinfo_modal_viewed",
+                                                            "event_name": "showtime_actions",
+                                                            "event_type": "click",
+                                                            "uuid": "326d5617-144f-4c42-89ac-ec156c71ce20"
+                                                        },
+                                                        "uuid": "4014d859-8253-459a-8bba-88f04abc7eed"
+                                                    },
+                                                    "uuid": "753107f2-6b9e-49b6-b05e-e58b55e1aa74"
+                                                }],
+                                                "analytics": {
+                                                    "display_position": "4",
+                                                    "event_name": "showtime_card_viewed",
+                                                    "event_type": "impression",
+                                                    "is_favourite": "false",
+                                                    "venue_code": "JTYS",
+                                                    "uuid": "d7fcc851-3005-4f18-9c12-f8ccec18cc8f"
+                                                },
+                                                "styleId": "venue-card-style",
+                                                "id": "JTYS",
+                                                "uuid": "04c70c7c-f8ae-4c14-bedd-ac07ee4eb1b0"
+                                            }
