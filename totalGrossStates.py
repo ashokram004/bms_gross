@@ -13,7 +13,9 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from openpyxl import Workbook
 from fake_useragent import UserAgent
-from datetime import datetime
+from datetime import datetime, timedelta
+import difflib
+from collections import defaultdict
 
 # --- IMPORT IMAGE GENERATORS ---
 from utils.generateDistrictMultiStateImageReport import generate_multi_state_image_report
@@ -101,6 +103,25 @@ def get_driver(proxy=None):
 
     return webdriver.Chrome(options=options)
 
+# ================= NEW: TIME NORMALIZATION HELPERS =================
+def district_gmt_to_ist(dt_str):
+    gmt = datetime.fromisoformat(dt_str)
+    ist = gmt + timedelta(hours=5, minutes=30)
+    return ist.strftime("%Y-%m-%d %H:%M")
+
+def normalize_bms_time(show_date, show_time):
+    dt = datetime.strptime(f"{show_date} {show_time}", "%Y-%m-%d %I:%M %p")
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+def build_seat_signature(seat_map):
+    """
+    Build a source-agnostic seat signature.
+    Ignores category names/codes.
+    Uses only sorted seat counts.
+    """
+    counts = sorted(seat_map.values())
+    return "|".join(str(c) for c in counts)
+
 # ================= DISTRICT LOGIC =================
 def fetch_district_data(driver):
     print("\nSTARTING DISTRICT APP PROCESS...")
@@ -152,20 +173,32 @@ def fetch_district_data(driver):
                         processed_sids.add(sid)
                         
                         b_gross, p_gross, b_tkts, t_tkts = 0, 0, 0, 0
+                        seat_map = {}
+                        price_seat_map = defaultdict(int)
+                        price_seat_list = []
+
                         for a in s.get('areas', []):
                             tot, av, pr = a['sTotal'], a['sAvail'], a['price']
                             bk = tot - av
+                            seat_map[a['label']] = tot
                             b_tkts += bk; t_tkts += tot
                             b_gross += (bk*pr); p_gross += (tot*pr)
+                            price_seat_map[float(pr)] += tot
+                            price_seat_list.append((float(pr), tot))
                         
                         occ = round((b_tkts/t_tkts)*100, 2) if t_tkts else 0
+                        normalized_time = district_gmt_to_ist(s['showTime'])
                         
                         city_res.append({
                             "source": "district", "sid": sid,
                             "state": state, "city": reporting_city, "venue": venue,
-                            "showTime": s['showTime'], "total_tickets": t_tkts,
-                            "booked_tickets": b_tkts, "total_gross": p_gross,
-                            "booked_gross": b_gross, "occupancy": occ
+                            "showTime": s['showTime'], "normalized_show_time": normalized_time,
+                            "seat_category_map": seat_map, "price_seat_map": dict(price_seat_map),
+                            "price_seat_signature": sorted(price_seat_list),
+                            "seat_signature": build_seat_signature(seat_map),
+                            "total_tickets": t_tkts, "booked_tickets": b_tkts, 
+                            "total_gross": p_gross, "booked_gross": int(b_gross), 
+                            "occupancy": occ, "is_fallback": False
                         })
                 
                 if city_res:
@@ -291,11 +324,11 @@ def calculate_show_collection(decrypted, price_map):
         t_gross += total * pr; b_gross += bk * pr
 
     occ = round((b_tkts / t_tkts) * 100, 2) if t_tkts else 0
-    return t_tkts, b_tkts, int(t_gross), int(b_gross), occ
+    return t_tkts, b_tkts, int(t_gross), int(b_gross), occ, seats
 
 def process_single_city(task_data):
     """ Worker Function for BMS Parallel Execution """
-    city_name, city_slug, state_name = task_data
+    city_name, city_slug, state_name, district_sids = task_data
     current_proxy = next(proxy_pool) if proxy_pool else None
     
     # --- NORMALIZE CITY ---
@@ -335,7 +368,16 @@ def process_single_city(task_data):
                 if sid in processed_sids: continue
                 processed_sids.add(sid)
 
+                # OPTIMIZATION: Skip if already found in District
+                if sid in district_sids:
+                    print(f"   ⏭️  Skipping {sid} (Found in District)")
+                    continue
+
                 soldOut = False
+                seat_map = {}
+                is_fallback = False
+                price_seat_map = {}
+
                 try:
                     cats = show["additionalData"].get("categories", [])
                     price_map = {c["areaCatCode"]: float(c["curPrice"]) for c in cats}
@@ -346,20 +388,62 @@ def process_single_city(task_data):
                     if not enc:
                         if not price_map: continue
                         max_price = max(price_map.values())
+                        is_fallback = True
+
+                        # Populate price_seat_map for fallback matching
+                        for p in price_map.values():
+                            price_seat_map[float(p)] = 0
                         
                         # SMART FALLBACK LOGIC
                         if error_msg and "sold out" in error_msg.lower():
-                            # Case 1: Sold Out -> 100%
+                            # Case 1: Sold Out -> Try Recovery or Fallback
+                            recovered_capacity = None
+                            recovered_seat_map = None
                             
-                            # Check Map
-                            if screenName in screen_capacity_map:
-                                FALLBACK_SEATS = screen_capacity_map[screenName]
-                            else:
-                                FALLBACK_SEATS = 400
+                            try:
+                                base_sid = int(sid)
+                                # Try offsets +7 down to +1
+                                for offset in range(7, 0, -1):
+                                    target_sid = str(base_sid + offset)
+                                    time.sleep(1)
+                                    n_enc, n_err = get_seat_layout(driver, v_code, target_sid)
+                                    if n_enc:
+                                        n_dec = decrypt_data(n_enc)
+                                        n_res = calculate_show_collection(n_dec, {})
+                                        if n_res[0] > 0:
+                                            recovered_capacity = n_res[0]
+                                            recovered_seat_map = n_res[5]
+                                            print(f"   ✨ Fixed SoldOut {sid} using {target_sid} (Cap: {recovered_capacity})")
+                                            break
+                            except Exception: pass
                             
-                            t_tkts = FALLBACK_SEATS; b_tkts = FALLBACK_SEATS
-                            t_gross = int(t_tkts * max_price)
-                            b_gross = t_gross
+                            if recovered_capacity:
+                                calc_gross = 0
+                                for ac, count in recovered_seat_map.items():
+                                    calc_gross += count * price_map.get(ac, 0)
+                                
+                                if calc_gross > 0:
+                                    t_tkts = recovered_capacity; b_tkts = recovered_capacity
+                                    t_gross = calc_gross; b_gross = calc_gross
+                                    screen_capacity_map[screenName] = t_tkts
+                                    
+                                    # Update maps for better data
+                                    seat_map = recovered_seat_map
+                                    ps_map = defaultdict(int)
+                                    for ac, count in seat_map.items():
+                                        ps_map[float(price_map.get(ac, 0))] += count
+                                    price_seat_map = dict(ps_map)
+                                else:
+                                    recovered_capacity = None
+
+                            if not recovered_capacity:
+                                if screenName in screen_capacity_map:
+                                    FALLBACK_SEATS = screen_capacity_map[screenName]
+                                else:
+                                    FALLBACK_SEATS = 400
+                                t_tkts = FALLBACK_SEATS; b_tkts = FALLBACK_SEATS
+                                t_gross = int(t_tkts * max_price); b_gross = t_gross
+
                             occ = 100.0
                             soldOut = True
                             
@@ -387,19 +471,35 @@ def process_single_city(task_data):
                             "total_tickets": abs(res[0]), "booked_tickets": min(abs(res[1]), abs(res[0])),
                             "total_gross": abs(res[2]), "booked_gross": min(abs(res[3]), abs(res[2])), "occupancy": min(100, abs(res[4]))
                         }
+                        seat_map = res[5]
                         
                         # Cache Capacity if successful
                         if data["total_tickets"] > 0:
+                            # Build Price Seat Map for Matching
+                            ps_map = defaultdict(int)
+                            ps_list = []
+                            for ac, count in seat_map.items():
+                                pr = float(price_map.get(ac, 0))
+                                ps_map[pr] += count
+                                ps_list.append((pr, count))
+                            price_seat_map = dict(ps_map)
+                            data["price_seat_signature"] = sorted(ps_list)
                             screen_capacity_map[screenName] = data["total_tickets"]
 
                     if data and data['total_tickets'] > 0:
+                        normalized_time = normalize_bms_time(SHOW_DATE, show_time)
                         tag = "(SOLD OUT)" if soldOut else ""
                         print(f"   [{city_name[:10]}] {v_name[:15]:<15} | {show_time} | Occ: {data['occupancy']:>5}% | {data['booked_gross']:<8} {tag}")
 
                         data.update({
                             "source": "bms", "sid": sid,
                             "state": state_name, "city": reporting_city,
-                            "venue": v_name, "showTime": show_time
+                            "venue": v_name, "showTime": show_time,
+                            "normalized_show_time": normalized_time,
+                            "seat_category_map": seat_map, "price_seat_map": price_seat_map,
+                            "price_seat_signature": data.get("price_seat_signature", []),
+                            "seat_signature": build_seat_signature(seat_map),
+                            "is_fallback": is_fallback
                         })
                         city_results.append(data)
                         city_total += data["booked_gross"]
@@ -520,10 +620,12 @@ if __name__ == "__main__":
         with open(BMS_CONFIG_PATH, 'r', encoding='utf-8') as f:
             bms_config = json.load(f)
 
+        district_known_sids = {r['sid'] for r in district_data if r['sid']}
+
         bms_tasks = []
         for state in INPUT_STATE_LIST:
             for city in bms_config.get(state, []):
-                bms_tasks.append((city['name'], city['slug'], state))
+                bms_tasks.append((city['name'], city['slug'], state, district_known_sids))
 
         print(f"Launching {MAX_WORKERS} Workers for {len(bms_tasks)} BMS cities...")
         bms_data = []
@@ -542,17 +644,90 @@ if __name__ == "__main__":
 
     # 3. MERGE LOGIC
     print("\nMerging Data Sources...")
-    merged_map = {}
+    final_data = []
+    SEAT_TOLERANCE = 5
+
+    # Index District data by (state, city, normalized_time) for fast lookup
+    district_index = defaultdict(list)
     for r in district_data:
-        key = r["sid"] if r["sid"] else f"{r['city']}_{r['venue']}_{r['showTime']}"
-        merged_map[key] = r
+        key = (r['state'], r['city'], r['normalized_show_time'])
+        district_index[key].append(r)
 
-    for r in bms_data:
-        key = r["sid"] if r["sid"] else f"{r['city']}_{r['venue']}_{r['showTime']}"
-        if key not in merged_map:
-            merged_map[key] = r
+    for bms in bms_data:
+        key = (bms['state'], bms['city'], bms['normalized_show_time'])
+        candidates = district_index.get(key, [])
+        match_found = None
 
-    final_data = list(merged_map.values())
+        # 1. Try EXACT SID Match
+        for cand in candidates:
+            if cand['sid'] == bms['sid']:
+                match_found = cand
+                break
+        
+        # 2. Try Price Seat Signature Match (if not fallback)
+        if not match_found and not bms.get('is_fallback', False):
+            b_sig = bms.get('price_seat_signature', [])
+            bms_venue_clean = bms['venue'].lower()
+            
+            for cand in candidates:
+                d_sig = cand.get('price_seat_signature', [])
+                if not b_sig or not d_sig: continue
+                if len(b_sig) != len(d_sig): continue
+                
+                if all(bp == dp and abs(bs - ds) <= SEAT_TOLERANCE for (bp, bs), (dp, ds) in zip(b_sig, d_sig)):
+                    # Also check fuzzy venue name to avoid false positives
+                    ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
+                    if ratio > 0.5:
+                        match_found = cand
+                        break
+        
+        # 3. Try FUZZY Venue Match + Strict Price Match (if fallback)
+        if not match_found and candidates:
+            best_ratio = 0
+            best_cand = None
+            bms_venue_clean = bms['venue'].lower()
+            b_prices = set(bms.get('price_seat_map', {}).keys())
+            
+            for cand in candidates:
+                d_prices = set(cand.get('price_seat_map', {}).keys())
+                if b_prices != d_prices: continue
+                
+                ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
+                if ratio > 0.6 and ratio > best_ratio:
+                    best_ratio = ratio
+                    best_cand = cand
+            
+            if best_cand:
+                match_found = best_cand
+
+        if match_found:
+            candidates.remove(match_found)
+            if bms.get('is_fallback', False):
+                final_data.append(match_found)
+            else:
+                if bms['booked_gross'] > match_found['booked_gross']:
+                    # Update District object with BMS stats to preserve Venue Name
+                    match_found.update({
+                        'source': 'bms',
+                        'total_tickets': bms['total_tickets'],
+                        'booked_tickets': bms['booked_tickets'],
+                        'total_gross': bms['total_gross'],
+                        'booked_gross': bms['booked_gross'],
+                        'occupancy': bms['occupancy'],
+                        'seat_category_map': bms['seat_category_map'],
+                        'price_seat_map': bms['price_seat_map'],
+                        'seat_signature': bms['seat_signature']
+                    })
+                    final_data.append(match_found)
+                else:
+                    final_data.append(match_found)
+        else:
+            final_data.append(bms)
+
+    # Add remaining unmatched District shows
+    for sublist in district_index.values():
+        final_data.extend(sublist)
+
     if final_data:
         ts_final = datetime.now().strftime("%Y%m%d_%H%M%S")
         generate_consolidated_excel(final_data, f"Total_States_Report_{ts_final}.xlsx")

@@ -12,6 +12,8 @@ from selenium.webdriver.chrome.options import Options
 from openpyxl import Workbook
 import difflib
 from collections import defaultdict
+import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from utils.generateHybridCityImageReport import generate_hybrid_city_image_report
 
@@ -32,6 +34,7 @@ DISTRICT_FULL_URL = f"{DISTRICT_URL}?fromdate={SHOW_DATE}"
 BMS_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 BOOKED_CODES = {"2"}
 SLEEP_TIME = 1.0
+MAX_WORKERS = 5
 
 # ================= SHARED DRIVER =================
 def get_driver():
@@ -101,6 +104,7 @@ def fetch_district_data(driver):
                 b_gross, p_gross, b_tkts, t_tkts = 0, 0, 0, 0
                 seat_map = {}
                 price_seat_map = defaultdict(int)
+                price_seat_list = []
 
                 for a in s.get('areas', []):
                     tot, av, pr = a['sTotal'], a['sAvail'], a['price']
@@ -112,6 +116,7 @@ def fetch_district_data(driver):
                     b_gross += (bk * pr)
                     p_gross += (tot * pr)
                     price_seat_map[float(pr)] += tot
+                    price_seat_list.append((float(pr), tot))
 
                 occ = round((b_tkts / t_tkts) * 100, 2) if t_tkts else 0
                 normalized_time = district_gmt_to_ist(s['showTime'])
@@ -129,6 +134,7 @@ def fetch_district_data(driver):
                     "normalized_show_time": normalized_time,
                     "seat_category_map": seat_map,
                     "price_seat_map": dict(price_seat_map),
+                    "price_seat_signature": sorted(price_seat_list),
                     "seat_signature": build_seat_signature(seat_map),
                     "total_tickets": t_tkts,
                     "booked_tickets": b_tkts,
@@ -237,48 +243,11 @@ def get_seat_layout(driver, venue_code, session_id):
     return None, "Unknown Error"
 
 
-def fetch_bms_data():
-    print("\n🚀 STARTING BMS FETCH...")
+def process_venue_list(venues):
     results = []
     driver = get_driver()
-
+    
     try:
-        driver.get(BMS_URL)
-        time.sleep(2.5)
-        html = driver.page_source
-
-        marker = "window.__INITIAL_STATE__"
-        start = html.find(marker)
-        if start == -1:
-            print("   ⚠️ BMS: Could not find initial state (possible bot detection)")
-            return []
-
-        start = html.find("{", start)
-        brace, end = 0, start
-        while end < len(html):
-            if html[end] == "{":
-                brace += 1
-            elif html[end] == "}":
-                brace -= 1
-            if brace == 0:
-                break
-            end += 1
-
-        state_data = json.loads(html[start:end + 1])
-
-        venues = []
-        try:
-            sbe = state_data.get("showtimesByEvent")
-            dc = sbe.get("currentDateCode")
-            widgets = sbe["showDates"][dc]["dynamic"]["data"]["showtimeWidgets"]
-            for w in widgets:
-                if w.get("type") == "groupList":
-                    for g in w["data"]:
-                        if g.get("type") == "venueGroup":
-                            venues = g["data"]
-        except:
-            venues = []
-
         for v in venues:
             v_name = v["additionalData"]["venueName"]
             v_code = v["additionalData"]["venueCode"]
@@ -294,12 +263,18 @@ def fetch_bms_data():
             )
 
             for show in shows:
-                sid = show["additionalData"]["sessionId"]
+                sid = str(show["additionalData"]["sessionId"])
                 show_time = show["title"]
 
                 # ===== NEW: ISOLATED DEDUPE =====
                 if sid in processed_bms_sids:
                     continue
+                
+                # OPTIMIZATION: Skip if already found in District
+                if sid in processed_district_sids:
+                    print(f"   ⏭️  Skipping {sid} (Found in District)")
+                    continue
+
                 processed_bms_sids.add(sid)
 
                 raw_screen = show.get("screenAttr", "")
@@ -332,23 +307,58 @@ def fetch_bms_data():
                             price_seat_map[float(p)] = 0
 
                         if error_msg and "sold out" in error_msg.lower():
-                            if screenName in screen_capacity_map:
-                                FALLBACK_SEATS = screen_capacity_map[screenName]
-                                print(
-                                    f"   ⚡ Smart Fallback: Using {FALLBACK_SEATS} seats "
-                                    f"for {screenName}"
-                                )
-                            else:
-                                FALLBACK_SEATS = 400
-                                print(
-                                    f"   ⚠️ No history for {screenName}, "
-                                    f"using default {FALLBACK_SEATS}"
-                                )
+                            # Case 1: Sold Out -> Try Recovery or Fallback
+                            recovered_capacity = None
+                            recovered_seat_map = None
+                            
+                            try:
+                                base_sid = int(sid)
+                                # Try offsets +7 down to +1
+                                for offset in range(7, 0, -1):
+                                    target_sid = str(base_sid + offset)
+                                    time.sleep(1)
+                                    n_enc, n_err = get_seat_layout(driver, v_code, target_sid)
+                                    if n_enc:
+                                        n_dec = decrypt_data(n_enc)
+                                        n_res = calculate_bms_collection(n_dec, {})
+                                        if n_res[0] > 0:
+                                            recovered_capacity = n_res[0]
+                                            recovered_seat_map = n_res[5]
+                                            print(f"   ✨ Fixed SoldOut {sid} using {target_sid} (Cap: {recovered_capacity})")
+                                            break
+                            except Exception: pass
+                            
+                            if recovered_capacity:
+                                calc_gross = 0
+                                for ac, count in recovered_seat_map.items():
+                                    # ✅ CRITICAL: Use ORIGINAL show's price_map, not the future show's prices
+                                    calc_gross += count * price_map.get(ac, 0)
+                                
+                                if calc_gross > 0:
+                                    t_tkts = recovered_capacity; b_tkts = recovered_capacity
+                                    t_gross = calc_gross; b_gross = calc_gross
+                                    screen_capacity_map[screenName] = t_tkts
+                                    
+                                    # Update maps for better data
+                                    seat_map = recovered_seat_map
+                                    ps_map = defaultdict(int)
+                                    for ac, count in seat_map.items():
+                                        # ✅ Rebuild signature using ORIGINAL prices
+                                        ps_map[float(price_map.get(ac, 0))] += count
+                                    price_seat_map = dict(ps_map)
+                                else:
+                                    recovered_capacity = None
 
-                            t_tkts = FALLBACK_SEATS
-                            b_tkts = FALLBACK_SEATS
-                            t_gross = int(t_tkts * max_price)
-                            b_gross = t_gross
+                            if not recovered_capacity:
+                                if screenName in screen_capacity_map:
+                                    FALLBACK_SEATS = screen_capacity_map[screenName]
+                                    print(f"   ⚡ Smart Fallback: Using {FALLBACK_SEATS} seats for {screenName}")
+                                else:
+                                    FALLBACK_SEATS = 400
+                                    print(f"   ⚠️ No history for {screenName}, using default {FALLBACK_SEATS}")
+                                t_tkts = FALLBACK_SEATS; b_tkts = FALLBACK_SEATS
+                                t_gross = int(t_tkts * max_price); b_gross = t_gross
+
                             occ = 100.0
                             soldOut = True
 
@@ -396,9 +406,13 @@ def fetch_bms_data():
                         if data["total_tickets"] > 0:
                             # Build Price Seat Map for Matching
                             ps_map = defaultdict(int)
+                            ps_list = []
                             for ac, count in seat_map.items():
-                                ps_map[float(price_map.get(ac, 0))] += count
+                                pr = float(price_map.get(ac, 0))
+                                ps_map[pr] += count
+                                ps_list.append((pr, count))
                             price_seat_map = dict(ps_map)
+                            data["price_seat_signature"] = sorted(ps_list)
                             screen_capacity_map[screenName] = data["total_tickets"]
 
                     if data:
@@ -419,6 +433,7 @@ def fetch_bms_data():
                             "normalized_show_time": normalized_time,
                             "seat_category_map": seat_map,
                             "price_seat_map": price_seat_map,
+                            "price_seat_signature": data.get("price_seat_signature", []),
                             "seat_signature": build_seat_signature(seat_map),
                             "total_tickets": abs(data["total_tickets"]),
                             "booked_tickets": min(
@@ -438,13 +453,77 @@ def fetch_bms_data():
                     pass
 
                 time.sleep(SLEEP_TIME)
+    except Exception as e:
+        print(f"❌ Worker Error: {e}")
+    finally:
+        driver.quit()
+    return results
 
+def fetch_bms_data():
+    print("\n🚀 STARTING BMS FETCH...")
+    results = []
+    driver = get_driver()
+
+    try:
+        driver.get(BMS_URL)
+        time.sleep(2.5)
+        html = driver.page_source
+
+        marker = "window.__INITIAL_STATE__"
+        start = html.find(marker)
+        if start == -1:
+            print("   ⚠️ BMS: Could not find initial state (possible bot detection)")
+            return []
+
+        start = html.find("{", start)
+        brace, end = 0, start
+        while end < len(html):
+            if html[end] == "{":
+                brace += 1
+            elif html[end] == "}":
+                brace -= 1
+            if brace == 0:
+                break
+            end += 1
+
+        state_data = json.loads(html[start:end + 1])
+
+        venues = []
+        try:
+            sbe = state_data.get("showtimesByEvent")
+            dc = sbe.get("currentDateCode")
+            widgets = sbe["showDates"][dc]["dynamic"]["data"]["showtimeWidgets"]
+            for w in widgets:
+                if w.get("type") == "groupList":
+                    for g in w["data"]:
+                        if g.get("type") == "venueGroup":
+                            venues = g["data"]
+        except:
+            venues = []
+
+        # Close the initial driver as workers will create their own
+        driver.quit()
+
+        if not venues:
+            return []
+
+        print(f"   🚀 Launching {MAX_WORKERS} workers for {len(venues)} venues...")
+        
+        # Split venues into chunks
+        chunk_size = math.ceil(len(venues) / MAX_WORKERS)
+        venue_chunks = [venues[i:i + chunk_size] for i in range(0, len(venues), chunk_size)]
+        
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = [executor.submit(process_venue_list, chunk) for chunk in venue_chunks]
+            
+            for future in as_completed(futures):
+                results.extend(future.result())
+        
         print(f"✅ BMS: Found {len(results)} shows.")
 
     except Exception as e:
         print(f"❌ BMS Error: {e}")
-    finally:
-        driver.quit()
+        # Driver is already quit or will be quit by workers
 
     return results
 
@@ -567,20 +646,25 @@ if __name__ == "__main__":
                 print(f"   🔗 SID Match: {bms['sid']}")
                 break
 
-        # 2. Try Price Map + Seat Tolerance Match (High Confidence)
+        # 2. Try Price Seat Signature Match (Exact Structure + Tolerance)
         # Only applicable if BMS is not a fallback (since fallback has no seat details)
         if not match_found and not bms.get('is_fallback', False):
-            b_pmap = bms.get('price_seat_map', {})
+            b_sig = bms.get('price_seat_signature', [])
+            bms_venue_clean = bms['venue'].lower()
+            
             for cand in candidates:
-                d_pmap = cand.get('price_seat_map', {})
-                if not b_pmap or not d_pmap: continue
+                d_sig = cand.get('price_seat_signature', [])
+                if not b_sig or not d_sig: continue
+                if len(b_sig) != len(d_sig): continue
 
-                # Check if price points match
-                if set(b_pmap.keys()) == set(d_pmap.keys()):
-                    # Check if seat counts at each price are within tolerance
-                    if all(abs(b_pmap[p] - d_pmap[p]) <= SEAT_TOLERANCE for p in b_pmap):
+                # Check if each pair matches (Price exact, Seats within tolerance)
+                # Both lists are sorted, so corresponding indices must match
+                if all(bp == dp and abs(bs - ds) <= SEAT_TOLERANCE for (bp, bs), (dp, ds) in zip(b_sig, d_sig)):
+                    # Also check fuzzy venue name to avoid false positives with same capacity
+                    ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
+                    if ratio > 0.5:
                         match_found = cand
-                        print(f"   🔗 Price/Seat Match: {bms['venue'][:15]}... (Tol: {SEAT_TOLERANCE})")
+                        print(f"   🔗 Price/Seat Sig Match: {bms['venue'][:15]}... == {cand['venue'][:15]}... (Tol: {SEAT_TOLERANCE}, Ratio: {int(ratio*100)}%)")
                         break
         
         # 3. Try FUZZY Venue Match (Fallback for Sold Out/Error BMS shows)

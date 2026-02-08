@@ -13,8 +13,10 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from openpyxl import Workbook
 from fake_useragent import UserAgent
-from datetime import datetime
+from datetime import datetime, timedelta
+import difflib
 from collections import defaultdict
+import math
 
 # --- IMPORT IMAGE GENERATORS ---
 from utils.generateDistrictMultiStateImageReport import generate_multi_state_image_report
@@ -22,7 +24,7 @@ from utils.generateHybridStatesImageReport import generate_hybrid_image_report
 
 # =========================== CONFIGURATION ===========================
 INPUT_STATE_LIST = ["Andhra Pradesh", "Telangana"] 
-SHOW_DATE = "2026-01-26"
+SHOW_DATE = "2026-01-27"
 
 # Config Paths
 DISTRICT_CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
@@ -34,13 +36,15 @@ BMS_MAP_PATH = os.path.join("utils", "bms_area_city_mapping.json")
 
 # URLs
 DISTRICT_URL_BASE = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-"
-BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260126"
+BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260127"
 
 # BMS Settings
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 BOOKED_STATES = {"2"}
 SLEEP_TIME = 1.0        # Sleep between shows inside a worker
 MAX_WORKERS = 3         # Number of parallel browsers for BMS
+
+processed_sids = set()
 
 # PROXY LIST
 PROXY_LIST = [] 
@@ -101,6 +105,11 @@ def get_driver(proxy=None):
     return webdriver.Chrome(options=options)
 
 # ================= NEW: TIME NORMALIZATION HELPERS =================
+def district_gmt_to_ist(dt_str):
+    gmt = datetime.fromisoformat(dt_str)
+    ist = gmt + timedelta(hours=5, minutes=30)
+    return ist.strftime("%Y-%m-%d %H:%M")
+
 def normalize_bms_time(show_date, show_time):
     dt = datetime.strptime(f"{show_date} {show_time}", "%Y-%m-%d %I:%M %p")
     return dt.strftime("%Y-%m-%d %H:%M")
@@ -113,6 +122,93 @@ def build_seat_signature(seat_map):
     """
     counts = sorted(seat_map.values())
     return "|".join(str(c) for c in counts)
+
+# ================= DISTRICT LOGIC =================
+def fetch_district_data(driver):
+    print("\nSTARTING DISTRICT APP PROCESS...")
+    if not os.path.exists(DISTRICT_CONFIG_PATH):
+        print(f"District Config missing: {DISTRICT_CONFIG_PATH}")
+        return []
+
+    with open(DISTRICT_CONFIG_PATH, 'r', encoding='utf-8') as f:
+        config = json.load(f)
+    
+    results = []
+    processed_sids = set() 
+    
+    for state in INPUT_STATE_LIST:
+        cities = config.get(state, [])
+        if not cities: continue
+
+        for city in cities:
+            url = f"{DISTRICT_URL_BASE}{city['slug']}-MV203929?fromdate={SHOW_DATE}"
+            print(f"[{state}] Fetching {city['name']}...", end="\r")
+            
+            try:
+                driver.get(url)
+                time.sleep(1)
+                html = driver.page_source
+                
+                marker = 'id="__NEXT_DATA__"'
+                idx = html.find(marker)
+                if idx == -1: continue
+                
+                start = html.find('>', idx) + 1
+                end = html.find('</script>', start)
+                data = json.loads(html[start:end])
+                
+                sessions = data['props']['pageProps']['data']['serverState']['movieSessions']
+                key = list(sessions.keys())[0]
+                cinemas = sessions[key]['pageData']['nearbyCinemas']
+
+                # --- NORMALIZE CITY ---
+                reporting_city = get_normalized_city_name(state, city['name'], "district")
+
+                city_res = []
+                for cin in cinemas:
+                    venue = cin['cinemaInfo']['name']
+                    for s in cin.get('sessions', []):
+                        sid = str(s.get('sid', ''))
+
+                        if sid in processed_sids: continue
+                        processed_sids.add(sid)
+                        
+                        b_gross, p_gross, b_tkts, t_tkts = 0, 0, 0, 0
+                        seat_map = {}
+                        price_seat_map = defaultdict(int)
+                        price_seat_list = []
+
+                        for a in s.get('areas', []):
+                            tot, av, pr = a['sTotal'], a['sAvail'], a['price']
+                            bk = tot - av
+                            seat_map[a['label']] = tot
+                            b_tkts += bk; t_tkts += tot
+                            b_gross += (bk*pr); p_gross += (tot*pr)
+                            price_seat_map[float(pr)] += tot
+                            price_seat_list.append((float(pr), tot))
+                        
+                        occ = round((b_tkts/t_tkts)*100, 2) if t_tkts else 0
+                        normalized_time = district_gmt_to_ist(s['showTime'])
+                        
+                        city_res.append({
+                            "source": "district", "sid": sid,
+                            "state": state, "city": reporting_city, "venue": venue,
+                            "showTime": s['showTime'], "normalized_show_time": normalized_time,
+                            "seat_category_map": seat_map, "price_seat_map": dict(price_seat_map),
+                            "price_seat_signature": sorted(price_seat_list),
+                            "seat_signature": build_seat_signature(seat_map),
+                            "total_tickets": t_tkts, "booked_tickets": b_tkts, 
+                            "total_gross": p_gross, "booked_gross": int(b_gross), 
+                            "occupancy": occ, "is_fallback": False
+                        })
+                
+                if city_res:
+                    gross = sum(x['booked_gross'] for x in city_res)
+                    print(f"✅ {city['name']:<15} -> {reporting_city:<15} | Shows: {len(city_res):<3} | Gross: ₹{gross:<10,}")
+                    results.extend(city_res)
+            except Exception: pass
+            
+    return results
 
 # ================= BMS LOGIC =================
 
@@ -231,25 +327,12 @@ def calculate_show_collection(decrypted, price_map):
     occ = round((b_tkts / t_tkts) * 100, 2) if t_tkts else 0
     return t_tkts, b_tkts, int(t_gross), int(b_gross), occ, seats
 
-def process_single_city(task_data):
-    """ Worker Function for BMS Parallel Execution """
-    city_name, city_slug, state_name = task_data
-    current_proxy = next(proxy_pool) if proxy_pool else None
+def process_venue_list(venues, city_name, reporting_city, state_name, district_sids, proxy=None):
+    results = []
+    total_gross = 0
+    driver = get_driver(proxy)
     
-    # --- NORMALIZE CITY ---
-    reporting_city = get_normalized_city_name(state_name, city_name, "bms")
-
-    print(f"Starting BMS: {city_name} -> {reporting_city}...")
-    url = BMS_URL_TEMPLATE.format(city=city_slug)
-    driver = get_driver(current_proxy)
-    city_results = []
-    city_total = 0
-
     try:
-        state_data = extract_initial_state_from_page(driver, url)
-        if not state_data: return [], 0, None
-        venues = extract_venues(state_data)
-        
         for venue in venues:
             v_name = venue["additionalData"]["venueName"]
             v_code = venue["additionalData"]["venueCode"]
@@ -269,6 +352,14 @@ def process_single_city(task_data):
                 raw_screen = show.get("screenAttr", "")
                 screenName = raw_screen if raw_screen else "Main Screen"
                 
+                if sid in processed_sids: continue
+                processed_sids.add(sid)
+
+                # OPTIMIZATION: Skip if already found in District
+                if sid in district_sids:
+                    print(f"   ⏭️  Skipping {sid} (Found in District)")
+                    continue
+
                 soldOut = False
                 seat_map = {}
                 is_fallback = False
@@ -316,7 +407,6 @@ def process_single_city(task_data):
                             if recovered_capacity:
                                 calc_gross = 0
                                 for ac, count in recovered_seat_map.items():
-                                    # ✅ CRITICAL: Use ORIGINAL show's price_map, not the future show's prices
                                     calc_gross += count * price_map.get(ac, 0)
                                 
                                 if calc_gross > 0:
@@ -328,7 +418,6 @@ def process_single_city(task_data):
                                     seat_map = recovered_seat_map
                                     ps_map = defaultdict(int)
                                     for ac, count in seat_map.items():
-                                        # ✅ Rebuild signature using ORIGINAL prices
                                         ps_map[float(price_map.get(ac, 0))] += count
                                     price_seat_map = dict(ps_map)
                                 else:
@@ -399,13 +488,57 @@ def process_single_city(task_data):
                             "seat_signature": build_seat_signature(seat_map),
                             "is_fallback": is_fallback
                         })
-                        city_results.append(data)
-                        city_total += data["booked_gross"]
+                        results.append(data)
+                        total_gross += data["booked_gross"]
 
                 except Exception: continue
                 time.sleep(SLEEP_TIME) 
+    except Exception as e:
+        print(f"❌ Worker Error: {e}")
+    finally:
+        driver.quit()
+    return results, total_gross
+
+def process_single_city(task_data):
+    """ Worker Function for BMS Parallel Execution """
+    city_name, city_slug, state_name, district_sids = task_data
+    current_proxy = next(proxy_pool) if proxy_pool else None
+    
+    # --- NORMALIZE CITY ---
+    reporting_city = get_normalized_city_name(state_name, city_name, "bms")
+
+    print(f"Starting BMS: {city_name} -> {reporting_city}...")
+    url = BMS_URL_TEMPLATE.format(city=city_slug)
+    driver = get_driver(current_proxy)
+    city_results = []
+    city_total = 0
+
+    try:
+        state_data = extract_initial_state_from_page(driver, url)
+        if not state_data: return [], 0, None
+        venues = extract_venues(state_data)
     except Exception: pass
-    finally: driver.quit()
+    finally:
+        driver.quit()
+
+    if not venues:
+        return [], 0, None
+
+    # Parallelize venues
+    chunk_size = math.ceil(len(venues) / MAX_WORKERS)
+    venue_chunks = [venues[i:i + chunk_size] for i in range(0, len(venues), chunk_size)]
+    
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [
+            executor.submit(process_venue_list, chunk, city_name, reporting_city, state_name, district_sids, current_proxy) 
+            for chunk in venue_chunks
+        ]
+        
+        for future in as_completed(futures):
+            res, total = future.result()
+            city_results.extend(res)
+            city_total += total
+
     return city_results, city_total, url
 
 # ================= PART 3: EXCEL GENERATOR =================
@@ -498,15 +631,32 @@ def generate_consolidated_excel(all_results, filename):
 
 # ================= MAIN EXECUTION FLOW =================
 if __name__ == "__main__":
+    # 1. DISTRICT
+    d_driver = get_driver()
+    district_data = []
+
+    try:
+        district_data = fetch_district_data(d_driver)
+        for r in district_data:
+            if r["sid"]: processed_sids.add(r["sid"])
+        
+        if district_data:
+            ts = datetime.now().strftime("%H%M")
+            generate_consolidated_excel(district_data, f"District_Only_{ts}.xlsx")
+    finally:
+        d_driver.quit() 
+
     # 2. BMS
     if os.path.exists(BMS_CONFIG_PATH):
         with open(BMS_CONFIG_PATH, 'r', encoding='utf-8') as f:
             bms_config = json.load(f)
 
+        district_known_sids = {r['sid'] for r in district_data if r['sid']}
+
         bms_tasks = []
         for state in INPUT_STATE_LIST:
             for city in bms_config.get(state, []):
-                bms_tasks.append((city['name'], city['slug'], state))
+                bms_tasks.append((city['name'], city['slug'], state, district_known_sids))
 
         print(f"Launching {MAX_WORKERS} Workers for {len(bms_tasks)} BMS cities...")
         bms_data = []
@@ -523,12 +673,97 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             executor.shutdown(wait=False)
 
-    final_data = bms_data
+    # 3. MERGE LOGIC
+    print("\nMerging Data Sources...")
+    final_data = []
+    SEAT_TOLERANCE = 5
+
+    # Index District data by (state, city, normalized_time) for fast lookup
+    district_index = defaultdict(list)
+    for r in district_data:
+        key = (r['state'], r['city'], r['normalized_show_time'])
+        district_index[key].append(r)
+
+    for bms in bms_data:
+        key = (bms['state'], bms['city'], bms['normalized_show_time'])
+        candidates = district_index.get(key, [])
+        match_found = None
+
+        # 1. Try EXACT SID Match
+        for cand in candidates:
+            if cand['sid'] == bms['sid']:
+                match_found = cand
+                break
+        
+        # 2. Try Price Seat Signature Match (if not fallback)
+        if not match_found and not bms.get('is_fallback', False):
+            b_sig = bms.get('price_seat_signature', [])
+            bms_venue_clean = bms['venue'].lower()
+            
+            for cand in candidates:
+                d_sig = cand.get('price_seat_signature', [])
+                if not b_sig or not d_sig: continue
+                if len(b_sig) != len(d_sig): continue
+                
+                if all(bp == dp and abs(bs - ds) <= SEAT_TOLERANCE for (bp, bs), (dp, ds) in zip(b_sig, d_sig)):
+                    # Also check fuzzy venue name to avoid false positives
+                    ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
+                    if ratio > 0.5:
+                        match_found = cand
+                        break
+        
+        # 3. Try FUZZY Venue Match + Strict Price Match (if fallback)
+        if not match_found and candidates:
+            best_ratio = 0
+            best_cand = None
+            bms_venue_clean = bms['venue'].lower()
+            b_prices = set(bms.get('price_seat_map', {}).keys())
+            
+            for cand in candidates:
+                d_prices = set(cand.get('price_seat_map', {}).keys())
+                if b_prices != d_prices: continue
+                
+                ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
+                if ratio > 0.6 and ratio > best_ratio:
+                    best_ratio = ratio
+                    best_cand = cand
+            
+            if best_cand:
+                match_found = best_cand
+
+        if match_found:
+            candidates.remove(match_found)
+            if bms.get('is_fallback', False):
+                final_data.append(match_found)
+            else:
+                if bms['booked_gross'] > match_found['booked_gross']:
+                    # Update District object with BMS stats to preserve Venue Name
+                    match_found.update({
+                        'source': 'bms',
+                        'total_tickets': bms['total_tickets'],
+                        'booked_tickets': bms['booked_tickets'],
+                        'total_gross': bms['total_gross'],
+                        'booked_gross': bms['booked_gross'],
+                        'occupancy': bms['occupancy'],
+                        'seat_category_map': bms['seat_category_map'],
+                        'price_seat_map': bms['price_seat_map'],
+                        'seat_signature': bms['seat_signature']
+                    })
+                    final_data.append(match_found)
+                else:
+                    final_data.append(match_found)
+        else:
+            final_data.append(bms)
+
+    # Add remaining unmatched District shows
+    for sublist in district_index.values():
+        final_data.extend(sublist)
+
     if final_data:
         ts_final = datetime.now().strftime("%Y%m%d_%H%M%S")
-        generate_consolidated_excel(final_data, f"BMS_States_Report_{ts_final}.xlsx")
+        generate_consolidated_excel(final_data, f"Total_States_Report_{ts_final}.xlsx")
         
         ref_url_final = last_valid_url if last_valid_url else (DISTRICT_URL_BASE + "city")
-        generate_hybrid_image_report(final_data, BMS_URL_TEMPLATE, f"reports/BMS_States_Report_{ts_final}.png", "bms")
+        generate_hybrid_image_report(final_data, BMS_URL_TEMPLATE, f"reports/Total_States_Report_{ts_final}.png", "bms")
     else:
         print("No data found.")

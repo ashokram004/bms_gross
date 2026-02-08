@@ -12,6 +12,8 @@ from selenium.webdriver.chrome.options import Options
 from openpyxl import Workbook
 import difflib
 from collections import defaultdict
+import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from utils.generateHybridCityImageReport import generate_hybrid_city_image_report
 
@@ -32,6 +34,7 @@ DISTRICT_FULL_URL = f"{DISTRICT_URL}?fromdate={SHOW_DATE}"
 BMS_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 BOOKED_CODES = {"2"}
 SLEEP_TIME = 1.0
+MAX_WORKERS = 5
 
 # ================= SHARED DRIVER =================
 def get_driver():
@@ -240,48 +243,11 @@ def get_seat_layout(driver, venue_code, session_id):
     return None, "Unknown Error"
 
 
-def fetch_bms_data():
-    print("\n🚀 STARTING BMS FETCH...")
+def process_venue_list(venues):
     results = []
     driver = get_driver()
-
+    
     try:
-        driver.get(BMS_URL)
-        time.sleep(2.5)
-        html = driver.page_source
-
-        marker = "window.__INITIAL_STATE__"
-        start = html.find(marker)
-        if start == -1:
-            print("   ⚠️ BMS: Could not find initial state (possible bot detection)")
-            return []
-
-        start = html.find("{", start)
-        brace, end = 0, start
-        while end < len(html):
-            if html[end] == "{":
-                brace += 1
-            elif html[end] == "}":
-                brace -= 1
-            if brace == 0:
-                break
-            end += 1
-
-        state_data = json.loads(html[start:end + 1])
-
-        venues = []
-        try:
-            sbe = state_data.get("showtimesByEvent")
-            dc = sbe.get("currentDateCode")
-            widgets = sbe["showDates"][dc]["dynamic"]["data"]["showtimeWidgets"]
-            for w in widgets:
-                if w.get("type") == "groupList":
-                    for g in w["data"]:
-                        if g.get("type") == "venueGroup":
-                            venues = g["data"]
-        except:
-            venues = []
-
         for v in venues:
             v_name = v["additionalData"]["venueName"]
             v_code = v["additionalData"]["venueCode"]
@@ -485,13 +451,77 @@ def fetch_bms_data():
                     pass
 
                 time.sleep(SLEEP_TIME)
+    except Exception as e:
+        print(f"❌ Worker Error: {e}")
+    finally:
+        driver.quit()
+    return results
 
+def fetch_bms_data():
+    print("\n🚀 STARTING BMS FETCH...")
+    results = []
+    driver = get_driver()
+
+    try:
+        driver.get(BMS_URL)
+        time.sleep(2.5)
+        html = driver.page_source
+
+        marker = "window.__INITIAL_STATE__"
+        start = html.find(marker)
+        if start == -1:
+            print("   ⚠️ BMS: Could not find initial state (possible bot detection)")
+            return []
+
+        start = html.find("{", start)
+        brace, end = 0, start
+        while end < len(html):
+            if html[end] == "{":
+                brace += 1
+            elif html[end] == "}":
+                brace -= 1
+            if brace == 0:
+                break
+            end += 1
+
+        state_data = json.loads(html[start:end + 1])
+
+        venues = []
+        try:
+            sbe = state_data.get("showtimesByEvent")
+            dc = sbe.get("currentDateCode")
+            widgets = sbe["showDates"][dc]["dynamic"]["data"]["showtimeWidgets"]
+            for w in widgets:
+                if w.get("type") == "groupList":
+                    for g in w["data"]:
+                        if g.get("type") == "venueGroup":
+                            venues = g["data"]
+        except:
+            venues = []
+
+        # Close the initial driver as workers will create their own
+        driver.quit()
+
+        if not venues:
+            return []
+
+        print(f"   🚀 Launching {MAX_WORKERS} workers for {len(venues)} venues...")
+        
+        # Split venues into chunks
+        chunk_size = math.ceil(len(venues) / MAX_WORKERS)
+        venue_chunks = [venues[i:i + chunk_size] for i in range(0, len(venues), chunk_size)]
+        
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = [executor.submit(process_venue_list, chunk) for chunk in venue_chunks]
+            
+            for future in as_completed(futures):
+                results.extend(future.result())
+        
         print(f"✅ BMS: Found {len(results)} shows.")
 
     except Exception as e:
         print(f"❌ BMS Error: {e}")
-    finally:
-        driver.quit()
+        # Driver is already quit or will be quit by workers
 
     return results
 

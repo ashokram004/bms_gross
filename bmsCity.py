@@ -207,7 +207,8 @@ def calculate_show_collection(decrypted, price_map):
         "booked_tickets": min(abs(booked_tickets), abs(total_tickets)),
         "occupancy": min(100, abs(occupancy)),
         "total_gross": abs(int(total_gross)),
-        "booked_gross": min(abs(int(booked_gross)), abs(int(total_gross)))
+        "booked_gross": min(abs(int(booked_gross)), abs(int(total_gross))),
+        "seats_map": seats_map
     }
 
 
@@ -258,19 +259,57 @@ def process_movie(url):
                     # LOGIC BRANCHING
                     if error_msg and "sold out" in error_msg.lower():
                         # CASE 1: SOLD OUT -> 100% Occupancy
+                        recovered_data = None
+                        try:
+                            base_sid = int(session_id)
+                            # Try offsets +7 down to +3 (skip +1, +2)
+                            for offset in range(6, 0, -1):
+                                target_sid = str(base_sid + offset)
+                                n_enc, n_err = get_seat_layout(venue_code, target_sid)
+                                time.sleep(1)
+                                if n_enc:
+                                    n_dec = decrypt_data(n_enc)
+                                    n_res = calculate_show_collection(n_dec, {})
+                                    if n_res["total_tickets"] > 0:
+                                        rec_cap = n_res["total_tickets"]
+                                        rec_map = n_res["seats_map"]
+                                        
+                                        calc_gross = 0
+                                        for ac, count in rec_map.items():
+                                            # ✅ CRITICAL: Use ORIGINAL show's price_map
+                                            calc_gross += count * price_map.get(ac, 0)
+                                            
+                                        if calc_gross > 0:
+                                            recovered_data = {
+                                                "total_tickets": rec_cap,
+                                                "booked_tickets": rec_cap,
+                                                "occupancy": 100.0,
+                                                "total_gross": int(calc_gross),
+                                                "booked_gross": int(calc_gross)
+                                            }
+                                            screen_capacity_map[screenName] = rec_cap
+                                            print(f"   ✨ Fixed SoldOut {session_id} using {target_sid} (Cap: {rec_cap})")
+                                            break
+                        except Exception: pass
                         
-                        # --- SMART FALLBACK ---
-                        if screenName in screen_capacity_map:
-                            # Use exact capacity from previous shows in THIS theatre
-                            FALLBACK_SEATS = screen_capacity_map[screenName]
-                            print(f"   ⚡ Smart Fallback: Using {FALLBACK_SEATS} seats for {screenName}")
+                        if recovered_data:
+                            data = recovered_data
                         else:
-                            # No history found, use default
-                            FALLBACK_SEATS = 400 
-                            print(f"   ⚠️ No history for {screenName}, using default {FALLBACK_SEATS}")
+                            # --- SMART FALLBACK ---
+                            if screenName in screen_capacity_map:
+                                FALLBACK_SEATS = screen_capacity_map[screenName]
+                                print(f"   ⚡ Smart Fallback: Using {FALLBACK_SEATS} seats for {screenName}")
+                            else:
+                                FALLBACK_SEATS = 400 
+                                print(f"   ⚠️ No history for {screenName}, using default {FALLBACK_SEATS}")
 
-                        FALLBACK_BOOKED = FALLBACK_SEATS
-                        FALLBACK_OCC = 100.0
+                            data = {
+                                "total_tickets": FALLBACK_SEATS,
+                                "booked_tickets": FALLBACK_SEATS,
+                                "occupancy": 100.0,
+                                "total_gross": int(FALLBACK_SEATS * fallback_price),
+                                "booked_gross": int(FALLBACK_SEATS * fallback_price)
+                            }
                         print(f"   ⚠️ Sold Out Detected: {venue_name} | {show_time}")
                     else:
                         # CASE 2: UNKNOWN ERROR -> 50% Occupancy
@@ -278,14 +317,14 @@ def process_movie(url):
                         FALLBACK_BOOKED = 200
                         FALLBACK_OCC = 50.0
                         print(f"   ⚠️ API Error ({error_msg}): Using 50% fallback for {venue_name}")
-
-                    data = {
-                        "total_tickets": FALLBACK_SEATS,
-                        "booked_tickets": FALLBACK_BOOKED,
-                        "occupancy": FALLBACK_OCC,
-                        "total_gross": int(FALLBACK_SEATS * fallback_price),
-                        "booked_gross": int(FALLBACK_BOOKED * fallback_price)
-                    }
+                        
+                        data = {
+                            "total_tickets": FALLBACK_SEATS,
+                            "booked_tickets": FALLBACK_BOOKED,
+                            "occupancy": FALLBACK_OCC,
+                            "total_gross": int(FALLBACK_SEATS * fallback_price),
+                            "booked_gross": int(FALLBACK_BOOKED * fallback_price)
+                        }
                 else:
                     decrypted = decrypt_data(enc)
                     data = calculate_show_collection(decrypted, price_map)
