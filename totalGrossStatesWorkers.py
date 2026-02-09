@@ -716,7 +716,7 @@ if __name__ == "__main__":
                 if all(bp == dp and abs(bs - ds) <= SEAT_TOLERANCE for (bp, bs), (dp, ds) in zip(b_sig, d_sig)):
                     # Also check fuzzy venue name to avoid false positives
                     ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
-                    if ratio > 0.5:
+                    if ratio > 0.4:
                         match_found = cand
                         break
         
@@ -728,11 +728,12 @@ if __name__ == "__main__":
             b_prices = set(bms.get('price_seat_map', {}).keys())
             
             for cand in candidates:
+                # Check price match (Strict Price Category Match)
                 d_prices = set(cand.get('price_seat_map', {}).keys())
                 if b_prices != d_prices: continue
                 
                 ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
-                if ratio > 0.6 and ratio > best_ratio:
+                if ratio > 0.5 and ratio > best_ratio:
                     best_ratio = ratio
                     best_cand = cand
             

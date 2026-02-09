@@ -630,7 +630,7 @@ if __name__ == "__main__":
                 if all(bp == dp and abs(bs - ds) <= SEAT_TOLERANCE for (bp, bs), (dp, ds) in zip(b_sig, d_sig)):
                     # Also check fuzzy venue name to avoid false positives with same capacity
                     ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
-                    if ratio > 0.5:
+                    if ratio > 0.4:
                         match_found = cand
                         print(f"   🔗 Price/Seat Sig Match: {bms['venue'][:15]}... == {cand['venue'][:15]}... (Tol: {SEAT_TOLERANCE}, Ratio: {int(ratio*100)}%)")
                         break
@@ -650,8 +650,8 @@ if __name__ == "__main__":
 
                 # Check similarity of venue names
                 ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
-                # Threshold 0.6 handles "Sangam Theatre" vs "Sangam Theatre 4K..." well
-                if ratio > 0.6 and ratio > best_ratio:
+                # Threshold 0.5 handles "Sangam Theatre" vs "Sangam Theatre 4K..." well
+                if ratio > 0.5 and ratio > best_ratio:
                     best_ratio = ratio
                     best_cand = cand
             
