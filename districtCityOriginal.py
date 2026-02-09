@@ -1,5 +1,7 @@
 import json
 import os
+import random
+import time
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -19,76 +21,135 @@ def get_driver():
     options.add_argument("start-maximized")
     return webdriver.Chrome(options=options)
 
+def get_district_seat_layout(driver, cinema_id, session_id):
+    api_url = "https://www.district.in/gw/consumer/movies/v1/select-seat?version=3&site_id=1&channel=mweb&child_site_id=1&platform=district"
+    payload = json.dumps({"cinemaId": int(cinema_id), "sessionId": str(session_id)})
+    
+    guest_token = str(random.randint(1, 9999999999))
+    
+    js = f"""
+    var cb = arguments[0];
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "{api_url}", true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("x-guest-token", "{guest_token}");
+    xhr.onload = function() {{ cb(xhr.responseText); }};
+    xhr.onerror = function() {{ cb(null); }};
+    xhr.send('{payload}');
+    """
+    try:
+        resp = driver.execute_async_script(js)
+        if resp:
+            return json.loads(resp)
+    except Exception as e:
+        print("⚠️  Error fetching seat layout via API." + str(e))
+        pass
+    return None
+
 def extract_district_data(url):
     driver = get_driver()
-    driver.get(url)
-    html = driver.page_source
-    driver.quit()
+    try:
+        driver.get(url)
+        html = driver.page_source
 
-    # Locate the Next.js data script
-    marker = 'id="__NEXT_DATA__"'
-    start_idx = html.find(marker)
-    if start_idx == -1:
-        raise ValueError("Could not find __NEXT_DATA__ in page.")
-    
-    start_json = html.find('>', start_idx) + 1
-    end_json = html.find('</script>', start_json)
-    raw_json = html[start_json:end_json]
-    
-    full_data = json.loads(raw_json)
-    
-    # Path based on your shared structure
-    # props -> pageProps -> data -> serverState -> movieSessions -> [key] -> pageData -> nearbyCinemas
-    sessions_data = full_data['props']['pageProps']['data']['serverState']['movieSessions']
-    
-    results = []
-    grand_total = 0
-
-    # 1. Access the dynamic event key data
-    dynamic_key = list(sessions_data.keys())[0]
-    event_data = sessions_data[dynamic_key]
-
-    # 2. Iterate through arrangedSessions instead of nearbyCinemas
-    arranged_sessions = event_data.get('arrangedSessions', [])
-
-    for cinema_data in arranged_sessions:
-        venue_name = cinema_data.get('entityName') # e.g., "KR Complex, Chilakaluripet"
+        # Locate the Next.js data script
+        marker = 'id="__NEXT_DATA__"'
+        start_idx = html.find(marker)
+        if start_idx == -1:
+            raise ValueError("Could not find __NEXT_DATA__ in page.")
         
-        for session in cinema_data.get('sessions', []):
-            sessionId = session['sid']
-            show_time = session['showTime']
-            session_total_seats = 0
-            session_booked_seats = 0
-            session_booked_gross = 0
-            session_potential_gross = 0
+        start_json = html.find('>', start_idx) + 1
+        end_json = html.find('</script>', start_json)
+        raw_json = html[start_json:end_json]
+        
+        full_data = json.loads(raw_json)
+        
+        # Path based on your shared structure
+        # props -> pageProps -> data -> serverState -> movieSessions -> [key] -> pageData -> nearbyCinemas
+        sessions_data = full_data['props']['pageProps']['data']['serverState']['movieSessions']
+        
+        results = []
+        grand_total = 0
+
+        # 1. Access the dynamic event key data
+        dynamic_key = list(sessions_data.keys())[0]
+        event_data = sessions_data[dynamic_key]
+
+        # 2. Iterate through arrangedSessions instead of nearbyCinemas
+        arranged_sessions = event_data.get('arrangedSessions', [])
+
+        for cinema_data in arranged_sessions:
+            venue_name = cinema_data.get('entityName') # e.g., "KR Complex, Chilakaluripet"
             
-            # Use the "areas" array for precise class-wise gross calculation
-            for area in session.get('areas', []):
-                total = area['sTotal']
-                avail = area['sAvail']
-                price = area['price']
+            for session in cinema_data.get('sessions', []):
+                sessionId = session['sid']
+                cid = session['cid']
+                show_time = session['showTime']
                 
-                booked = total - avail
-                session_total_seats += total
-                session_booked_seats += booked
-                session_booked_gross += (booked * price)
-                session_potential_gross += (total * price)
-            
-            occ = round((session_booked_seats / session_total_seats) * 100, 2) if session_total_seats > 0 else 0
-            
-            show_data = {
-                "venue": venue_name,
-                "showTime": show_time,
-                "total_tickets": session_total_seats,
-                "booked_tickets": session_booked_seats,
-                "occupancy": occ,
-                "total_gross": int(session_potential_gross),
-                "booked_gross": int(session_booked_gross)
-            }
-            results.append(show_data)
-            grand_total += int(session_booked_gross)
-            
-            print(f"🎬 {venue_name} | {show_time} | Gross: ₹{session_booked_gross}")
+                # Build Price Map from cached data
+                price_map = {}
+                for area in session.get('areas', []):
+                    price_map[area['code']] = float(area['price'])
+
+                session_total_seats = 0
+                session_booked_seats = 0
+                session_booked_gross = 0
+                session_potential_gross = 0
+                
+                # Try fetching accurate seat layout
+                layout_res = None
+                if cid:
+                    layout_res = get_district_seat_layout(driver, cid, sessionId)
+                
+                if layout_res and 'seatLayout' in layout_res:
+                    col_areas = layout_res['seatLayout'].get('colAreas', {})
+                    obj_areas = col_areas.get('objArea', [])
+                    
+                    for area in obj_areas:
+                        area_code = area.get('AreaCode')
+                        price = area.get('AreaPrice', price_map.get(area_code, 0)) # Fallback to cached price
+                        
+                        for row in area.get('objRow', []):
+                            for seat in row.get('objSeat', []):
+                                status = seat.get('SeatStatus')
+                                session_total_seats += 1
+                                session_potential_gross += price
+                                
+                                if status != '0' and status != 0: # Booked (0 is available)
+                                    session_booked_seats += 1
+                                    session_booked_gross += price
+                else:
+                    # Fallback to cached data
+                    print("⚠️  Could not fetch seat layout, using cached data for gross calculation.")
+                    for area in session.get('areas', []):
+                        total = area['sTotal']
+                        avail = area['sAvail']
+                        price = area['price']
+                        
+                        booked = total - avail
+                        session_total_seats += total
+                        session_booked_seats += booked
+                        session_booked_gross += (booked * price)
+                        session_potential_gross += (total * price)
+                
+                occ = round((session_booked_seats / session_total_seats) * 100, 2) if session_total_seats > 0 else 0
+                
+                show_data = {
+                    "venue": venue_name,
+                    "showTime": show_time,
+                    "total_tickets": session_total_seats,
+                    "booked_tickets": session_booked_seats,
+                    "occupancy": occ,
+                    "total_gross": int(session_potential_gross),
+                    "booked_gross": int(session_booked_gross)
+                }
+                results.append(show_data)
+                grand_total += int(session_booked_gross)
+                
+                print(f"🎬 {venue_name} | {show_time} | Gross: ₹{session_booked_gross}")
+
+    finally:
+        driver.quit()
 
     return results, grand_total
 

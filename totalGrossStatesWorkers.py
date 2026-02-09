@@ -748,7 +748,6 @@ if __name__ == "__main__":
                 if bms['booked_gross'] > match_found['booked_gross']:
                     # Update District object with BMS stats to preserve Venue Name
                     match_found.update({
-                        'source': 'bms',
                         'total_tickets': bms['total_tickets'],
                         'booked_tickets': bms['booked_tickets'],
                         'total_gross': bms['total_gross'],

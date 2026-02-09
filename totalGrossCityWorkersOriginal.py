@@ -12,6 +12,8 @@ from selenium.webdriver.chrome.options import Options
 from openpyxl import Workbook
 import difflib
 from collections import defaultdict
+import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from utils.generateHybridCityImageReport import generate_hybrid_city_image_report
 
@@ -23,15 +25,16 @@ processed_district_sids = set()
 processed_bms_sids = set()
 
 # ================= CONFIGURATION =================
-DISTRICT_URL = "https://www.district.in/movies/orange-2010-movie-tickets-in-hyderabad-MV160920"
-BMS_URL = "https://in.bookmyshow.com/movies/hyderabad/orange/buytickets/ET00005527/20260208"
+DISTRICT_URL = "https://www.district.in/movies/orange-2010-movie-tickets-in-vijayawada-MV160920"
+BMS_URL = "https://in.bookmyshow.com/movies/vijayawada/orange/buytickets/ET00005527/20260209"
 
-SHOW_DATE = "2026-02-08"
+SHOW_DATE = "2026-02-09"
 DISTRICT_FULL_URL = f"{DISTRICT_URL}?fromdate={SHOW_DATE}"
 
 BMS_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 BOOKED_CODES = {"2"}
 SLEEP_TIME = 1.0
+MAX_WORKERS = 3
 
 # ================= SHARED DRIVER =================
 def get_driver():
@@ -64,6 +67,29 @@ def build_seat_signature(seat_map):
     counts = sorted(seat_map.values())
     return "|".join(str(c) for c in counts)
 
+def get_district_seat_layout(driver, cinema_id, session_id):
+    api_url = "https://www.district.in/gw/consumer/movies/v1/select-seat?version=3&site_id=1&channel=mweb&child_site_id=1&platform=district"
+    payload = json.dumps({"cinemaId": int(cinema_id), "sessionId": str(session_id)})
+    
+    guest_token = str(random.randint(1, 9999999999))
+    
+    js = f"""
+    var cb = arguments[0];
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "{api_url}", true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("x-guest-token", "{guest_token}");
+    xhr.onload = function() {{ cb(xhr.responseText); }};
+    xhr.onerror = function() {{ cb(null); }};
+    xhr.send('{payload}');
+    """
+    try:
+        resp = driver.execute_async_script(js)
+        if resp:
+            return json.loads(resp)
+    except Exception:
+        pass
+    return None
 
 # ================= DISTRICT LOGIC =================
 def fetch_district_data(driver):
@@ -84,6 +110,10 @@ def fetch_district_data(driver):
         data = json.loads(html[start:end])
 
         sessions = data['props']['pageProps']['data']['serverState']['movieSessions']
+        if not sessions:
+            print("   ⚠️ DISTRICT: No sessions found")
+            return []
+
         key = list(sessions.keys())[0]
         cinemas = sessions[key].get('arrangedSessions', [])
 
@@ -92,28 +122,63 @@ def fetch_district_data(driver):
 
             for s in cin.get('sessions', []):
                 sid = str(s.get('sid', ''))
+                cid = s.get('cid')
 
                 # ===== NEW: ISOLATED DEDUPE =====
                 if sid in processed_district_sids:
                     continue
                 processed_district_sids.add(sid)
 
+                # Build Maps for API/Fallback
+                code_to_label = {}
+                default_prices = {}
+                for a in s.get('areas', []):
+                    code_to_label[a['code']] = a['label']
+                    default_prices[a['code']] = float(a['price'])
+
                 b_gross, p_gross, b_tkts, t_tkts = 0, 0, 0, 0
-                seat_map = {}
+                seat_map = defaultdict(int)
+                label_price_map = {}
+                
+                # Try API Fetch
+                layout_res = None
+                if cid:
+                    layout_res = get_district_seat_layout(driver, cid, sid)
+                
+                if layout_res and 'seatLayout' in layout_res:
+                    col_areas = layout_res['seatLayout'].get('colAreas', {})
+                    obj_areas = col_areas.get('objArea', [])
+                    
+                    for area in obj_areas:
+                        area_code = area.get('AreaCode')
+                        label = code_to_label.get(area_code, area_code)
+                        price = float(area.get('AreaPrice') or default_prices.get(area_code, 0))
+                        label_price_map[label] = price
+                        
+                        for row in area.get('objRow', []):
+                            for seat in row.get('objSeat', []):
+                                status = seat.get('SeatStatus')
+                                t_tkts += 1; p_gross += price
+                                seat_map[label] += 1
+                                
+                                if status != '0' and status != 0:
+                                    b_tkts += 1; b_gross += price
+                else:
+                    # Fallback to cached data
+                    for a in s.get('areas', []):
+                        tot, av, pr = a['sTotal'], a['sAvail'], a['price']
+                        bk = tot - av
+                        seat_map[a['label']] = tot
+                        label_price_map[a['label']] = float(pr)
+                        b_tkts += bk; t_tkts += tot
+                        b_gross += (bk * pr); p_gross += (tot * pr)
+
                 price_seat_map = defaultdict(int)
                 price_seat_list = []
-
-                for a in s.get('areas', []):
-                    tot, av, pr = a['sTotal'], a['sAvail'], a['price']
-                    bk = tot - av
-                    seat_map[a['label']] = tot
-
-                    b_tkts += bk
-                    t_tkts += tot
-                    b_gross += (bk * pr)
-                    p_gross += (tot * pr)
-                    price_seat_map[float(pr)] += tot
-                    price_seat_list.append((float(pr), tot))
+                for label, count in seat_map.items():
+                    pr = label_price_map.get(label, 0.0)
+                    price_seat_map[float(pr)] += count
+                    price_seat_list.append((float(pr), count))
 
                 occ = round((b_tkts / t_tkts) * 100, 2) if t_tkts else 0
                 normalized_time = district_gmt_to_ist(s['showTime'])
@@ -129,7 +194,7 @@ def fetch_district_data(driver):
                     "venue": venue,
                     "showTime": s['showTime'],
                     "normalized_show_time": normalized_time,
-                    "seat_category_map": seat_map,
+                    "seat_category_map": dict(seat_map),
                     "price_seat_map": dict(price_seat_map),
                     "price_seat_signature": sorted(price_seat_list),
                     "seat_signature": build_seat_signature(seat_map),
@@ -240,48 +305,11 @@ def get_seat_layout(driver, venue_code, session_id):
     return None, "Unknown Error"
 
 
-def fetch_bms_data():
-    print("\n🚀 STARTING BMS FETCH...")
+def process_venue_list(venues):
     results = []
     driver = get_driver()
-
+    
     try:
-        driver.get(BMS_URL)
-        time.sleep(2.5)
-        html = driver.page_source
-
-        marker = "window.__INITIAL_STATE__"
-        start = html.find(marker)
-        if start == -1:
-            print("   ⚠️ BMS: Could not find initial state (possible bot detection)")
-            return []
-
-        start = html.find("{", start)
-        brace, end = 0, start
-        while end < len(html):
-            if html[end] == "{":
-                brace += 1
-            elif html[end] == "}":
-                brace -= 1
-            if brace == 0:
-                break
-            end += 1
-
-        state_data = json.loads(html[start:end + 1])
-
-        venues = []
-        try:
-            sbe = state_data.get("showtimesByEvent")
-            dc = sbe.get("currentDateCode")
-            widgets = sbe["showDates"][dc]["dynamic"]["data"]["showtimeWidgets"]
-            for w in widgets:
-                if w.get("type") == "groupList":
-                    for g in w["data"]:
-                        if g.get("type") == "venueGroup":
-                            venues = g["data"]
-        except:
-            venues = []
-
         for v in venues:
             v_name = v["additionalData"]["venueName"]
             v_code = v["additionalData"]["venueCode"]
@@ -305,9 +333,9 @@ def fetch_bms_data():
                     continue
                 
                 # OPTIMIZATION: Skip if already found in District
-                if sid in processed_district_sids:
-                    print(f"   ⏭️  Skipping {sid} (Found in District)")
-                    continue
+                # if sid in processed_district_sids:
+                #     print(f"   ⏭️  Skipping {sid} (Found in District)")
+                #     continue
 
                 processed_bms_sids.add(sid)
 
@@ -485,13 +513,77 @@ def fetch_bms_data():
                     pass
 
                 time.sleep(SLEEP_TIME)
+    except Exception as e:
+        print(f"❌ Worker Error: {e}")
+    finally:
+        driver.quit()
+    return results
 
+def fetch_bms_data():
+    print("\n🚀 STARTING BMS FETCH...")
+    results = []
+    driver = get_driver()
+
+    try:
+        driver.get(BMS_URL)
+        time.sleep(2.5)
+        html = driver.page_source
+
+        marker = "window.__INITIAL_STATE__"
+        start = html.find(marker)
+        if start == -1:
+            print("   ⚠️ BMS: Could not find initial state (possible bot detection)")
+            return []
+
+        start = html.find("{", start)
+        brace, end = 0, start
+        while end < len(html):
+            if html[end] == "{":
+                brace += 1
+            elif html[end] == "}":
+                brace -= 1
+            if brace == 0:
+                break
+            end += 1
+
+        state_data = json.loads(html[start:end + 1])
+
+        venues = []
+        try:
+            sbe = state_data.get("showtimesByEvent")
+            dc = sbe.get("currentDateCode")
+            widgets = sbe["showDates"][dc]["dynamic"]["data"]["showtimeWidgets"]
+            for w in widgets:
+                if w.get("type") == "groupList":
+                    for g in w["data"]:
+                        if g.get("type") == "venueGroup":
+                            venues = g["data"]
+        except:
+            venues = []
+
+        # Close the initial driver as workers will create their own
+        driver.quit()
+
+        if not venues:
+            return []
+
+        print(f"   🚀 Launching {MAX_WORKERS} workers for {len(venues)} venues...")
+        
+        # Split venues into chunks
+        chunk_size = math.ceil(len(venues) / MAX_WORKERS)
+        venue_chunks = [venues[i:i + chunk_size] for i in range(0, len(venues), chunk_size)]
+        
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = [executor.submit(process_venue_list, chunk) for chunk in venue_chunks]
+            
+            for future in as_completed(futures):
+                results.extend(future.result())
+        
         print(f"✅ BMS: Found {len(results)} shows.")
 
     except Exception as e:
         print(f"❌ BMS Error: {e}")
-    finally:
-        driver.quit()
+        # Driver is already quit or will be quit by workers
 
     return results
 
@@ -643,7 +735,7 @@ if __name__ == "__main__":
             b_prices = set(bms.get('price_seat_map', {}).keys())
             
             for cand in candidates:
-                # Check price match (Strict)
+                # Check price match (Strict Price Category Match)
                 d_prices = set(cand.get('price_seat_map', {}).keys())
                 if b_prices != d_prices:
                     continue

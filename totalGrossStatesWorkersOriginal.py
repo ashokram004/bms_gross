@@ -16,6 +16,7 @@ from fake_useragent import UserAgent
 from datetime import datetime, timedelta
 import difflib
 from collections import defaultdict
+import math
 
 # --- IMPORT IMAGE GENERATORS ---
 from utils.generateDistrictMultiStateImageReport import generate_multi_state_image_report
@@ -23,7 +24,7 @@ from utils.generateHybridStatesImageReport import generate_hybrid_image_report
 
 # =========================== CONFIGURATION ===========================
 INPUT_STATE_LIST = ["Andhra Pradesh", "Telangana"] 
-SHOW_DATE = "2026-01-27"
+SHOW_DATE = "2026-02-09"
 
 # Config Paths
 DISTRICT_CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
@@ -34,8 +35,8 @@ DISTRICT_MAP_PATH = os.path.join("utils", "district_area_city_mapping.json")
 BMS_MAP_PATH = os.path.join("utils", "bms_area_city_mapping.json")
 
 # URLs
-DISTRICT_URL_BASE = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-"
-BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260127"
+DISTRICT_URL_BASE = "https://www.district.in/movies/orange-2010-movie-tickets-in-"
+BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/orange/buytickets/ET00005527/20260209"
 
 # BMS Settings
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
@@ -122,6 +123,30 @@ def build_seat_signature(seat_map):
     counts = sorted(seat_map.values())
     return "|".join(str(c) for c in counts)
 
+def get_district_seat_layout(driver, cinema_id, session_id):
+    api_url = "https://www.district.in/gw/consumer/movies/v1/select-seat?version=3&site_id=1&channel=mweb&child_site_id=1&platform=district"
+    payload = json.dumps({"cinemaId": int(cinema_id), "sessionId": str(session_id)})
+    
+    guest_token = str(random.randint(1, 9999999999))
+    
+    js = f"""
+    var cb = arguments[0];
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "{api_url}", true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("x-guest-token", "{guest_token}");
+    xhr.onload = function() {{ cb(xhr.responseText); }};
+    xhr.onerror = function() {{ cb(null); }};
+    xhr.send('{payload}');
+    """
+    try:
+        resp = driver.execute_async_script(js)
+        if resp:
+            return json.loads(resp)
+    except Exception:
+        pass
+    return None
+
 # ================= DISTRICT LOGIC =================
 def fetch_district_data(driver):
     print("\nSTARTING DISTRICT APP PROCESS...")
@@ -158,6 +183,8 @@ def fetch_district_data(driver):
                 
                 sessions = data['props']['pageProps']['data']['serverState']['movieSessions']
                 key = list(sessions.keys())[0]
+                
+                # Use nearbyCinemas
                 cinemas = sessions[key]['pageData']['nearbyCinemas']
 
                 # --- NORMALIZE CITY ---
@@ -168,32 +195,73 @@ def fetch_district_data(driver):
                     venue = cin['cinemaInfo']['name']
                     for s in cin.get('sessions', []):
                         sid = str(s.get('sid', ''))
+                        cid = s.get('cid')
 
                         if sid in processed_sids: continue
                         processed_sids.add(sid)
                         
-                        b_gross, p_gross, b_tkts, t_tkts = 0, 0, 0, 0
-                        seat_map = {}
-                        price_seat_map = defaultdict(int)
-                        price_seat_list = []
+                        # Build Price Map & Code Map
+                        price_map = {}
+                        code_to_label = {}
+                        for area in s.get('areas', []):
+                            price_map[area['code']] = float(area['price'])
+                            code_to_label[area['code']] = area['label']
 
-                        for a in s.get('areas', []):
-                            tot, av, pr = a['sTotal'], a['sAvail'], a['price']
-                            bk = tot - av
-                            seat_map[a['label']] = tot
-                            b_tkts += bk; t_tkts += tot
-                            b_gross += (bk*pr); p_gross += (tot*pr)
-                            price_seat_map[float(pr)] += tot
-                            price_seat_list.append((float(pr), tot))
+                        b_gross, p_gross, b_tkts, t_tkts = 0, 0, 0, 0
+                        seat_map = defaultdict(int)
+                        price_seat_map = defaultdict(int)
                         
+                        # Try API Fetch
+                        layout_res = None
+                        if cid:
+                            layout_res = get_district_seat_layout(driver, cid, sid)
+                        
+                        if layout_res and 'seatLayout' in layout_res:
+                            col_areas = layout_res['seatLayout'].get('colAreas', {})
+                            obj_areas = col_areas.get('objArea', [])
+                            
+                            for area in obj_areas:
+                                area_code = area.get('AreaCode')
+                                price = area.get('AreaPrice', price_map.get(area_code, 0))
+                                label = code_to_label.get(area_code, area_code)
+                                
+                                for row in area.get('objRow', []):
+                                    for seat in row.get('objSeat', []):
+                                        status = seat.get('SeatStatus')
+                                        t_tkts += 1; p_gross += price
+                                        seat_map[label] += 1
+                                        price_seat_map[float(price)] += 1
+                                        
+                                        if status != '0' and status != 0:
+                                            b_tkts += 1; b_gross += price
+                        else:
+                            # Fallback to cached data
+                            for a in s.get('areas', []):
+                                tot, av, pr = a['sTotal'], a['sAvail'], a['price']
+                                bk = tot - av
+                                seat_map[a['label']] = tot
+                                b_tkts += bk; t_tkts += tot
+                                b_gross += (bk*pr); p_gross += (tot*pr)
+                                price_seat_map[float(pr)] += tot
+                        
+                        # Build sorted list for signature
+                        price_seat_list = []
+                        for pr, count in price_seat_map.items():
+                            price_seat_list.append((pr, count))
+
                         occ = round((b_tkts/t_tkts)*100, 2) if t_tkts else 0
                         normalized_time = district_gmt_to_ist(s['showTime'])
                         
                         city_res.append({
-                            "source": "district", "sid": sid,
-                            "state": state, "city": reporting_city, "venue": venue,
-                            "showTime": s['showTime'], "normalized_show_time": normalized_time,
-                            "seat_category_map": seat_map, "price_seat_map": dict(price_seat_map),
+                            "source": "district", 
+                            "sid": sid,
+                            "state": state, 
+                            "city": reporting_city, 
+                            "venue": venue,
+                            "showTime": s['showTime'], 
+                            "normalized_show_time": normalized_time,
+                            "seat_category_map": dict(seat_map), 
+                            "price_seat_map": dict(price_seat_map),
                             "price_seat_signature": sorted(price_seat_list),
                             "seat_signature": build_seat_signature(seat_map),
                             "total_tickets": abs(t_tkts),
@@ -329,25 +397,12 @@ def calculate_show_collection(decrypted, price_map):
     occ = round((b_tkts / t_tkts) * 100, 2) if t_tkts else 0
     return t_tkts, b_tkts, int(t_gross), int(b_gross), occ, seats
 
-def process_single_city(task_data):
-    """ Worker Function for BMS Parallel Execution """
-    city_name, city_slug, state_name, district_sids = task_data
-    current_proxy = next(proxy_pool) if proxy_pool else None
+def process_venue_list(venues, city_name, reporting_city, state_name, district_sids, proxy=None):
+    results = []
+    total_gross = 0
+    driver = get_driver(proxy)
     
-    # --- NORMALIZE CITY ---
-    reporting_city = get_normalized_city_name(state_name, city_name, "bms")
-
-    print(f"Starting BMS: {city_name} -> {reporting_city}...")
-    url = BMS_URL_TEMPLATE.format(city=city_slug)
-    driver = get_driver(current_proxy)
-    city_results = []
-    city_total = 0
-
     try:
-        state_data = extract_initial_state_from_page(driver, url)
-        if not state_data: return [], 0, None
-        venues = extract_venues(state_data)
-        
         for venue in venues:
             v_name = venue["additionalData"]["venueName"]
             v_code = venue["additionalData"]["venueCode"]
@@ -367,14 +422,13 @@ def process_single_city(task_data):
                 raw_screen = show.get("screenAttr", "")
                 screenName = raw_screen if raw_screen else "Main Screen"
                 
-                
                 if sid in processed_sids: continue
                 processed_sids.add(sid)
 
                 # OPTIMIZATION: Skip if already found in District
-                if sid in district_sids:
-                    print(f"   ⏭️  Skipping {sid} (Found in District)")
-                    continue
+                # if sid in district_sids:
+                #     print(f"   ⏭️  Skipping {sid} (Found in District)")
+                #     continue
 
                 soldOut = False
                 seat_map = {}
@@ -504,13 +558,57 @@ def process_single_city(task_data):
                             "seat_signature": build_seat_signature(seat_map),
                             "is_fallback": is_fallback
                         })
-                        city_results.append(data)
-                        city_total += data["booked_gross"]
+                        results.append(data)
+                        total_gross += data["booked_gross"]
 
                 except Exception: continue
                 time.sleep(SLEEP_TIME) 
+    except Exception as e:
+        print(f"❌ Worker Error: {e}")
+    finally:
+        driver.quit()
+    return results, total_gross
+
+def process_single_city(task_data):
+    """ Worker Function for BMS Parallel Execution """
+    city_name, city_slug, state_name, district_sids = task_data
+    current_proxy = next(proxy_pool) if proxy_pool else None
+    
+    # --- NORMALIZE CITY ---
+    reporting_city = get_normalized_city_name(state_name, city_name, "bms")
+
+    print(f"Starting BMS: {city_name} -> {reporting_city}...")
+    url = BMS_URL_TEMPLATE.format(city=city_slug)
+    driver = get_driver(current_proxy)
+    city_results = []
+    city_total = 0
+
+    try:
+        state_data = extract_initial_state_from_page(driver, url)
+        if not state_data: return [], 0, None
+        venues = extract_venues(state_data)
     except Exception: pass
-    finally: driver.quit()
+    finally:
+        driver.quit()
+
+    if not venues:
+        return [], 0, None
+
+    # Parallelize venues
+    chunk_size = math.ceil(len(venues) / MAX_WORKERS)
+    venue_chunks = [venues[i:i + chunk_size] for i in range(0, len(venues), chunk_size)]
+    
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [
+            executor.submit(process_venue_list, chunk, city_name, reporting_city, state_name, district_sids, current_proxy) 
+            for chunk in venue_chunks
+        ]
+        
+        for future in as_completed(futures):
+            res, total = future.result()
+            city_results.extend(res)
+            city_total += total
+
     return city_results, city_total, url
 
 # ================= PART 3: EXCEL GENERATOR =================
@@ -579,7 +677,7 @@ def generate_consolidated_excel(all_results, filename):
     ws_show = wb.create_sheet(title="Show Wise")
     ws_show.append(["Source", "State", "City", "Venue", "Time", "SID", "Total Seats", "Booked Seats", "Total Gross", "Booked Gross", "Occ %"])
     for r in all_results:
-        ws_show.append([r["source"], r["state"], r["city"], r["venue"], r["showTime"], r["sid"], r["total_tickets"], r["booked_tickets"], r["total_gross"], r["booked_gross"], r["occupancy"]])
+        ws_show.append([r["source"], r["state"], r["city"], r["venue"], r["normalized_show_time"], r["sid"], r["total_tickets"], r["booked_tickets"], r["total_gross"], r["booked_gross"], r["occupancy"]])
 
     # 5. SUMMARY
     ws_sum = wb.create_sheet(title="Summary")
