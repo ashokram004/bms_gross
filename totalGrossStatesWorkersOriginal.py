@@ -24,7 +24,6 @@ from utils.generateHybridStatesImageReport import generate_hybrid_image_report
 
 # =========================== CONFIGURATION ===========================
 INPUT_STATE_LIST = ["Andhra Pradesh", "Telangana"] 
-SHOW_DATE = "2026-02-10"
 
 # Config Paths
 DISTRICT_CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
@@ -35,7 +34,10 @@ DISTRICT_MAP_PATH = os.path.join("utils", "district_area_city_mapping.json")
 BMS_MAP_PATH = os.path.join("utils", "bms_area_city_mapping.json")
 
 # URLs
-DISTRICT_URL_BASE = "https://www.district.in/movies/orange-2010-movie-tickets-in-"
+DISTRICT_URL = "https://www.district.in/movies/orange-2010-movie-tickets-in-{city}-MV160920"
+SHOW_DATE = "2026-02-10"
+DISTRICT_URL_TEMPLATE = DISTRICT_URL + "?fromdate=" + SHOW_DATE
+
 BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/orange/buytickets/ET00005527/20260210"
 
 # BMS Settings
@@ -165,7 +167,7 @@ def fetch_district_data(driver):
         if not cities: continue
 
         for city in cities:
-            url = f"{DISTRICT_URL_BASE}{city['slug']}-MV203929?fromdate={SHOW_DATE}"
+            url = DISTRICT_URL_TEMPLATE.format(city=city['slug'])
             print(f"[{state}] Fetching {city['name']}...", end="\r")
             
             try:
@@ -877,7 +879,7 @@ if __name__ == "__main__":
         ts_final = datetime.now().strftime("%Y%m%d_%H%M%S")
         generate_consolidated_excel(final_data, f"Total_States_Report_{ts_final}.xlsx")
         
-        ref_url_final = last_valid_url if last_valid_url else (DISTRICT_URL_BASE + "city")
+        ref_url_final = last_valid_url if last_valid_url else DISTRICT_URL_TEMPLATE.format(city="city")
         generate_hybrid_image_report(final_data, BMS_URL_TEMPLATE, f"reports/Total_States_Report_{ts_final}.png", "bms")
     else:
         print("No data found.")
