@@ -11,7 +11,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from openpyxl import Workbook
 import difflib
-from collections import defaultdict
+from collections import defaultdict, deque
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -26,9 +26,9 @@ processed_bms_sids = set()
 
 # ================= CONFIGURATION =================
 DISTRICT_URL = "https://www.district.in/movies/orange-2010-movie-tickets-in-vijayawada-MV160920"
-BMS_URL = "https://in.bookmyshow.com/movies/vijayawada/orange/buytickets/ET00005527/20260209"
+BMS_URL = "https://in.bookmyshow.com/movies/vijayawada/orange/buytickets/ET00005527/20260210"
 
-SHOW_DATE = "2026-02-09"
+SHOW_DATE = "2026-02-10"
 DISTRICT_FULL_URL = f"{DISTRICT_URL}?fromdate={SHOW_DATE}"
 
 BMS_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
@@ -119,6 +119,7 @@ def fetch_district_data(driver):
 
         for cin in cinemas:
             venue = cin['entityName']
+            print(f"   🏛️  District Venue: {venue}")
 
             for s in cin.get('sessions', []):
                 sid = str(s.get('sid', ''))
@@ -146,6 +147,7 @@ def fetch_district_data(driver):
                     layout_res = get_district_seat_layout(driver, cid, sid)
                 
                 if layout_res and 'seatLayout' in layout_res:
+                    # print(f"      ✅ API Layout Success for {sid}")
                     col_areas = layout_res['seatLayout'].get('colAreas', {})
                     obj_areas = col_areas.get('objArea', [])
                     
@@ -165,6 +167,7 @@ def fetch_district_data(driver):
                                     b_tkts += 1; b_gross += price
                 else:
                     # Fallback to cached data
+                    print(f"   ⚡ Using Cached Data for {sid} (No API Data)")
                     for a in s.get('areas', []):
                         tot, av, pr = a['sTotal'], a['sAvail'], a['price']
                         bk = tot - av
@@ -292,6 +295,7 @@ def get_seat_layout(driver, venue_code, session_id):
             error_msg = j_resp.get("strException", "")
             if "Rate limit" in error_msg:
                 if attempt < max_retries:
+                    print(f"   ⚠️ Rate limit hit for {session_id}, retrying after delay...")
                     time.sleep(60)
                     continue
                 else:
@@ -313,9 +317,10 @@ def process_venue_list(venues):
         for v in venues:
             v_name = v["additionalData"]["venueName"]
             v_code = v["additionalData"]["venueCode"]
+            print(f"   🏛️  BMS Venue: {v_name} | Shows: {len(v.get('showtimes', []))}")
 
             # 1. Init Capacity Map for THIS Venue
-            screen_capacity_map = {}
+            screen_details_map = {}
 
             # 2. Sort Shows: Available First, Sold Out Last
             shows = v.get("showtimes", [])
@@ -323,8 +328,12 @@ def process_venue_list(venues):
                 key=lambda s: s["additionalData"].get("availStatus", "0"),
                 reverse=True
             )
+            
+            show_queue = deque(shows)
+            deferred_sids = set()
 
-            for show in shows:
+            while show_queue:
+                show = show_queue.popleft()
                 sid = str(show["additionalData"]["sessionId"])
                 show_time = show["title"]
 
@@ -333,9 +342,9 @@ def process_venue_list(venues):
                     continue
                 
                 # OPTIMIZATION: Skip if already found in District
-                # if sid in processed_district_sids:
-                #     print(f"   ⏭️  Skipping {sid} (Found in District)")
-                #     continue
+                if sid in processed_district_sids:
+                    print(f"   ⏭️  Skipping {sid} (Found in District)")
+                    continue
 
                 processed_bms_sids.add(sid)
 
@@ -370,25 +379,34 @@ def process_venue_list(venues):
 
                         if error_msg and "sold out" in error_msg.lower():
                             # Case 1: Sold Out -> Try Recovery or Fallback
+                            print(f"      🔴 Sold Out: {sid} ({show_time}). Checking recovery...")
                             recovered_capacity = None
                             recovered_seat_map = None
                             
-                            try:
-                                base_sid = int(sid)
-                                # Try offsets +7 down to +1
-                                for offset in range(7, 0, -1):
-                                    target_sid = str(base_sid + offset)
-                                    time.sleep(1)
-                                    n_enc, n_err = get_seat_layout(driver, v_code, target_sid)
-                                    if n_enc:
-                                        n_dec = decrypt_data(n_enc)
-                                        n_res = calculate_bms_collection(n_dec, {})
-                                        if n_res[0] > 0:
-                                            recovered_capacity = n_res[0]
-                                            recovered_seat_map = n_res[5]
-                                            print(f"   ✨ Fixed SoldOut {sid} using {target_sid} (Cap: {recovered_capacity})")
-                                            break
-                            except Exception: pass
+                            # 1. Try Screen Cache First
+                            if screenName in screen_details_map:
+                                recovered_seat_map = screen_details_map[screenName]
+                                recovered_capacity = sum(recovered_seat_map.values())
+                                print(f"         ⚡ Using cached layout for {screenName} ({recovered_capacity} seats)")
+                            
+                            # 2. If not in cache, try Future Shows
+                            if not recovered_capacity:
+                                try:
+                                    base_sid = int(sid)
+                                    # Try offsets +7 down to +1
+                                    for offset in range(7, 0, -1):
+                                        target_sid = str(base_sid + offset)
+                                        time.sleep(1)
+                                        n_enc, n_err = get_seat_layout(driver, v_code, target_sid)
+                                        if n_enc:
+                                            n_dec = decrypt_data(n_enc)
+                                            n_res = calculate_bms_collection(n_dec, {})
+                                            if n_res[0] > 0:
+                                                recovered_capacity = n_res[0]
+                                                recovered_seat_map = n_res[5]
+                                                print(f"         ✨ Recovered using {target_sid} (Cap: {recovered_capacity})")
+                                                break
+                                except Exception: pass
                             
                             if recovered_capacity:
                                 calc_gross = 0
@@ -398,7 +416,8 @@ def process_venue_list(venues):
                                 if calc_gross > 0:
                                     t_tkts = recovered_capacity; b_tkts = recovered_capacity
                                     t_gross = calc_gross; b_gross = calc_gross
-                                    screen_capacity_map[screenName] = t_tkts
+                                    screen_details_map[screenName] = recovered_seat_map
+                                    is_fallback = False # Has valid structure now
                                     
                                     # Update maps for better data
                                     seat_map = recovered_seat_map
@@ -410,12 +429,9 @@ def process_venue_list(venues):
                                     recovered_capacity = None
 
                             if not recovered_capacity:
-                                if screenName in screen_capacity_map:
-                                    FALLBACK_SEATS = screen_capacity_map[screenName]
-                                    print(f"   ⚡ Smart Fallback: Using {FALLBACK_SEATS} seats for {screenName}")
-                                else:
-                                    FALLBACK_SEATS = 400
-                                    print(f"   ⚠️ No history for {screenName}, using default {FALLBACK_SEATS}")
+                                print(f"         ❌ Recovery failed for {sid}.")
+                                FALLBACK_SEATS = 400
+                                print(f"         ⚠️ No cache for {screenName}. Using default {FALLBACK_SEATS}.")
                                 t_tkts = FALLBACK_SEATS; b_tkts = FALLBACK_SEATS
                                 t_gross = int(t_tkts * max_price); b_gross = t_gross
 
@@ -431,15 +447,47 @@ def process_venue_list(venues):
                             }
 
                         elif error_msg and "Rate limit" in error_msg:
-                            print(f"   ⚠️ Skipping {v_name[:15]} (Rate Limit)")
+                            print(f"      🚫 Rate Limit for {v_name[:15]}")
                             continue
 
                         else:
-                            t_tkts = 400
-                            b_tkts = 200
-                            t_gross = int(t_tkts * max_price)
-                            b_gross = int(b_tkts * max_price)
-                            occ = 50.0
+                            print(f"      ⚠️  BMS Error for {sid}: {error_msg}")
+                            # Case 3: Other Error -> Smart Fallback or Defer
+                            if screenName in screen_details_map:
+                                # Use cached capacity from same screen
+                                cached_seat_map = screen_details_map[screenName]
+                                seat_map = cached_seat_map
+                                
+                                t_tkts = sum(cached_seat_map.values())
+                                b_tkts = int(t_tkts * 0.5)
+                                
+                                # Rebuild price_seat_map for matching
+                                ps_map = defaultdict(int)
+                                t_gross_calc = 0
+                                for ac, count in cached_seat_map.items():
+                                    pr = float(price_map.get(ac, 0))
+                                    ps_map[pr] += count
+                                    t_gross_calc += count * pr
+                                price_seat_map = dict(ps_map)
+
+                                t_gross = int(t_gross_calc)
+                                b_gross = int(t_gross * 0.5)
+                                occ = 50.0
+                                is_fallback = False # Has valid structure now
+                                print(f"         ⚡ Smart Fallback: Using cached layout for {screenName} ({t_tkts} seats)")
+                            elif sid not in deferred_sids and len(show_queue) > 0:
+                                # Defer processing to see if cache populates later
+                                print(f"         🔄 Deferring {sid} (Waiting for {screenName} info)...")
+                                deferred_sids.add(sid)
+                                processed_bms_sids.discard(sid) # Allow reprocessing
+                                show_queue.append(show)
+                                continue
+                            else:
+                                print(f"         ❌ Hard Fallback: No info for {screenName}. Using 400/200.")
+                                t_tkts = 400; b_tkts = 200
+                                t_gross = int(t_tkts * max_price)
+                                b_gross = int(b_tkts * max_price)
+                                occ = 50.0
 
                             data = {
                                 "total_tickets": t_tkts,
@@ -473,7 +521,7 @@ def process_venue_list(venues):
                                 ps_list.append((pr, count))
                             price_seat_map = dict(ps_map)
                             data["price_seat_signature"] = sorted(ps_list)
-                            screen_capacity_map[screenName] = data["total_tickets"]
+                            screen_details_map[screenName] = seat_map
 
                     if data:
                         normalized_time = normalize_bms_time(SHOW_DATE, show_time)
