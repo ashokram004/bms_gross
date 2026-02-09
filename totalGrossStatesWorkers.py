@@ -24,7 +24,7 @@ from utils.generateHybridStatesImageReport import generate_hybrid_image_report
 
 # =========================== CONFIGURATION ===========================
 INPUT_STATE_LIST = ["Andhra Pradesh", "Telangana"] 
-SHOW_DATE = "2026-01-27"
+SHOW_DATE = "2026-02-09"
 
 # Config Paths
 DISTRICT_CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
@@ -36,7 +36,7 @@ BMS_MAP_PATH = os.path.join("utils", "bms_area_city_mapping.json")
 
 # URLs
 DISTRICT_URL_BASE = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-"
-BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260127"
+BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260209"
 
 # BMS Settings
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
@@ -191,15 +191,23 @@ def fetch_district_data(driver):
                         normalized_time = district_gmt_to_ist(s['showTime'])
                         
                         city_res.append({
-                            "source": "district", "sid": sid,
-                            "state": state, "city": reporting_city, "venue": venue,
-                            "showTime": s['showTime'], "normalized_show_time": normalized_time,
-                            "seat_category_map": seat_map, "price_seat_map": dict(price_seat_map),
+                            "source": "district", 
+                            "sid": sid,
+                            "state": state, 
+                            "city": reporting_city, 
+                            "venue": venue,
+                            "showTime": s['showTime'], 
+                            "normalized_show_time": normalized_time,
+                            "seat_category_map": seat_map, 
+                            "price_seat_map": dict(price_seat_map),
                             "price_seat_signature": sorted(price_seat_list),
                             "seat_signature": build_seat_signature(seat_map),
-                            "total_tickets": t_tkts, "booked_tickets": b_tkts, 
-                            "total_gross": p_gross, "booked_gross": int(b_gross), 
-                            "occupancy": occ, "is_fallback": False
+                            "total_tickets": abs(t_tkts),
+                            "booked_tickets": min(abs(b_tkts), abs(t_tkts)),
+                            "total_gross": abs(p_gross),
+                            "booked_gross": min(abs(int(b_gross)), abs(int(p_gross))),
+                            "occupancy": min(100, abs(occ)),
+                            "is_fallback": False  # District is always real
                         })
                 
                 if city_res:
@@ -356,9 +364,9 @@ def process_venue_list(venues, city_name, reporting_city, state_name, district_s
                 processed_sids.add(sid)
 
                 # OPTIMIZATION: Skip if already found in District
-                if sid in district_sids:
-                    print(f"   ⏭️  Skipping {sid} (Found in District)")
-                    continue
+                # if sid in district_sids:
+                #     print(f"   ⏭️  Skipping {sid} (Found in District)")
+                #     continue
 
                 soldOut = False
                 seat_map = {}

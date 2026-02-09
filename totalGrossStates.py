@@ -196,9 +196,12 @@ def fetch_district_data(driver):
                             "seat_category_map": seat_map, "price_seat_map": dict(price_seat_map),
                             "price_seat_signature": sorted(price_seat_list),
                             "seat_signature": build_seat_signature(seat_map),
-                            "total_tickets": t_tkts, "booked_tickets": b_tkts, 
-                            "total_gross": p_gross, "booked_gross": int(b_gross), 
-                            "occupancy": occ, "is_fallback": False
+                            "total_tickets": abs(t_tkts),
+                            "booked_tickets": min(abs(b_tkts), abs(t_tkts)),
+                            "total_gross": abs(p_gross),
+                            "booked_gross": min(abs(int(b_gross)), abs(int(p_gross))),
+                            "occupancy": min(100, abs(occ)),
+                            "is_fallback": False  # District is always real
                         })
                 
                 if city_res:
