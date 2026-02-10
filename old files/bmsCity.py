@@ -186,7 +186,7 @@ def calculate_show_collection(decrypted, price_map):
             if seat[0] == block_letter and status in ("1", "2"):
                 seats_map[area_code] = seats_map.get(area_code, 0) + 1
 
-            if status in BOOKED_STATES:
+            if seat[0] == block_letter and status in BOOKED_STATES:
                 booked_map[area_code] = booked_map.get(area_code, 0) + 1
 
     total_tickets = booked_tickets = total_gross = booked_gross = 0

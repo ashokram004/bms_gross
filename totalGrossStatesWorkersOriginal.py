@@ -35,10 +35,10 @@ BMS_MAP_PATH = os.path.join("utils", "bms_area_city_mapping.json")
 
 # URLs
 DISTRICT_URL = "https://www.district.in/movies/orange-2010-movie-tickets-in-{city}-MV160920"
-SHOW_DATE = "2026-02-10"
+SHOW_DATE = "2026-02-11"
 DISTRICT_URL_TEMPLATE = DISTRICT_URL + "?fromdate=" + SHOW_DATE
 
-BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/orange/buytickets/ET00005527/20260210"
+BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/orange/buytickets/ET00005527/20260211"
 
 # BMS Settings
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
@@ -388,7 +388,7 @@ def calculate_show_collection(decrypted, price_map):
             status = seat[1]
             if seat[0] == block and status in ("1", "2"):
                 seats[area] = seats.get(area, 0) + 1
-            if status in BOOKED_STATES:
+            if seat[0] == block and status in BOOKED_STATES:
                 booked[area] = booked.get(area, 0) + 1
 
     t_tkts, b_tkts, t_gross, b_gross = 0, 0, 0, 0
@@ -410,7 +410,7 @@ def process_venue_list(venues, city_name, reporting_city, state_name, district_s
         for venue in venues:
             v_name = venue["additionalData"]["venueName"]
             v_code = venue["additionalData"]["venueCode"]
-            print(f"   🏛️  BMS Venue: {v_name} | Shows: {len(venue.get('showtimes', []))}")
+            # print(f"   🏛️  BMS Venue: {v_name} | Shows: {len(venue.get('showtimes', []))}")
             
             # 1. Init Capacity Map
             screen_details_map = {}
@@ -592,7 +592,6 @@ def process_venue_list(venues, city_name, reporting_city, state_name, district_s
                     if data and data['total_tickets'] > 0:
                         normalized_time = normalize_bms_time(SHOW_DATE, show_time)
                         tag = "(SOLD OUT)" if soldOut else ""
-                        print(f"   [{city_name[:10]}] {v_name[:15]:<15} | {show_time} | Occ: {data['occupancy']:>5}% | {data['booked_gross']:<8} {tag}")
 
                         data.update({
                             "source": "bms", "sid": sid,
@@ -623,7 +622,7 @@ def process_single_city(task_data):
     # --- NORMALIZE CITY ---
     reporting_city = get_normalized_city_name(state_name, city_name, "bms")
 
-    print(f"Starting BMS: {city_name} -> {reporting_city}...")
+    print(f"[{state_name}] Fetching {city_name}...", end="\r")
     url = BMS_URL_TEMPLATE.format(city=city_slug)
     driver = get_driver(current_proxy)
     city_results = []
@@ -654,6 +653,9 @@ def process_single_city(task_data):
             res, total = future.result()
             city_results.extend(res)
             city_total += total
+
+    if city_results:
+        print(f"✅ {city_name:<15} -> {reporting_city:<15} | Shows: {len(city_results):<3} | Gross: ₹{city_total:<10,}")
 
     return city_results, city_total, url
 
@@ -809,6 +811,7 @@ if __name__ == "__main__":
         for cand in candidates:
             if cand['sid'] == bms['sid']:
                 match_found = cand
+                print(f"   🔗 SID Match: {bms['sid']}")
                 break
         
         # 2. Try Price Seat Signature Match (if not fallback)
@@ -826,6 +829,7 @@ if __name__ == "__main__":
                     ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
                     if ratio > 0.4:
                         match_found = cand
+                        print(f"   🔗 Price/Seat Sig Match: {bms['venue'][:15]}... == {cand['venue'][:15]}... (Tol: {SEAT_TOLERANCE}, Ratio: {int(ratio*100)}%)")
                         break
         
         # 3. Try FUZZY Venue Match + Strict Price Match (if fallback)
@@ -847,6 +851,7 @@ if __name__ == "__main__":
             
             if best_cand:
                 match_found = best_cand
+                print(f"   🔗 Fuzzy Match: {bms['venue'][:15]}... == {match_found['venue'][:15]}... ({int(best_ratio*100)}%)")
 
         if match_found:
             candidates.remove(match_found)

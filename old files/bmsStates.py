@@ -218,7 +218,7 @@ def calculate_show_collection(decrypted, price_map):
             status = seat[1]
             if seat[0] == block and status in ("1", "2"):
                 seats[area] = seats.get(area, 0) + 1
-            if status in BOOKED_STATES:
+            if seat[0] == block and status in BOOKED_STATES:
                 booked[area] = booked.get(area, 0) + 1
 
     t_tkts, b_tkts, t_gross, b_gross = 0, 0, 0, 0

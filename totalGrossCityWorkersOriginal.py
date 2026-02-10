@@ -26,7 +26,7 @@ processed_bms_sids = set()
 
 # ================= CONFIGURATION =================
 DISTRICT_URL = "https://www.district.in/movies/orange-2010-movie-tickets-in-warangal-MV160920"
-BMS_URL = "https://in.bookmyshow.com/movies/warangal/orange/buytickets/ET00005527/20260210"
+BMS_URL = "https://in.bookmyshow.com/movies/nandyal/orange/buytickets/ET00005527/20260211"
 
 SHOW_DATE = "2026-02-10"
 DISTRICT_FULL_URL = f"{DISTRICT_URL}?fromdate={SHOW_DATE}"
@@ -254,7 +254,7 @@ def calculate_bms_collection(decrypted, price_map):
             status = seat[1]
             if seat[0] == block and status in ("1", "2"):
                 seats[area] = seats.get(area, 0) + 1
-            if status in BOOKED_CODES:
+            if seat[0] == block and status in BOOKED_CODES:
                 booked[area] = booked.get(area, 0) + 1
 
     t_tkts, b_tkts, t_gross, b_gross = 0, 0, 0, 0
@@ -726,7 +726,7 @@ def generate_excel(data, filename):
 # ================= EXECUTION =================
 if __name__ == "__main__":
     d_driver = get_driver()
-    dist_data = fetch_district_data(d_driver)
+    dist_data = [] #fetch_district_data(d_driver)
     d_driver.quit()
 
     bms_data = fetch_bms_data()
