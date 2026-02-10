@@ -726,7 +726,7 @@ def generate_excel(data, filename):
 # ================= EXECUTION =================
 if __name__ == "__main__":
     d_driver = get_driver()
-    dist_data = [] #fetch_district_data(d_driver)
+    dist_data = fetch_district_data(d_driver)
     d_driver.quit()
 
     bms_data = fetch_bms_data()
