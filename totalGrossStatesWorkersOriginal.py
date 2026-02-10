@@ -765,6 +765,7 @@ if __name__ == "__main__":
         d_driver.quit() 
 
     # 2. BMS
+    print("\nSTARTING BMS PROCESS...")
     if os.path.exists(BMS_CONFIG_PATH):
         with open(BMS_CONFIG_PATH, 'r', encoding='utf-8') as f:
             bms_config = json.load(f)
@@ -851,7 +852,7 @@ if __name__ == "__main__":
             
             if best_cand:
                 match_found = best_cand
-                print(f"   🔗 Fuzzy Match: {bms['venue'][:15]}... == {match_found['venue'][:15]}... ({int(best_ratio*100)}%)")
+                print(f"   🔗 Fuzzy Match: {bms['venue']}... == {match_found['venue']}... ({int(best_ratio*100)}%)")
 
         if match_found:
             candidates.remove(match_found)

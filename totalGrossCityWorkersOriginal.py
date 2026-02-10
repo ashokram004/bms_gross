@@ -797,7 +797,7 @@ if __name__ == "__main__":
             
             if best_cand:
                 match_found = best_cand
-                print(f"   🔗 Fuzzy Match: {bms['venue'][:15]}... == {match_found['venue'][:15]}... ({int(best_ratio*100)}%)")
+                print(f"   🔗 Fuzzy Match: {bms['venue']}... == {match_found['venue']}... ({int(best_ratio*100)}%)")
 
         if match_found:
             # Remove from pool so we don't match it again
