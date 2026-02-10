@@ -833,11 +833,11 @@ if __name__ == "__main__":
             best_ratio = 0
             best_cand = None
             bms_venue_clean = bms['venue'].lower()
-            b_prices = set(bms.get('price_seat_map', {}).keys())
+            b_prices = {p for p in bms.get('price_seat_map', {}).keys() if p > 0}
             
             for cand in candidates:
                 # Check price match (Strict Price Category Match)
-                d_prices = set(cand.get('price_seat_map', {}).keys())
+                d_prices = {p for p in cand.get('price_seat_map', {}).keys() if p > 0}
                 if b_prices != d_prices: continue
                 
                 ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()

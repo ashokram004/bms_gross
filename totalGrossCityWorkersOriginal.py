@@ -25,8 +25,8 @@ processed_district_sids = set()
 processed_bms_sids = set()
 
 # ================= CONFIGURATION =================
-DISTRICT_URL = "https://www.district.in/movies/orange-2010-movie-tickets-in-vijayawada-MV160920"
-BMS_URL = "https://in.bookmyshow.com/movies/vijayawada/orange/buytickets/ET00005527/20260210"
+DISTRICT_URL = "https://www.district.in/movies/orange-2010-movie-tickets-in-warangal-MV160920"
+BMS_URL = "https://in.bookmyshow.com/movies/warangal/orange/buytickets/ET00005527/20260210"
 
 SHOW_DATE = "2026-02-10"
 DISTRICT_FULL_URL = f"{DISTRICT_URL}?fromdate={SHOW_DATE}"
@@ -780,11 +780,11 @@ if __name__ == "__main__":
             best_ratio = 0
             best_cand = None
             bms_venue_clean = bms['venue'].lower()
-            b_prices = set(bms.get('price_seat_map', {}).keys())
+            b_prices = {p for p in bms.get('price_seat_map', {}).keys() if p > 0}
             
             for cand in candidates:
                 # Check price match (Strict Price Category Match)
-                d_prices = set(cand.get('price_seat_map', {}).keys())
+                d_prices = {p for p in cand.get('price_seat_map', {}).keys() if p > 0}
                 if b_prices != d_prices:
                     continue
 
