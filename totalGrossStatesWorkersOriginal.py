@@ -36,7 +36,7 @@ BMS_MAP_PATH = os.path.join("utils", "bms_area_city_mapping.json")
 # URLs
 DISTRICT_URL = "https://www.district.in/movies/orange-2010-movie-tickets-in-{city}-MV160920"
 SHOW_DATE = "2026-02-11"
-DISTRICT_URL_TEMPLATE = DISTRICT_URL + "?fromdate=" + SHOW_DATE
+DISTRICT_URL_TEMPLATE = DISTRICT_URL + "?frmtid=j9i73008l&fromdate=" + SHOW_DATE
 
 BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/orange/buytickets/ET00005527/20260211"
 
@@ -846,7 +846,7 @@ if __name__ == "__main__":
                 if b_prices != d_prices: continue
                 
                 ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
-                if ratio > 0.5 and ratio > best_ratio:
+                if ratio > 0.55 and ratio > best_ratio:
                     best_ratio = ratio
                     best_cand = cand
             

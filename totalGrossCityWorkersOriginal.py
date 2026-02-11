@@ -25,11 +25,11 @@ processed_district_sids = set()
 processed_bms_sids = set()
 
 # ================= CONFIGURATION =================
-DISTRICT_URL = "https://www.district.in/movies/orange-2010-movie-tickets-in-warangal-MV160920"
-BMS_URL = "https://in.bookmyshow.com/movies/nandyal/orange/buytickets/ET00005527/20260211"
+DISTRICT_URL = "https://www.district.in/movies/orange-2010-movie-tickets-in-hyderabad-MV160920"
+BMS_URL = "https://in.bookmyshow.com/movies/hyderabad/orange/buytickets/ET00005527/20260211"
 
-SHOW_DATE = "2026-02-10"
-DISTRICT_FULL_URL = f"{DISTRICT_URL}?fromdate={SHOW_DATE}"
+SHOW_DATE = "2026-02-11"
+DISTRICT_FULL_URL = f"{DISTRICT_URL}?frmtid=j9i73008l&fromdate={SHOW_DATE}"
 
 BMS_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 BOOKED_CODES = {"2"}
@@ -791,7 +791,7 @@ if __name__ == "__main__":
                 # Check similarity of venue names
                 ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
                 # Threshold 0.5 handles "Sangam Theatre" vs "Sangam Theatre 4K..." well
-                if ratio > 0.5 and ratio > best_ratio:
+                if ratio > 0.55 and ratio > best_ratio:
                     best_ratio = ratio
                     best_cand = cand
             
