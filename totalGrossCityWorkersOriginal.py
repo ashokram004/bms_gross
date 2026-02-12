@@ -25,11 +25,11 @@ processed_district_sids = set()
 processed_bms_sids = set()
 
 # ================= CONFIGURATION =================
-DISTRICT_URL = "https://www.district.in/movies/orange-2010-movie-tickets-in-hyderabad-MV160920"
-BMS_URL = "https://in.bookmyshow.com/movies/hyderabad/orange/buytickets/ET00005527/20260211"
+DISTRICT_URL = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-hyderabad-MV203929"
+BMS_URL = "https://in.bookmyshow.com/movies/hyderabad/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260213"
 
-SHOW_DATE = "2026-02-11"
-DISTRICT_FULL_URL = f"{DISTRICT_URL}?frmtid=j9i73008l&fromdate={SHOW_DATE}"
+SHOW_DATE = "2026-02-13"
+DISTRICT_FULL_URL = f"{DISTRICT_URL}?frmtid=rfk~yo4o7j&fromdate={SHOW_DATE}"
 
 BMS_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 BOOKED_CODES = {"2"}
@@ -229,12 +229,21 @@ def calculate_bms_collection(decrypted, price_map):
     header, rows_part = decrypted.split("||")
     rows = rows_part.split("|")
 
+    # Fix 0 prices using header order (carry forward previous price)
     # Category Map
     cat_map = {}
+    local_price_map = price_map.copy()
+    last_price = 0.0
+
     for p in header.split("|"):
         parts = p.split(":")
-        if len(parts) >= 3:
-            cat_map[parts[1]] = parts[2]
+        if len(parts) >= 3: 
+            cat_map[parts[1]] = parts[2] # BlockCode -> AreaCatCode
+            
+            # Infer price if missing/zero
+            current_price = local_price_map.get(parts[2], 0.0)
+            if current_price > 0: last_price = current_price
+            elif last_price > 0: local_price_map[parts[2]] = last_price
 
     seats, booked = {}, {}
     for row in rows:
@@ -260,7 +269,7 @@ def calculate_bms_collection(decrypted, price_map):
     t_tkts, b_tkts, t_gross, b_gross = 0, 0, 0, 0
     for area, total in seats.items():
         bk = booked.get(area, 0)
-        pr = price_map.get(area, 0)
+        pr = local_price_map.get(area, 0)
         t_tkts += total
         b_tkts += bk
         t_gross += total * pr
@@ -269,7 +278,7 @@ def calculate_bms_collection(decrypted, price_map):
     occ = round((b_tkts / t_tkts) * 100, 2) if t_tkts else 0
 
     # >>> NEW: return seats map also
-    return t_tkts, b_tkts, int(t_gross), int(b_gross), occ, seats
+    return t_tkts, b_tkts, int(t_gross), int(b_gross), occ, seats, local_price_map
 
 
 def get_seat_layout(driver, venue_code, session_id):
@@ -352,10 +361,7 @@ def process_venue_list(venues):
                 screenName = raw_screen if raw_screen else "Main Screen"
 
                 cats = show["additionalData"].get("categories", [])
-                price_map = {
-                    c["areaCatCode"]: float(c["curPrice"])
-                    for c in cats
-                }
+                price_map = {c["areaCatCode"]: float(c["curPrice"]) for c in cats}
 
                 try:
                     enc, error_msg = get_seat_layout(driver, v_code, sid)
@@ -510,13 +516,14 @@ def process_venue_list(venues):
                         }
 
                         seat_map = res[5]
+                        final_price_map = res[6]
 
                         if data["total_tickets"] > 0:
                             # Build Price Seat Map for Matching
                             ps_map = defaultdict(int)
                             ps_list = []
                             for ac, count in seat_map.items():
-                                pr = float(price_map.get(ac, 0))
+                                pr = float(final_price_map.get(ac, 0))
                                 ps_map[pr] += count
                                 ps_list.append((pr, count))
                             price_seat_map = dict(ps_map)
@@ -775,7 +782,24 @@ if __name__ == "__main__":
                         print(f"   🔗 Price/Seat Sig Match: {bms['venue'][:15]}... == {cand['venue'][:15]}... (Tol: {SEAT_TOLERANCE}, Ratio: {int(ratio*100)}%)")
                         break
         
-        # 3. Try FUZZY Venue Match (Fallback for Sold Out/Error BMS shows)
+        # 3. Try Seat Signature Match (Ignore Price)
+        if not match_found and not bms.get('is_fallback', False):
+            b_seats = sorted(bms.get('seat_category_map', {}).values())
+            bms_venue_clean = bms['venue'].lower()
+            
+            for cand in candidates:
+                d_seats = sorted(cand.get('seat_category_map', {}).values())
+                if not b_seats or not d_seats: continue
+                if len(b_seats) != len(d_seats): continue
+                
+                if all(abs(bs - ds) <= SEAT_TOLERANCE for bs, ds in zip(b_seats, d_seats)):
+                    ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
+                    if ratio > 0.4:
+                        match_found = cand
+                        print(f"   🔗 Seat Sig Match: {bms['venue'][:15]}... == {cand['venue'][:15]}... (Tol: {SEAT_TOLERANCE}, Ratio: {int(ratio*100)}%)")
+                        break
+
+        # 4. Try FUZZY Venue Match (Fallback for Sold Out/Error BMS shows)
         if not match_found and candidates:
             best_ratio = 0
             best_cand = None
@@ -790,7 +814,7 @@ if __name__ == "__main__":
 
                 # Check similarity of venue names
                 ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
-                # Threshold 0.5 handles "Sangam Theatre" vs "Sangam Theatre 4K..." well
+                # Threshold 0.55 handles "Sangam Theatre" vs "Sangam Theatre 4K..." well
                 if ratio > 0.55 and ratio > best_ratio:
                     best_ratio = ratio
                     best_cand = cand

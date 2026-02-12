@@ -369,10 +369,21 @@ def decrypt_data(enc):
 def calculate_show_collection(decrypted, price_map):
     header, rows_part = decrypted.split("||")
     rows = rows_part.split("|")
+    
+    # Fix 0 prices using header order (carry forward previous price)
     cat_map = {}
+    local_price_map = price_map.copy()
+    last_price = 0.0
+
     for p in header.split("|"):
         parts = p.split(":")
-        if len(parts) >= 3: cat_map[parts[1]] = parts[2]
+        if len(parts) >= 3: 
+            cat_map[parts[1]] = parts[2] # BlockCode -> AreaCatCode
+            
+            # Infer price if missing/zero
+            current_price = local_price_map.get(parts[2], 0.0)
+            if current_price > 0: last_price = current_price
+            elif last_price > 0: local_price_map[parts[2]] = last_price
 
     seats, booked = {}, {}
     for row in rows:
@@ -394,12 +405,12 @@ def calculate_show_collection(decrypted, price_map):
     t_tkts, b_tkts, t_gross, b_gross = 0, 0, 0, 0
     for area, total in seats.items():
         bk = booked.get(area, 0)
-        pr = price_map.get(area, 0)
+        pr = local_price_map.get(area, 0)
         t_tkts += total; b_tkts += bk
         t_gross += total * pr; b_gross += bk * pr
 
     occ = round((b_tkts / t_tkts) * 100, 2) if t_tkts else 0
-    return t_tkts, b_tkts, int(t_gross), int(b_gross), occ, seats
+    return t_tkts, b_tkts, int(t_gross), int(b_gross), occ, seats, local_price_map
 
 def process_venue_list(venues, city_name, reporting_city, state_name, district_sids, proxy=None):
     results = []
@@ -575,6 +586,7 @@ def process_venue_list(venues, city_name, reporting_city, state_name, district_s
                             "total_gross": abs(res[2]), "booked_gross": min(abs(res[3]), abs(res[2])), "occupancy": min(100, abs(res[4]))
                         }
                         seat_map = res[5]
+                        final_price_map = res[6]
                         
                         # Cache Capacity if successful
                         if data["total_tickets"] > 0:
@@ -582,7 +594,7 @@ def process_venue_list(venues, city_name, reporting_city, state_name, district_s
                             ps_map = defaultdict(int)
                             ps_list = []
                             for ac, count in seat_map.items():
-                                pr = float(price_map.get(ac, 0))
+                                pr = float(final_price_map.get(ac, 0))
                                 ps_map[pr] += count
                                 ps_list.append((pr, count))
                             price_seat_map = dict(ps_map)
@@ -833,7 +845,24 @@ if __name__ == "__main__":
                         print(f"   🔗 Price/Seat Sig Match: {bms['venue'][:15]}... == {cand['venue'][:15]}... (Tol: {SEAT_TOLERANCE}, Ratio: {int(ratio*100)}%)")
                         break
         
-        # 3. Try FUZZY Venue Match + Strict Price Match (if fallback)
+        # 3. Try Seat Signature Match (Ignore Price)
+        if not match_found and not bms.get('is_fallback', False):
+            b_seats = sorted(bms.get('seat_category_map', {}).values())
+            bms_venue_clean = bms['venue'].lower()
+            
+            for cand in candidates:
+                d_seats = sorted(cand.get('seat_category_map', {}).values())
+                if not b_seats or not d_seats: continue
+                if len(b_seats) != len(d_seats): continue
+                
+                if all(abs(bs - ds) <= SEAT_TOLERANCE for bs, ds in zip(b_seats, d_seats)):
+                    ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
+                    if ratio > 0.4:
+                        match_found = cand
+                        print(f"   🔗 Seat Sig Match: {bms['venue'][:15]}... == {cand['venue'][:15]}... (Tol: {SEAT_TOLERANCE}, Ratio: {int(ratio*100)}%)")
+                        break
+
+        # 4. Try FUZZY Venue Match + Strict Price Match (if fallback)
         if not match_found and candidates:
             best_ratio = 0
             best_cand = None
