@@ -16,6 +16,7 @@ import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from utils.generateHybridCityImageReport import generate_hybrid_city_image_report
+from utils.generateHybridCityHTMLReport import generate_hybrid_city_html_report
 
 # ================= ORIGINAL (LEFT AS-IS) =================
 processed_sids = set()
@@ -25,10 +26,10 @@ processed_district_sids = set()
 processed_bms_sids = set()
 
 # ================= CONFIGURATION =================
-DISTRICT_URL = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-hyderabad-MV203929"
-BMS_URL = "https://in.bookmyshow.com/movies/hyderabad/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260213"
+DISTRICT_URL = "https://www.district.in/movies/dhurandhar-the-revenge-movie-tickets-in-hyderabad-MV211577"
+BMS_URL = "https://in.bookmyshow.com/movies/hyderabad/dhurandhar-the-revenge/buytickets/ET00478890/20260318"
 
-SHOW_DATE = "2026-02-13"
+SHOW_DATE = "2026-03-18"
 DISTRICT_FULL_URL = f"{DISTRICT_URL}?frmtid=rfk~yo4o7j&fromdate={SHOW_DATE}"
 
 BMS_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
@@ -867,6 +868,11 @@ if __name__ == "__main__":
             final_data,
             DISTRICT_FULL_URL,
             f"reports/Total_City_Report_{ts}.png"
+        )
+        generate_hybrid_city_html_report(
+            final_data,
+            DISTRICT_FULL_URL,
+            f"reports/Total_City_Report_{ts}.html"
         )
     else:
         print("❌ No data collected.")

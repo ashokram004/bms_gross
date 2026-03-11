@@ -1,3 +1,6 @@
-.venv
+my_env
 reports
 utils/__pycache__/
+HTML_CUSTOMIZATION_GUIDE.md
+HTML_REPORT_GUIDE.md
+sample_report.html

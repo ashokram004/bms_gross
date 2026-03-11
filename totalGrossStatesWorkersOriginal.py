@@ -21,6 +21,7 @@ import math
 # --- IMPORT IMAGE GENERATORS ---
 from utils.generateDistrictMultiStateImageReport import generate_multi_state_image_report
 from utils.generateHybridStatesImageReport import generate_hybrid_image_report
+from utils.generateHybridStatesHTMLReport import generate_hybrid_states_html_report
 
 # =========================== CONFIGURATION ===========================
 INPUT_STATE_LIST = ["Andhra Pradesh", "Telangana"] 
@@ -34,11 +35,11 @@ DISTRICT_MAP_PATH = os.path.join("utils", "district_area_city_mapping.json")
 BMS_MAP_PATH = os.path.join("utils", "bms_area_city_mapping.json")
 
 # URLs
-DISTRICT_URL = "https://www.district.in/movies/orange-2010-movie-tickets-in-{city}-MV160920"
-SHOW_DATE = "2026-02-11"
+DISTRICT_URL = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-{city}-MV203929"
+SHOW_DATE = "2026-02-23"
 DISTRICT_URL_TEMPLATE = DISTRICT_URL + "?frmtid=j9i73008l&fromdate=" + SHOW_DATE
 
-BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/orange/buytickets/ET00005527/20260211"
+BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260223"
 
 # BMS Settings
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
@@ -916,5 +917,11 @@ if __name__ == "__main__":
         
         ref_url_final = last_valid_url if last_valid_url else DISTRICT_URL_TEMPLATE.format(city="city")
         generate_hybrid_image_report(final_data, BMS_URL_TEMPLATE, f"reports/Total_States_Report_{ts_final}.png", "bms")
+        generate_hybrid_states_html_report(
+            final_data, 
+            f"reports/Total_States_Report_{ts_final}.html",
+            movie_name="Mana Shankara Vara Prasad Garu",
+            show_date=SHOW_DATE
+        )
     else:
         print("No data found.")
