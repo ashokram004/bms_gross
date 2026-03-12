@@ -210,16 +210,18 @@ def fetch_district_data(driver):
                 
                 sessions = data['props']['pageProps']['data']['serverState']['movieSessions']
                 key = list(sessions.keys())[0]
-                
-                # Use nearbyCinemas
-                cinemas = sessions[key]['pageData']['nearbyCinemas']
+
+                # Use arrangedSessions (same as city reporter)
+                cinemas = sessions[key].get('arrangedSessions', [])
+                #cinemas = sessions[key]['pageData']['nearbyCinemas']
 
                 # --- NORMALIZE CITY ---
                 reporting_city = get_normalized_city_name(state, city['name'], "district")
 
                 city_res = []
                 for cin in cinemas:
-                    venue = cin['cinemaInfo']['name']
+                    venue = cin['entityName']
+                    #venue = cin['cinemaInfo']['name']
                     for s in cin.get('sessions', []):
                         sid = str(s.get('sid', ''))
                         cid = s.get('cid')
