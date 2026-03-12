@@ -15,6 +15,7 @@ from collections import defaultdict, deque
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from utils.generatePremiumCityImageReport import generate_premium_city_image_report
 from utils.generateHybridCityImageReport import generate_hybrid_city_image_report
 from utils.generateHybridCityHTMLReport import generate_hybrid_city_html_report
 
@@ -864,10 +865,15 @@ if __name__ == "__main__":
             final_data,
             f"Total_City_Report_{ts}.xlsx"
         )
+        generate_premium_city_image_report(
+            final_data,
+            DISTRICT_FULL_URL,
+            f"reports/Total_City_Report_Premium_{ts}.png"
+        )
         generate_hybrid_city_image_report(
             final_data,
             DISTRICT_FULL_URL,
-            f"reports/Total_City_Report_{ts}.png"
+            f"reports/Total_City_Report_Standard_{ts}.png"
         )
         generate_hybrid_city_html_report(
             final_data,

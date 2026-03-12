@@ -19,12 +19,13 @@ from collections import defaultdict, deque
 import math
 
 # --- IMPORT IMAGE GENERATORS ---
-from utils.generateDistrictMultiStateImageReport import generate_multi_state_image_report
+from utils.generatePremiumStatesImageReport import generate_premium_states_image_report
 from utils.generateHybridStatesImageReport import generate_hybrid_image_report
+from utils.generateDistrictMultiStateImageReport import generate_multi_state_image_report
 from utils.generateHybridStatesHTMLReport import generate_hybrid_states_html_report
 
 # =========================== CONFIGURATION ===========================
-INPUT_STATE_LIST = ["Andhra Pradesh", "Telangana"] 
+INPUT_STATE_LIST = ["Telangana"] 
 
 # Config Paths
 DISTRICT_CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
@@ -35,11 +36,11 @@ DISTRICT_MAP_PATH = os.path.join("utils", "district_area_city_mapping.json")
 BMS_MAP_PATH = os.path.join("utils", "bms_area_city_mapping.json")
 
 # URLs
-DISTRICT_URL = "https://www.district.in/movies/mana-shankara-varaprasad-garu-movie-tickets-in-{city}-MV203929"
-SHOW_DATE = "2026-02-23"
-DISTRICT_URL_TEMPLATE = DISTRICT_URL + "?frmtid=j9i73008l&fromdate=" + SHOW_DATE
+DISTRICT_URL = "https://www.district.in/movies/dhurandhar-the-revenge-movie-tickets-in-{city}-MV211577"
+SHOW_DATE = "2026-03-18"
+DISTRICT_URL_TEMPLATE = DISTRICT_URL + "?frmtid=v833gyzof7&fromdate=" + SHOW_DATE
 
-BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/mana-shankara-vara-prasad-garu/buytickets/ET00457184/20260223"
+BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/dhurandhar-the-revenge/buytickets/ET00478891/20260318"
 
 # BMS Settings
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
@@ -52,6 +53,29 @@ processed_sids = set()
 # PROXY LIST
 PROXY_LIST = [] 
 proxy_pool = cycle(PROXY_LIST) if PROXY_LIST else None
+
+# =========================== HELPER FUNCTIONS ===========================
+
+def extract_movie_name_from_url(url):
+    """Extract movie name from URL and format it as title case with spaces"""
+    try:
+        # Try BMS format: https://in.bookmyshow.com/movies/{city}/movie-name/buytickets/...
+        if '/movies/' in url and '/buytickets/' in url:
+            parts = url.split('/movies/')[1].split('/buytickets/')[0].split('/')
+            # Movie name is the part after city
+            movie_slug = parts[-1] if len(parts) > 1 else parts[0]
+            movie_name = movie_slug.replace('-', ' ').title()
+            return movie_name
+        
+        # Try District format: https://www.district.in/movies/movie-name-movie-tickets-in-{city}-...
+        if '/movies/' in url and '-movie-tickets-in-' in url:
+            movie_slug = url.split('/movies/')[1].split('-movie-tickets-in-')[0]
+            movie_name = movie_slug.replace('-', ' ').title()
+            return movie_name
+    except Exception as e:
+        print(f"Could not extract movie name from URL: {e}")
+    
+    return "Movie Collection"  # Default fallback
 
 # =========================== MAPPING SYSTEM ===========================
 
@@ -916,11 +940,19 @@ if __name__ == "__main__":
         generate_consolidated_excel(final_data, f"Total_States_Report_{ts_final}.xlsx")
         
         ref_url_final = last_valid_url if last_valid_url else DISTRICT_URL_TEMPLATE.format(city="city")
-        generate_hybrid_image_report(final_data, BMS_URL_TEMPLATE, f"reports/Total_States_Report_{ts_final}.png", "bms")
+        extracted_movie_name = extract_movie_name_from_url(ref_url_final)
+        
+        generate_premium_states_image_report(
+            final_data,
+            f"reports/Total_States_Report_Premium_{ts_final}.png",
+            movie_name=extracted_movie_name,
+            show_date=SHOW_DATE
+        )
+        generate_hybrid_image_report(final_data, BMS_URL_TEMPLATE, f"reports/Total_States_Report_Standard_{ts_final}.png", "bms")
         generate_hybrid_states_html_report(
             final_data, 
             f"reports/Total_States_Report_{ts_final}.html",
-            movie_name="Mana Shankara Vara Prasad Garu",
+            movie_name=extracted_movie_name,
             show_date=SHOW_DATE
         )
     else:

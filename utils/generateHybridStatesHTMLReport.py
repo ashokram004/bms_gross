@@ -107,6 +107,7 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
     # --- 3. BUILD VENUE ROWS (All States) ---
     venue_rows = ""
     venue_count = 1
+    total_venues = 0
     for state_name in [s["name"] for s in state_list]:
         venues = state_venue_map[state_name]
         venue_list = []
@@ -121,12 +122,15 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
             })
         
         venue_list.sort(key=lambda x: x["gross"], reverse=True)
+        total_venues += len(venue_list)
         
-        for v in venue_list[:50]:  # Limit to first 50 venues
+        for idx, v in enumerate(venue_list):  # Show all venues
             occ_color = "#00c853" if v["occupancy"] >= 80 else "#ffd600" if v["occupancy"] >= 60 else "#ff6d00"
+            # Mark rows beyond 50 as hidden initially
+            hidden_class = ' class="hidden-row"' if venue_count > 50 else ''
             venue_rows += f"""
-            <tr>
-                <td class="rank">${venue_count}</td>
+            <tr{hidden_class}>
+                <td class="rank">{venue_count}</td>
                 <td><strong>{v['state']}</strong></td>
                 <td><div class="theatre-name">{v['name']}</div></td>
                 <td class="num">{v['shows']}</td>
@@ -418,6 +422,20 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
             white-space: nowrap;
             border-bottom: 1px solid var(--border);
         }}
+        /* Align numeric columns right */
+        table:nth-of-type(1) thead th:nth-child(3),
+        table:nth-of-type(1) thead th:nth-child(4),
+        table:nth-of-type(1) thead th:nth-child(5),
+        table:nth-of-type(1) thead th:nth-child(6),
+        table:nth-of-type(1) thead th:nth-child(7) {{
+            text-align: right;
+        }}
+        table:nth-of-type(2) thead th:nth-child(4),
+        table:nth-of-type(2) thead th:nth-child(5),
+        table:nth-of-type(2) thead th:nth-child(6),
+        table:nth-of-type(2) thead th:nth-child(7) {{
+            text-align: right;
+        }}
         tbody tr {{
             border-bottom: 1px solid var(--border);
             transition: background 0.15s;
@@ -459,6 +477,31 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
             border-top: 1px solid var(--border);
         }}
         .footer strong {{ color: var(--accent); }}
+
+        /* ── Toggle ── */
+        .hidden-row {{ display: none; }}
+        .show-all-btn {{
+            display: inline-block;
+            margin-top: 16px;
+            padding: 8px 16px;
+            background: var(--surface2);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            transition: all 0.2s;
+        }}
+        .show-all-btn:hover {{
+            background: var(--accent);
+            color: var(--bg);
+        }}
+        .toggle-container {{
+            text-align: center;
+            padding: 20px;
+        }}
 
         /* ── Responsive ── */
         @media (max-width: 768px) {{
@@ -564,7 +607,7 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
             <div class="section-sub">All States - By Gross Collection</div>
         </div>
         <div class="table-wrap">
-            <table>
+            <table id="venueTable">
                 <thead>
                     <tr>
                         <th>#</th>
@@ -581,6 +624,7 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
                 </tbody>
             </table>
         </div>
+        {f'<div class="toggle-container"><button class="show-all-btn" onclick="toggleRows(\'venueTable\')">🎪 Show All {total_venues} Venues</button></div>' if total_venues > 50 else ''}
     </section>
 
 </main>
@@ -591,6 +635,34 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
     {datetime.now().strftime("%d %b %Y, %I:%M %p")} &nbsp;·&nbsp;
     For informational purposes only
 </footer>
+
+<script>
+function toggleRows(tableId) {{
+    const table = document.getElementById(tableId);
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+    const btn = event.target;
+    
+    // Check if there are currently hidden rows
+    const hiddenCount = table.querySelectorAll('tbody tr.hidden-row').length;
+    const hasHidden = hiddenCount > 0;
+    
+    if(hasHidden) {{
+        // Show all rows
+        table.querySelectorAll('tbody tr.hidden-row').forEach(row => {{
+            row.classList.remove('hidden-row');
+        }});
+        btn.textContent = '🔽 Hide Details';
+    }} else {{
+        // Hide rows beyond first 50
+        rows.forEach((row, index) => {{
+            if(index >= 50) {{
+                row.classList.add('hidden-row');
+            }}
+        }});
+        btn.textContent = '🎪 Show All ' + rows.length + ' Venues';
+    }}
+}}
+</script>
 
 </body>
 </html>"""

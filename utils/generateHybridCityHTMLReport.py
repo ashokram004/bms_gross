@@ -120,13 +120,15 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path):
     total_occupancy = round((total_tickets / total_seats) * 100, 1) if total_seats else 0
     num_shows = len(all_results)
     
-    # --- 4. BUILD THEATRE ROWS (Sorted by Gross) ---
-    theatre_rows = ""
-    for idx, v in enumerate(venue_list[:20], 1):
+    # --- 4. BUILD THEATRE ROWS (All) ---
+    theatre_rows_all = ""
+    for idx, v in enumerate(venue_list, 1):
         occ_color = "#00c853" if v["occupancy"] >= 80 else "#ffd600" if v["occupancy"] >= 60 else "#ff6d00"
-        theatre_rows += f"""
-        <tr>
-            <td class="rank">${idx}</td>
+        # Mark rows beyond 20 as hidden initially
+        hidden_class = ' class="hidden-row"' if idx > 20 else ''
+        theatre_rows_all += f"""
+        <tr{hidden_class}>
+            <td class="rank">{idx}</td>
             <td><div class="theatre-name">{v['name']}</div></td>
             <td class="num">{v['shows']}</td>
             <td class="num">{v['tickets']}/{v['seats']}</td>
@@ -139,14 +141,19 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path):
             <td class="num gross-cell">{format_currency(v['gross'])}</td>
         </tr>"""
     
-    # --- 5. BUILD SHOW ROWS (Top 20) ---
-    sorted_shows = sorted(all_results, key=lambda x: x["booked_gross"], reverse=True)[:20]
-    show_rows = ""
+    theatre_rows = theatre_rows_all
+    
+    # --- 5. BUILD SHOW ROWS (All) ---
+    sorted_shows = sorted(all_results, key=lambda x: x["booked_gross"], reverse=True)
+    show_rows_all = ""
     for idx, r in enumerate(sorted_shows, 1):
         source_label = "BMS" if r.get("source") == "bms" else "District"
         occ_color = "#00c853" if r["occupancy"] >= 80 else "#ffd600" if r["occupancy"] >= 60 else "#ff6d00"
-        show_rows += f"""
-        <tr>
+        # Mark rows beyond 20 as hidden initially
+        hidden_class = ' class="hidden-row"' if idx > 20 else ''
+        show_rows_all += f"""
+        <tr{hidden_class}>
+            <td class="rank">{idx}</td>
             <td><span class="badge {'bms' if r.get('source') == 'bms' else 'district'}">{source_label}</span></td>
             <td><div class="theatre-name">{r['venue']}</div></td>
             <td class="time-cell">{r['normalized_show_time']}</td>
@@ -159,6 +166,8 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path):
             </td>
             <td class="num gross-cell">{format_currency(r['booked_gross'])}</td>
         </tr>"""
+    
+    show_rows = show_rows_all
     
     # --- 6. Platform stats ---
     platform_html = f"""
@@ -423,6 +432,18 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path):
             white-space: nowrap;
             border-bottom: 1px solid var(--border);
         }}
+        /* Align numeric columns right */
+        #theatreTable thead th:nth-child(3),
+        #theatreTable thead th:nth-child(4),
+        #theatreTable thead th:nth-child(5),
+        #theatreTable thead th:nth-child(6) {{
+            text-align: right;
+        }}
+        #showsTable thead th:nth-child(5),
+        #showsTable thead th:nth-child(6),
+        #showsTable thead th:nth-child(7) {{
+            text-align: right;
+        }}
         tbody tr {{
             border-bottom: 1px solid var(--border);
             transition: background 0.15s;
@@ -467,6 +488,31 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path):
             order: -1;
         }}
         .occ-bar-wrap span {{ font-weight: 700; font-size: 13px; width: 42px; text-align: right; }}
+
+        /* ── Toggle ── */
+        .hidden-row {{ display: none; }}
+        .show-all-btn {{
+            display: inline-block;
+            margin-top: 16px;
+            padding: 8px 16px;
+            background: var(--surface2);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            transition: all 0.2s;
+        }}
+        .show-all-btn:hover {{
+            background: var(--accent);
+            color: var(--bg);
+        }}
+        .toggle-container {{
+            text-align: center;
+            padding: 20px;
+        }}
 
         /* ── Footer ── */
         .footer {{
@@ -555,7 +601,7 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path):
             <div class="section-sub">By Gross Collection</div>
         </div>
         <div class="table-wrap">
-            <table>
+            <table id="theatreTable">
                 <thead>
                     <tr>
                         <th>#</th>
@@ -571,6 +617,7 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path):
                 </tbody>
             </table>
         </div>
+        {f'<div class="toggle-container"><button class="show-all-btn" onclick="toggleRows(\'theatreTable\')">📊 Show All {len(venue_list)} Theatres</button></div>' if len(venue_list) > 20 else ''}
     </section>
 
     <!-- All Shows -->
@@ -580,9 +627,10 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path):
             <div class="section-sub">{num_shows} Shows · {len(venue_list)} Theatres</div>
         </div>
         <div class="table-wrap">
-            <table>
+            <table id="showsTable">
                 <thead>
                     <tr>
+                        <th>#</th>
                         <th>Platform</th>
                         <th>Theatre</th>
                         <th>Time</th>
@@ -596,6 +644,7 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path):
                 </tbody>
             </table>
         </div>
+        {f'<div class="toggle-container"><button class="show-all-btn" onclick="toggleRows(\'showsTable\')">🎬 Show All {num_shows} Shows</button></div>' if num_shows > 20 else ''}
     </section>
 
 </main>
@@ -606,6 +655,34 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path):
     {datetime.now().strftime("%d %b %Y, %I:%M %p")} &nbsp;·&nbsp;
     For informational purposes only
 </footer>
+
+<script>
+function toggleRows(tableId) {{
+    const table = document.getElementById(tableId);
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+    const btn = event.target;
+    
+    // Check if there are currently hidden rows
+    const hiddenCount = table.querySelectorAll('tbody tr.hidden-row').length;
+    const hasHidden = hiddenCount > 0;
+    
+    if(hasHidden) {{
+        // Show all rows
+        table.querySelectorAll('tbody tr.hidden-row').forEach(row => {{
+            row.classList.remove('hidden-row');
+        }});
+        btn.textContent = '🔽 Hide Details';
+    }} else {{
+        // Hide rows beyond first 20
+        rows.forEach((row, index) => {{
+            if(index >= 20) {{
+                row.classList.add('hidden-row');
+            }}
+        }});
+        btn.textContent = '📊 Show All ' + rows.length + ' Items';
+    }}
+}}
+</script>
 
 </body>
 </html>"""
