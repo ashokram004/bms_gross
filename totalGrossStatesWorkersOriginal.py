@@ -25,7 +25,7 @@ from utils.generateDistrictMultiStateImageReport import generate_multi_state_ima
 from utils.generateHybridStatesHTMLReport import generate_hybrid_states_html_report
 
 # =========================== CONFIGURATION ===========================
-INPUT_STATE_LIST = ["Telangana"] 
+INPUT_STATE_LIST = ["Telangana", "Maharashtra", "Karnataka", "Andhra Pradesh"] 
 
 # Config Paths
 DISTRICT_CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
@@ -362,6 +362,7 @@ def get_seat_layout(driver, venue_code, session_id):
 
     for i in range(max_retries + 1):
         try:
+            driver.set_script_timeout(10)  # 10-second timeout for seat layout request
             resp = driver.execute_async_script(js)
             data = json.loads(resp).get("BookMyShow", {})
             
