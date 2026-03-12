@@ -21,7 +21,6 @@ import math
 # --- IMPORT IMAGE GENERATORS ---
 from utils.generatePremiumStatesImageReport import generate_premium_states_image_report
 from utils.generateHybridStatesImageReport import generate_hybrid_image_report
-from utils.generateDistrictMultiStateImageReport import generate_multi_state_image_report
 from utils.generateHybridStatesHTMLReport import generate_hybrid_states_html_report
 
 # =========================== CONFIGURATION ===========================
