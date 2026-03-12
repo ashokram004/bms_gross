@@ -7,6 +7,10 @@
     ],
     "Andhra Pradesh": [
         {
+            "name": "Visakhapatnam",
+            "slug": "vizag"
+        },
+        {
             "name": "Addanki",
             "slug": "addanki"
         },
@@ -801,10 +805,6 @@
         {
             "name": "Vinukonda",
             "slug": "vinukonda"
-        },
-        {
-            "name": "Visakhapatnam",
-            "slug": "vizag"
         },
         {
             "name": "Vissannapeta",
@@ -1831,6 +1831,10 @@
     ],
     "Karnataka": [
         {
+            "name": "Bangalore",
+            "slug": "bengaluru"
+        },
+        {
             "name": "Ankola",
             "slug": "ankola"
         },
@@ -1841,10 +1845,6 @@
         {
             "name": "Bagepalli",
             "slug": "bagepalli"
-        },
-        {
-            "name": "Bangalore",
-            "slug": "bengaluru"
         },
         {
             "name": "Bangarapet",
@@ -2779,6 +2779,14 @@
     ],
     "Maharashtra": [
         {
+            "name": "Mumbai",
+            "slug": "mumbai"
+        },
+        {
+            "name": "Pune",
+            "slug": "pune"
+        },
+        {
             "name": "Ahmednagar",
             "slug": "ahmednagar"
         },
@@ -2959,10 +2967,6 @@
             "slug": "mukhed"
         },
         {
-            "name": "Mumbai",
-            "slug": "mumbai"
-        },
-        {
             "name": "Mumbai (Greater)",
             "slug": "greater-mumbai"
         },
@@ -3025,10 +3029,6 @@
         {
             "name": "Pulgaon",
             "slug": "pulgaon"
-        },
-        {
-            "name": "Pune",
-            "slug": "pune"
         },
         {
             "name": "Pusad",
@@ -3639,6 +3639,10 @@
     ],
     "Tamil Nadu": [
         {
+            "name": "Chennai",
+            "slug": "chennai"
+        },
+        {
             "name": "Acharapakkam",
             "slug": "acharapakkam"
         },
@@ -3725,10 +3729,6 @@
         {
             "name": "Bommidi",
             "slug": "bommidi"
-        },
-        {
-            "name": "Chennai",
-            "slug": "chennai"
         },
         {
             "name": "Cheyyar",
@@ -4397,6 +4397,10 @@
     ],
     "Telangana": [
         {
+            "name": "Hyderabad",
+            "slug": "hyderabad"
+        },
+        {
             "name": "Achampet",
             "slug": "achampet"
         },
@@ -4523,10 +4527,6 @@
         {
             "name": "Huzurnagar",
             "slug": "huzurnagar"
-        },
-        {
-            "name": "Hyderabad",
-            "slug": "hyderabad"
         },
         {
             "name": "Ieeja",
