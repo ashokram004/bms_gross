@@ -54,13 +54,26 @@ def parse_metadata(url):
 
 
 def format_currency(value):
-    """Format large numbers (L = Lakhs, K = Thousands)"""
-    if value >= 100000:
+    """Format large numbers (Cr = Crores, L = Lakhs, K = Thousands)"""
+    if value >= 10000000:
+        return f"₹{value/10000000:.2f} Cr"
+    elif value >= 100000:
         return f"₹{value/100000:.2f} L"
     elif value >= 1000:
         return f"₹{value/1000:.1f} K"
     else:
         return f"₹{value:.0f}"
+
+def get_occupancy_color(occ):
+    """Get color code based on occupancy percentage"""
+    if occ >= 60:
+        return "#00c853" # Green
+    elif occ >= 50:
+        return "#ff6d00" # Orange
+    elif occ >= 30:
+        return "#ffd600" # Yellow
+    else:
+        return "#ff1744" # Red
 
 
 def generate_hybrid_city_html_report(all_results, ref_url, output_path):
@@ -123,7 +136,7 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path):
     # --- 4. BUILD THEATRE ROWS (All) ---
     theatre_rows_all = ""
     for idx, v in enumerate(venue_list, 1):
-        occ_color = "#00c853" if v["occupancy"] >= 80 else "#ffd600" if v["occupancy"] >= 60 else "#ff6d00"
+        occ_color = get_occupancy_color(v["occupancy"])
         # Mark rows beyond 20 as hidden initially
         hidden_class = ' class="hidden-row"' if idx > 20 else ''
         theatre_rows_all += f"""
@@ -148,7 +161,7 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path):
     show_rows_all = ""
     for idx, r in enumerate(sorted_shows, 1):
         source_label = "BMS" if r.get("source") == "bms" else "District"
-        occ_color = "#00c853" if r["occupancy"] >= 80 else "#ffd600" if r["occupancy"] >= 60 else "#ff6d00"
+        occ_color = get_occupancy_color(r["occupancy"])
         # Mark rows beyond 20 as hidden initially
         hidden_class = ' class="hidden-row"' if idx > 20 else ''
         show_rows_all += f"""
@@ -208,6 +221,7 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path):
         </div>
     </div>"""
     
+    total_occ_color = get_occupancy_color(total_occupancy)
     # --- 7. BUILD HTML ---
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
@@ -568,7 +582,7 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path):
     </div>
     <div class="kpi-card">
         <div class="kpi-label">Avg Occupancy</div>
-        <div class="kpi-value" style="color:#00c853">{total_occupancy}%</div>
+        <div class="kpi-value" style="color:{total_occ_color}">{total_occupancy}%</div>
     </div>
     <div class="kpi-card">
         <div class="kpi-label">Theatres</div>

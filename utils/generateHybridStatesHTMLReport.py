@@ -9,13 +9,27 @@ from datetime import datetime
 
 
 def format_currency(value):
-    """Format large numbers (L = Lakhs, K = Thousands)"""
-    if value >= 100000:
+    """Format large numbers (Cr = Crores, L = Lakhs, K = Thousands)"""
+    if value >= 10000000:
+        return f"₹{value/10000000:.2f} Cr"
+    elif value >= 100000:
         return f"₹{value/100000:.2f} L"
     elif value >= 1000:
         return f"₹{value/1000:.1f} K"
     else:
         return f"₹{value:.0f}"
+
+
+def get_occupancy_color(occ):
+    """Get color code based on occupancy percentage"""
+    if occ >= 60:
+        return "#00c853" # Green
+    elif occ >= 50:
+        return "#ff6d00" # Orange
+    elif occ >= 30:
+        return "#ffd600" # Yellow
+    else:
+        return "#ff1744" # Red
 
 
 def generate_hybrid_states_html_report(all_results, output_path, movie_name="Movie Collection", show_date=None):
@@ -87,7 +101,7 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
     # --- 2. BUILD STATE ROWS ---
     state_rows = ""
     for idx, s in enumerate(state_list, 1):
-        occ_color = "#00c853" if s["occupancy"] >= 80 else "#ffd600" if s["occupancy"] >= 60 else "#ff6d00"
+        occ_color = get_occupancy_color(s["occupancy"])
         state_rows += f"""
         <tr>
             <td class="rank">${idx}</td>
@@ -125,7 +139,7 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
         total_venues += len(venue_list)
         
         for idx, v in enumerate(venue_list):  # Show all venues
-            occ_color = "#00c853" if v["occupancy"] >= 80 else "#ffd600" if v["occupancy"] >= 60 else "#ff6d00"
+            occ_color = get_occupancy_color(v["occupancy"])
             # Mark rows beyond 50 as hidden initially
             hidden_class = ' class="hidden-row"' if venue_count > 50 else ''
             venue_rows += f"""
@@ -198,6 +212,7 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
         </div>
     </div>"""
     
+    total_occ_color = get_occupancy_color(total_occupancy)
     # --- 6. BUILD HTML ---
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
@@ -520,7 +535,7 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
 
 <!-- Hero -->
 <header class="hero">
-    <div class="hero-eyebrow">📽 Multi-State Box Office Report</div>
+    <div class="hero-eyebrow">📽 State-wise Box Office Report</div>
     <div class="hero-title">{movie_name}</div>
     <div class="hero-meta">
         <span>🌍 <strong>Multi-State Release</strong></span>
@@ -552,7 +567,7 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
     </div>
     <div class="kpi-card">
         <div class="kpi-label">Avg Occupancy</div>
-        <div class="kpi-value" style="color:#00c853">{total_occupancy}%</div>
+        <div class="kpi-value" style="color:{total_occ_color}">{total_occupancy}%</div>
     </div>
     <div class="kpi-card">
         <div class="kpi-label">Total Shows</div>

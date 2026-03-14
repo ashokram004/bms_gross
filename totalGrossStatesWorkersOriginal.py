@@ -24,7 +24,7 @@ from utils.generateHybridStatesImageReport import generate_hybrid_image_report
 from utils.generateHybridStatesHTMLReport import generate_hybrid_states_html_report
 
 # =========================== CONFIGURATION ===========================
-INPUT_STATE_LIST = ["Telangana", "Maharashtra", "Karnataka", "Andhra Pradesh"] 
+INPUT_STATE_LIST = ["Andhra Pradesh"] 
 
 # Config Paths
 DISTRICT_CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
@@ -35,11 +35,11 @@ DISTRICT_MAP_PATH = os.path.join("utils", "district_area_city_mapping.json")
 BMS_MAP_PATH = os.path.join("utils", "bms_area_city_mapping.json")
 
 # URLs
-DISTRICT_URL = "https://www.district.in/movies/dhurandhar-the-revenge-movie-tickets-in-{city}-MV211577"
-SHOW_DATE = "2026-03-18"
+DISTRICT_URL = "https://www.district.in/movies/ustaad-bhagat-singh-movie-tickets-in-{city}-MV161614"
+SHOW_DATE = "2026-03-19"
 DISTRICT_URL_TEMPLATE = DISTRICT_URL + "?frmtid=v833gyzof7&fromdate=" + SHOW_DATE
 
-BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/dhurandhar-the-revenge/buytickets/ET00478890/20260318"
+BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/ustaad-bhagat-singh/buytickets/ET00339939/20260319"
 
 # BMS Settings
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
