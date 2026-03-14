@@ -97,6 +97,43 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
         })
     
     state_list.sort(key=lambda x: x["gross"], reverse=True)
+
+    # --- 1b. AGGREGATE BY CITY ---
+    city_stats = {}
+    for r in all_results:
+        city = r.get("city", "Unknown")
+        state = r.get("state", "Unknown")
+        venue = r["venue"]
+        city_key = (state, city)
+
+        if city_key not in city_stats:
+            city_stats[city_key] = {
+                "city": city, "state": state,
+                "gross": 0, "tickets": 0, "seats": 0, "shows": 0,
+                "venues": set()
+            }
+
+        city_stats[city_key]["gross"] += r["booked_gross"]
+        city_stats[city_key]["tickets"] += r["booked_tickets"]
+        city_stats[city_key]["seats"] += r["total_tickets"]
+        city_stats[city_key]["shows"] += 1
+        city_stats[city_key]["venues"].add(venue)
+
+    city_list = []
+    for ck, cs in city_stats.items():
+        occ = round((cs["tickets"] / cs["seats"]) * 100, 1) if cs["seats"] else 0
+        city_list.append({
+            "name": cs["city"],
+            "state": cs["state"],
+            "gross": cs["gross"],
+            "tickets": cs["tickets"],
+            "shows": cs["shows"],
+            "venues": len(cs["venues"]),
+            "occupancy": occ
+        })
+
+    city_list.sort(key=lambda x: x["gross"], reverse=True)
+    total_cities = len(city_list)
     
     # --- 2. BUILD STATE ROWS ---
     state_rows = ""
@@ -118,6 +155,28 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
             <td class="num gross-cell">{format_currency(s['gross'])}</td>
         </tr>"""
     
+    # --- 2b. BUILD CITY ROWS ---
+    city_rows = ""
+    for idx, c in enumerate(city_list, 1):
+        occ_color = get_occupancy_color(c["occupancy"])
+        hidden_class = ' class="hidden-row"' if idx > 50 else ''
+        city_rows += f"""
+        <tr{hidden_class}>
+            <td class="rank">{idx}</td>
+            <td><strong>{c['state']}</strong></td>
+            <td><strong>{c['name']}</strong></td>
+            <td class="num">{c['venues']}</td>
+            <td class="num">{c['shows']}</td>
+            <td class="num">{c['tickets']:,}</td>
+            <td class="num">
+                <div class="occ-bar-wrap">
+                    <div class="occ-bar" style="width:{c['occupancy']}%;background:{occ_color}"></div>
+                    <span style="color:{occ_color}">{c['occupancy']}%</span>
+                </div>
+            </td>
+            <td class="num gross-cell">{format_currency(c['gross'])}</td>
+        </tr>"""
+
     # --- 3. BUILD VENUE ROWS (All States) ---
     venue_rows = ""
     venue_count = 1
@@ -448,7 +507,14 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
         table:nth-of-type(2) thead th:nth-child(4),
         table:nth-of-type(2) thead th:nth-child(5),
         table:nth-of-type(2) thead th:nth-child(6),
-        table:nth-of-type(2) thead th:nth-child(7) {{
+        table:nth-of-type(2) thead th:nth-child(7),
+        table:nth-of-type(2) thead th:nth-child(8) {{
+            text-align: right;
+        }}
+        table:nth-of-type(3) thead th:nth-child(4),
+        table:nth-of-type(3) thead th:nth-child(5),
+        table:nth-of-type(3) thead th:nth-child(6),
+        table:nth-of-type(3) thead th:nth-child(7) {{
             text-align: right;
         }}
         tbody tr {{
@@ -613,6 +679,34 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
                 </tbody>
             </table>
         </div>
+    </section>
+
+    <!-- City Rankings -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-title">City Rankings</div>
+            <div class="section-sub">All States - By Gross Collection</div>
+        </div>
+        <div class="table-wrap">
+            <table id="cityTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>State</th>
+                        <th>City</th>
+                        <th>Theatres</th>
+                        <th>Shows</th>
+                        <th>Tickets Sold</th>
+                        <th>Occupancy</th>
+                        <th>Gross</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {city_rows}
+                </tbody>
+            </table>
+        </div>
+        {f'<div class="toggle-container"><button class="show-all-btn" onclick="toggleRows(\'cityTable\')">🏙️ Show All {total_cities} Cities</button></div>' if total_cities > 50 else ''}
     </section>
 
     <!-- Theatre Rankings -->
