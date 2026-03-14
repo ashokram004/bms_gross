@@ -186,13 +186,17 @@ def fetch_district_data(driver):
     results = []
     processed_sids = set() 
     
+    total_cities = sum(len(config.get(state, [])) for state in INPUT_STATE_LIST)
+    current_city = 0
+
     for state in INPUT_STATE_LIST:
         cities = config.get(state, [])
         if not cities: continue
 
         for city in cities:
+            current_city += 1
             url = DISTRICT_URL_TEMPLATE.format(city=city['slug'])
-            print(f"[{state}] Fetching {city['name']}...", end="\r")
+            print(f"[{state}] Fetching {city['name']} ({current_city}/{total_cities})...", end="\r")
             
             try:
                 driver.get(url)
@@ -304,7 +308,7 @@ def fetch_district_data(driver):
                 
                 if city_res:
                     gross = sum(x['booked_gross'] for x in city_res)
-                    print(f"✅ {city['name']:<15} -> {reporting_city:<15} | Shows: {len(city_res):<3} | Gross: ₹{gross:<10,}")
+                    print(f"✅ [{current_city}/{total_cities}] {city['name']:<15} -> {reporting_city:<15} | Shows: {len(city_res):<3} | Gross: ₹{gross:<10,}")
                     results.extend(city_res)
             except Exception: pass
             
@@ -655,13 +659,13 @@ def process_venue_list(venues, city_name, reporting_city, state_name, district_s
 
 def process_single_city(task_data):
     """ Worker Function for BMS Parallel Execution """
-    city_name, city_slug, state_name, district_sids = task_data
+    city_name, city_slug, state_name, district_sids, city_idx, total_cities = task_data
     current_proxy = next(proxy_pool) if proxy_pool else None
     
     # --- NORMALIZE CITY ---
     reporting_city = get_normalized_city_name(state_name, city_name, "bms")
 
-    print(f"[{state_name}] Fetching {city_name}...", end="\r")
+    print(f"[{state_name}] Fetching {city_name} ({city_idx}/{total_cities})...", end="\r")
     url = BMS_URL_TEMPLATE.format(city=city_slug)
     driver = get_driver(current_proxy)
     city_results = []
@@ -694,7 +698,7 @@ def process_single_city(task_data):
             city_total += total
 
     if city_results:
-        print(f"✅ {city_name:<15} -> {reporting_city:<15} | Shows: {len(city_results):<3} | Gross: ₹{city_total:<10,}")
+        print(f"✅ [{city_idx}/{total_cities}] {city_name:<15} -> {reporting_city:<15} | Shows: {len(city_results):<3} | Gross: ₹{city_total:<10,}")
 
     return city_results, city_total, url
 
@@ -812,9 +816,13 @@ if __name__ == "__main__":
         district_known_sids = {r['sid'] for r in district_data if r['sid']}
 
         bms_tasks = []
+        total_bms_cities = sum(len(bms_config.get(state, [])) for state in INPUT_STATE_LIST)
+        current_bms_city = 0
+        
         for state in INPUT_STATE_LIST:
             for city in bms_config.get(state, []):
-                bms_tasks.append((city['name'], city['slug'], state, district_known_sids))
+                current_bms_city += 1
+                bms_tasks.append((city['name'], city['slug'], state, district_known_sids, current_bms_city, total_bms_cities))
 
         print(f"Launching {MAX_WORKERS} Workers for {len(bms_tasks)} BMS cities...")
         bms_data = []
