@@ -291,7 +291,7 @@ def generate_hybrid_states_html_report(all_results, output_path, movie_name="Mov
             --text: #e8e8f0;
             --muted: #7070a0;
             --bms: #e8174d;
-            --district: #ff6600;
+            --district: #51158C;
         }}
 
         *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
