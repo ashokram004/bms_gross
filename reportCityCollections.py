@@ -23,7 +23,7 @@ from utils.generateHybridCityHTMLReport import generate_hybrid_city_html_report
 # =============================================================================
 
 # ── Date ──────────────────────────────────────────────────────────────────────
-SHOW_DATE = "2026-03-19"          # Target date (YYYY-MM-DD)
+SHOW_DATE = "2026-03-18"          # Target date (YYYY-MM-DD)
 
 # ── URL Templates — use {city} as placeholder ─────────────────────────────────
 # District: city slug is typically lowercase with hyphens e.g. "hyderabad"
@@ -32,7 +32,7 @@ DISTRICT_URL_TEMPLATE = (
     "?frmtid=TVQjMJQmE&fromdate=" + SHOW_DATE
 )
 # BMS: city slug is typically lowercase e.g. "hyderabad", "chennai", "bengaluru"
-BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/ustaad-bhagat-singh/buytickets/ET00339939/20260319"
+BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/dhurandhar-the-revenge/buytickets/ET00478890/20260318"
 
 # ── City lists ────────────────────────────────────────────────────────────────
 # Two separate lists — District and BMS may use different city slugs.
@@ -40,11 +40,37 @@ BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/ustaad-bhagat-singh/
 # Display name is derived automatically from the District slug (title-cased).
 
 DISTRICT_CITIES = [
-    "vizag"
+    "vizag",
+    "new-delhi",
+    "mumbai",
+    "ahmedabad",
+    "pune",
+    "surat",
+    "kolkata",
+    "lucknow",
+    "jaipur",
+    "chandigarh",
+    "bengaluru",
+    "bhopal",
+    "chennai",
+    "hyderabad"
 ]
 
 BMS_CITIES = [
-    "vizag-visakhapatnam"
+    "vizag-visakhapatnam",
+    "national-capital-region-ncr",
+    "mumbai",
+    "ahmedabad",
+    "pune",
+    "surat",
+    "kolkata",
+    "lucknow",
+    "jaipur",
+    "chandigarh",
+    "bengaluru",
+    "bhopal",
+    "chennai",
+    "hyderabad"
 ]
 
 # =============================================================================

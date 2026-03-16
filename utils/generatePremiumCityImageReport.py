@@ -266,8 +266,26 @@ def generate_premium_city_image_report(all_results, output_path,
 
         title_y    = y + 44
         title_text = movie_name.upper()
-        title_font = load_font(76, bold=True)
         max_title_w = W - PADDING * 2
+
+        # Auto-shrink font so title never exceeds 2 lines
+        title_size = 76
+        title_font = load_font(title_size, bold=True)
+        while title_size > 32:
+            words_tmp = title_text.split()
+            lines_tmp = []; cur_tmp = ""
+            for word in words_tmp:
+                test = (cur_tmp + " " + word).strip()
+                if text_w(draw, test, title_font) <= max_title_w:
+                    cur_tmp = test
+                else:
+                    if cur_tmp: lines_tmp.append(cur_tmp)
+                    cur_tmp = word
+            if cur_tmp: lines_tmp.append(cur_tmp)
+            if len(lines_tmp) <= 2:
+                break
+            title_size -= 4
+            title_font = load_font(title_size, bold=True)
 
         words   = title_text.split()
         lines   = []

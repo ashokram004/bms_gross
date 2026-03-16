@@ -195,7 +195,7 @@ def _apply_watermark(img):
 
 
 # ── MAIN GENERATOR ───────────────────────────────────────────────────────────
-def generate_image_report(all_results, output_path,
+def generate_premium_states_image_report(all_results, output_path,
                           movie_name="Movie Collection", show_date=None):
     if show_date is None:
         show_date = datetime.now().strftime("%d %b %Y")
@@ -610,7 +610,7 @@ if __name__ == "__main__":
                         "source":         source,
                     })
 
-    generate_image_report(
+    generate_premium_states_image_report(
         sample_data,
         output_path="box_office_report.png",
         movie_name="KALKI 2898 AD",

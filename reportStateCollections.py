@@ -23,7 +23,7 @@ from utils.generatePremiumStatesImageReport import generate_premium_states_image
 from utils.generateHybridStatesHTMLReport import generate_hybrid_states_html_report
 
 # =========================== CONFIGURATION ===========================
-INPUT_STATE_LIST = ["Andhra Pradesh"] 
+INPUT_STATE_LIST = ["Telangana", "Andhra Pradesh", "Karnataka"]
 
 # Config Paths
 DISTRICT_CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
