@@ -876,7 +876,7 @@ if __name__ == "__main__":
                     ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
                     if ratio > 0.4:
                         match_found = cand
-                        print(f"   🔗 Price/Seat Sig Match: {bms['venue'][:15]}... == {cand['venue'][:15]}... (Tol: {SEAT_TOLERANCE}, Ratio: {int(ratio*100)}%)")
+                        print(f"   🔗 Price/Seat Sig Match: {bms['venue']}... == {cand['venue']}... (Tol: {SEAT_TOLERANCE}, Ratio: {int(ratio*100)}%)")
                         break
         
         # 3. Try Seat Signature Match (Ignore Price)
@@ -893,7 +893,7 @@ if __name__ == "__main__":
                     ratio = difflib.SequenceMatcher(None, bms_venue_clean, cand['venue'].lower()).ratio()
                     if ratio > 0.4:
                         match_found = cand
-                        print(f"   🔗 Seat Sig Match: {bms['venue'][:15]}... == {cand['venue'][:15]}... (Tol: {SEAT_TOLERANCE}, Ratio: {int(ratio*100)}%)")
+                        print(f"   🔗 Seat Sig Match: {bms['venue']}... == {cand['venue']}... (Tol: {SEAT_TOLERANCE}, Ratio: {int(ratio*100)}%)")
                         break
 
         # 4. Try FUZZY Venue Match + Strict Price Match (if fallback)
