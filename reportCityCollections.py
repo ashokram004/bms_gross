@@ -13,7 +13,7 @@ from openpyxl import Workbook
 import difflib
 from collections import defaultdict, deque
 import math
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_EXCEPTION
 
 from utils.generatePremiumCityImageReport import generate_premium_city_image_report
 from utils.generateHybridCityHTMLReport import generate_hybrid_city_html_report
@@ -22,55 +22,24 @@ from utils.generateHybridCityHTMLReport import generate_hybrid_city_html_report
 # ── CONFIGURATION ─────────────────────────────────────────────────────────────
 # =============================================================================
 
-# ── Date ──────────────────────────────────────────────────────────────────────
-SHOW_DATE = "2026-03-18"          # Target date (YYYY-MM-DD)
+SHOW_DATE = "2026-03-18"
 
-# ── URL Templates — use {city} as placeholder ─────────────────────────────────
-# District: city slug is typically lowercase with hyphens e.g. "hyderabad"
 DISTRICT_URL_TEMPLATE = (
-    "https://www.district.in/movies/ustaad-bhagat-singh-movie-tickets-in-{city}-MV161614" +
+    "https://www.district.in/movies/dhurandhar-the-revenge-movie-tickets-in-{city}-MV211577" +
     "?frmtid=TVQjMJQmE&fromdate=" + SHOW_DATE
 )
-# BMS: city slug is typically lowercase e.g. "hyderabad", "chennai", "bengaluru"
 BMS_URL_TEMPLATE = "https://in.bookmyshow.com/movies/{city}/dhurandhar-the-revenge/buytickets/ET00478890/20260318"
 
-# ── City lists ────────────────────────────────────────────────────────────────
-# Two separate lists — District and BMS may use different city slugs.
-# Order must match: DISTRICT_CITIES[0] pairs with BMS_CITIES[0], etc.
-# Display name is derived automatically from the District slug (title-cased).
-
 DISTRICT_CITIES = [
-    "vizag",
-    "new-delhi",
-    "mumbai",
-    "ahmedabad",
-    "pune",
-    "surat",
-    "kolkata",
-    "lucknow",
-    "jaipur",
-    "chandigarh",
-    "bengaluru",
-    "bhopal",
-    "chennai",
-    "hyderabad"
+    "vizag", "new-delhi", "mumbai", "ahmedabad", "pune", "surat",
+    "kolkata", "lucknow", "jaipur", "chandigarh", "bengaluru", "bhopal",
+    "chennai", "hyderabad"
 ]
 
 BMS_CITIES = [
-    "vizag-visakhapatnam",
-    "national-capital-region-ncr",
-    "mumbai",
-    "ahmedabad",
-    "pune",
-    "surat",
-    "kolkata",
-    "lucknow",
-    "jaipur",
-    "chandigarh",
-    "bengaluru",
-    "bhopal",
-    "chennai",
-    "hyderabad"
+    "vizag-visakhapatnam", "national-capital-region-ncr", "mumbai", "ahmedabad",
+    "pune", "surat", "kolkata", "lucknow", "jaipur", "chandigarh",
+    "bengaluru", "bhopal", "chennai", "hyderabad"
 ]
 
 # =============================================================================
@@ -83,9 +52,6 @@ MAX_WORKERS  = 3
 
 
 def build_city_cfg(d_slug, b_slug):
-    """Build a city_cfg dict from District + BMS slugs.
-    Display name is derived from the District slug (hyphens → spaces, title-cased).
-    """
     name = d_slug.replace("-", " ").title()
     return {
         "name":         name,
@@ -154,13 +120,12 @@ def get_district_seat_layout(driver, cinema_id, session_id):
 
 
 # =============================================================================
-# ── DISTRICT FETCH ────────────────────────────────────────────────────────────
+# ── DISTRICT SINGLE-CITY FETCH ────────────────────────────────────────────────
 # =============================================================================
 def fetch_district_data(driver, city_cfg, processed_district_sids):
-    """Fetch District data for one city. Updates processed_district_sids in place."""
-    district_full_url = f"{city_cfg['district_url']}"
+    district_full_url = city_cfg['district_url']
     city_name = city_cfg["name"]
-    print(f"\n🚀 [{city_name}] STARTING DISTRICT FETCH...")
+    print(f"\n🚀 [District][{city_name}] STARTING FETCH...")
     results = []
 
     try:
@@ -179,7 +144,7 @@ def fetch_district_data(driver, city_cfg, processed_district_sids):
 
         sessions = data['props']['pageProps']['data']['serverState']['movieSessions']
         if not sessions:
-            print(f"   ⚠️ [{city_name}] District: No sessions found")
+            print(f"   ⚠️ [District][{city_name}] No sessions found")
             return []
 
         key     = list(sessions.keys())[0]
@@ -187,7 +152,7 @@ def fetch_district_data(driver, city_cfg, processed_district_sids):
 
         for cin in cinemas:
             venue = cin['entityName']
-            print(f"   🏛️  [{city_name}] District Venue: {venue}")
+            print(f"   🏛️  [District][{city_name}] Venue: {venue}")
 
             for s in cin.get('sessions', []):
                 sid = str(s.get('sid', ''))
@@ -229,7 +194,7 @@ def fetch_district_data(driver, city_cfg, processed_district_sids):
                                 if status != '0' and status != 0:
                                     b_tkts += 1; b_gross += price
                 else:
-                    print(f"   ⚡ [{city_name}] Using Cached Data for {sid}")
+                    print(f"   ⚡ [District][{city_name}] Using Cached Data for {sid}")
                     for a in s.get('areas', []):
                         tot, av, pr = a['sTotal'], a['sAvail'], a['price']
                         bk = tot - av
@@ -249,7 +214,7 @@ def fetch_district_data(driver, city_cfg, processed_district_sids):
                 normalized_time = district_gmt_to_ist(s['showTime'])
 
                 print(
-                    f"   🎬 [{city_name}] {venue[:20]:<20} | {normalized_time} | "
+                    f"   🎬 [District][{city_name}] {venue[:20]:<20} | {normalized_time} | "
                     f"Occ: {occ:>5}% | Gross: ₹{b_gross:<8,}"
                 )
 
@@ -272,12 +237,31 @@ def fetch_district_data(driver, city_cfg, processed_district_sids):
                     "city": city_name,
                 })
 
-        print(f"✅ [{city_name}] District: Found {len(results)} shows.")
+        print(f"✅ [District][{city_name}] Found {len(results)} shows.")
 
     except Exception as e:
-        print(f"❌ [{city_name}] District Error: {e}")
+        print(f"❌ [District][{city_name}] Error: {e}")
 
     return results
+
+
+# =============================================================================
+# ── DISTRICT CITY-CHUNK WORKER ────────────────────────────────────────────────
+# =============================================================================
+def district_worker(city_cfgs_chunk):
+    all_results = []
+    driver = get_driver()
+    try:
+        for city_cfg in city_cfgs_chunk:
+            processed_district_sids = set()
+            city_results = fetch_district_data(driver, city_cfg, processed_district_sids)
+            all_results.extend(city_results)
+            time.sleep(SLEEP_TIME)
+    except Exception as e:
+        print(f"❌ [District Worker] Fatal error: {e}")
+    finally:
+        driver.quit()
+    return all_results
 
 
 # =============================================================================
@@ -295,9 +279,9 @@ def calculate_bms_collection(decrypted, price_map):
     header, rows_part = decrypted.split("||")
     rows = rows_part.split("|")
 
-    cat_map        = {}
+    cat_map         = {}
     local_price_map = price_map.copy()
-    last_price     = 0.0
+    last_price      = 0.0
 
     for p in header.split("|"):
         parts = p.split(":")
@@ -380,7 +364,7 @@ def process_venue_list(venues, city_cfg, processed_district_sids, processed_bms_
         for v in venues:
             v_name = v["additionalData"]["venueName"]
             v_code = v["additionalData"]["venueCode"]
-            print(f"   🏛️  [{city_name}] BMS Venue: {v_name} | Shows: {len(v.get('showtimes', []))}")
+            print(f"   🏛️  [BMS][{city_name}] Venue: {v_name} | Shows: {len(v.get('showtimes', []))}")
 
             screen_details_map = {}
             shows      = v.get("showtimes", [])
@@ -396,7 +380,7 @@ def process_venue_list(venues, city_cfg, processed_district_sids, processed_bms_
                 if sid in processed_bms_sids:
                     continue
                 if sid in processed_district_sids:
-                    print(f"   ⏭️  [{city_name}] Skipping {sid} (Found in District)")
+                    print(f"   ⏭️  [BMS][{city_name}] Skipping {sid} (Found in District)")
                     continue
                 processed_bms_sids.add(sid)
 
@@ -422,7 +406,7 @@ def process_venue_list(venues, city_cfg, processed_district_sids, processed_bms_
                             price_seat_map[float(p)] = 0
 
                         if error_msg and "sold out" in error_msg.lower():
-                            print(f"      🔴 [{city_name}] Sold Out: {sid}. Checking recovery...")
+                            print(f"      🔴 [BMS][{city_name}] Sold Out: {sid}. Checking recovery...")
                             recovered_capacity  = None
                             recovered_seat_map  = None
 
@@ -471,7 +455,7 @@ def process_venue_list(venues, city_cfg, processed_district_sids, processed_bms_
                                 FALLBACK_SEATS = 400
                                 t_tkts = b_tkts = FALLBACK_SEATS
                                 t_gross = b_gross = int(FALLBACK_SEATS * max_price)
-                                print(f"         ⚠️ [{city_name}] No cache. Using default {FALLBACK_SEATS}.")
+                                print(f"         ⚠️ [BMS][{city_name}] No cache. Using default {FALLBACK_SEATS}.")
 
                             occ     = 100.0
                             soldOut = True
@@ -479,11 +463,11 @@ def process_venue_list(venues, city_cfg, processed_district_sids, processed_bms_
                                        "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ}
 
                         elif error_msg and "Rate limit" in error_msg:
-                            print(f"      🚫 [{city_name}] Rate Limit for {v_name[:15]}")
+                            print(f"      🚫 [BMS][{city_name}] Rate Limit for {v_name[:15]}")
                             continue
 
                         else:
-                            print(f"      ⚠️  [{city_name}] BMS Error {sid}: {error_msg}")
+                            print(f"      ⚠️  [BMS][{city_name}] Error {sid}: {error_msg}")
                             if screenName in screen_details_map:
                                 cached_seat_map = screen_details_map[screenName]
                                 seat_map  = cached_seat_map
@@ -507,7 +491,7 @@ def process_venue_list(venues, city_cfg, processed_district_sids, processed_bms_
                                 t_tkts = 400; b_tkts = 200
                                 t_gross = int(400 * max_price); b_gross = int(200 * max_price)
                                 occ = 50.0
-                                print(f"         ❌ [{city_name}] Hard Fallback 400/200")
+                                print(f"         ❌ [BMS][{city_name}] Hard Fallback 400/200")
 
                             data = {"total_tickets": t_tkts, "booked_tickets": b_tkts,
                                     "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ}
@@ -532,7 +516,7 @@ def process_venue_list(venues, city_cfg, processed_district_sids, processed_bms_
                         normalized_time = normalize_bms_time(show_date, show_time)
                         tag = "(SOLD OUT)" if soldOut else ""
                         print(
-                            f"   🎬 [{city_name}] {v_name[:15]:<15} | {normalized_time} | "
+                            f"   🎬 [BMS][{city_name}] {v_name[:15]:<15} | {normalized_time} | "
                             f"Occ: {data['occupancy']:>5}% | Gross: ₹{data['booked_gross']:<8,} {tag}"
                         )
                         results.append({
@@ -556,23 +540,20 @@ def process_venue_list(venues, city_cfg, processed_district_sids, processed_bms_
                 time.sleep(SLEEP_TIME)
 
     except Exception as e:
-        print(f"❌ [{city_name}] Worker Error: {e}")
+        print(f"❌ [BMS][{city_name}] Worker Error: {e}")
     finally:
         driver.quit()
     return results
 
 
 # =============================================================================
-# ── BMS FETCH ─────────────────────────────────────────────────────────────────
+# ── BMS CITY FETCH (page scrape + venue dispatch) ─────────────────────────────
 # =============================================================================
-def fetch_bms_data(city_cfg, processed_district_sids, processed_bms_sids):
+def fetch_bms_venues_for_city(city_cfg):
     city_name = city_cfg["name"]
     bms_url   = city_cfg["bms_url"]
-    show_date = city_cfg["show_date"]
-    print(f"\n🚀 [{city_name}] STARTING BMS FETCH...")
-    results = []
-    driver  = get_driver()
-
+    driver    = get_driver()
+    venues    = []
     try:
         driver.get(bms_url)
         time.sleep(2.5)
@@ -581,7 +562,7 @@ def fetch_bms_data(city_cfg, processed_district_sids, processed_bms_sids):
         marker = "window.__INITIAL_STATE__"
         start  = html.find(marker)
         if start == -1:
-            print(f"   ⚠️ [{city_name}] BMS: Could not find initial state")
+            print(f"   ⚠️ [BMS][{city_name}] Could not find initial state")
             return []
 
         start = html.find("{", start)
@@ -593,7 +574,6 @@ def fetch_bms_data(city_cfg, processed_district_sids, processed_bms_sids):
             end += 1
 
         state_data = json.loads(html[start:end + 1])
-        venues     = []
         try:
             sbe     = state_data.get("showtimesByEvent")
             dc      = sbe.get("currentDateCode")
@@ -603,44 +583,105 @@ def fetch_bms_data(city_cfg, processed_district_sids, processed_bms_sids):
                     for g in w["data"]:
                         if g.get("type") == "venueGroup":
                             venues = g["data"]
-        except:
+        except Exception:
             venues = []
-
+    except Exception as e:
+        print(f"❌ [BMS][{city_name}] Page fetch error: {e}")
+    finally:
         driver.quit()
+    return venues
 
+
+# =============================================================================
+# ── BMS CITY-CHUNK WORKER ─────────────────────────────────────────────────────
+# =============================================================================
+def bms_city_chunk_worker(city_cfgs_chunk):
+    all_results = []
+
+    for city_cfg in city_cfgs_chunk:
+        city_name = city_cfg["name"]
+        print(f"\n🚀 [BMS][{city_name}] STARTING FETCH...")
+
+        venues = fetch_bms_venues_for_city(city_cfg)
         if not venues:
-            return []
+            print(f"   ⚠️ [BMS][{city_name}] No venues found, skipping.")
+            continue
 
-        print(f"   🚀 [{city_name}] Launching {MAX_WORKERS} workers for {len(venues)} venues...")
+        processed_district_sids = set()
+        processed_bms_sids      = set()
+
+        print(f"   🚀 [BMS][{city_name}] Launching {MAX_WORKERS} venue-workers for {len(venues)} venues...")
         chunk_size   = math.ceil(len(venues) / MAX_WORKERS)
         venue_chunks = [venues[i:i + chunk_size] for i in range(0, len(venues), chunk_size)]
 
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        city_results = []
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as venue_executor:
             futures = [
-                executor.submit(process_venue_list, chunk, city_cfg,
-                                processed_district_sids, processed_bms_sids)
+                venue_executor.submit(
+                    process_venue_list, chunk, city_cfg,
+                    processed_district_sids, processed_bms_sids
+                )
                 for chunk in venue_chunks
             ]
             for future in as_completed(futures):
-                results.extend(future.result())
+                try:
+                    city_results.extend(future.result())
+                except Exception as e:
+                    print(f"❌ [BMS][{city_name}] Venue worker exception: {e}")
 
-        print(f"✅ [{city_name}] BMS: Found {len(results)} shows.")
+        print(f"✅ [BMS][{city_name}] Found {len(city_results)} shows.")
+        all_results.extend(city_results)
 
-    except Exception as e:
-        print(f"❌ [{city_name}] BMS Error: {e}")
+    return all_results
 
-    return results
+
+# =============================================================================
+# ── SAME-PLATFORM DEDUP ───────────────────────────────────────────────────────
+# =============================================================================
+def dedup_same_platform(records, source_label):
+    """
+    Remove duplicate show records produced by parallel workers of the same source.
+    A duplicate is defined as two records sharing the same SID.
+    When duplicates exist, keep the one with the higher booked_gross (more data).
+    """
+    seen    = {}   # sid -> index in best list
+    best    = []
+    dropped = 0
+
+    for r in records:
+        sid = r.get('sid', '')
+        if not sid:
+            best.append(r)
+            continue
+        if sid not in seen:
+            seen[sid] = len(best)
+            best.append(r)
+        else:
+            dropped += 1
+            existing = best[seen[sid]]
+            if r.get('booked_gross', 0) > existing.get('booked_gross', 0):
+                best[seen[sid]] = r
+                print(f"   ♻️  [{source_label}] Replaced lower-gross duplicate SID {sid}")
+            else:
+                print(f"   ♻️  [{source_label}] Dropped duplicate SID {sid}")
+
+    if dropped:
+        print(f"   ✅ [{source_label}] Dedup removed {dropped} duplicate(s). {len(best)} unique shows remain.")
+    return best
 
 
 # =============================================================================
 # ── MERGE LOGIC ───────────────────────────────────────────────────────────────
 # =============================================================================
 def merge_data(dist_data, bms_data, city_name):
+    # Deduplicate each source independently before cross-source merge
+    dist_data = dedup_same_platform(dist_data, "District")
+    bms_data  = dedup_same_platform(bms_data,  "BMS")
+
     print(f"\n🔄 Merging Data (Cross Source Dedupe)...")
     final_data     = []
     SEAT_TOLERANCE = 5
 
-    # Key includes city so shows from different cities never cross-match
     district_by_time = defaultdict(list)
     for r in dist_data:
         key = (r.get('city', ''), r['normalized_show_time'])
@@ -732,7 +773,6 @@ def generate_excel(data, filename):
     reports_dir = "reports"
     os.makedirs(reports_dir, exist_ok=True)
 
-    # Theatre Wise
     ws_th = wb.active
     ws_th.title = "Theatre Wise"
     ws_th.append(["Venue","Shows","Total Seats","Booked Seats","Total Gross ₹","Booked Gross ₹","Occ %"])
@@ -748,7 +788,6 @@ def generate_excel(data, filename):
         occ = round((d["b_seats"]/d["t_seats"])*100, 2) if d["t_seats"] else 0
         ws_th.append([v, d["shows"], d["t_seats"], d["b_seats"], d["p_gross"], d["b_gross"], occ])
 
-    # Show Wise
     ws_show = wb.create_sheet(title="Show Wise")
     ws_show.append(["Source","Venue","Time","SID","Total Seats","Booked Seats","Total Gross ₹","Booked Gross ₹","Occ %"])
     for r in data:
@@ -756,7 +795,6 @@ def generate_excel(data, filename):
                         r["total_tickets"], r["booked_tickets"],
                         r["total_gross"], r["booked_gross"], r["occupancy"]])
 
-    # Summary
     ws_sum  = wb.create_sheet(title="Summary")
     agg_t   = sum(r["total_tickets"]  for r in data)
     agg_b   = sum(r["booked_tickets"] for r in data)
@@ -776,81 +814,81 @@ def generate_excel(data, filename):
     print(f"📊 Excel Saved: {path}")
 
 
-# =============================================================================
-# ── PER-CITY FETCHER ──────────────────────────────────────────────────────────
-# =============================================================================
-def fetch_city(city_cfg):
-    """Fetch District + BMS data for a single city. Returns (dist_data, bms_data) raw."""
-    city_name = city_cfg["name"]
-
-    # Each city gets its own isolated SID tracking sets
-    processed_district_sids = set()
-    processed_bms_sids      = set()
-
-    # Fetch District
-    d_driver  = get_driver()
-    dist_data = fetch_district_data(d_driver, city_cfg, processed_district_sids)
-    d_driver.quit()
-    print(f"   [{city_name}] District: {len(dist_data)} shows")
-
-    # Fetch BMS (District SIDs passed so BMS skips already-found shows)
-    bms_data = fetch_bms_data(city_cfg, processed_district_sids, processed_bms_sids)
-    print(f"   [{city_name}] BMS: {len(bms_data)} shows")
-
-    return dist_data, bms_data
-
 def extract_movie_name_from_url(url):
-    """Extract movie name from URL and format it as title case with spaces"""
     try:
-        # Try BMS format: https://in.bookmyshow.com/movies/{city}/movie-name/buytickets/...
         if '/movies/' in url and '/buytickets/' in url:
             parts = url.split('/movies/')[1].split('/buytickets/')[0].split('/')
-            # Movie name is the part after city
             movie_slug = parts[-1] if len(parts) > 1 else parts[0]
-            movie_name = movie_slug.replace('-', ' ').title()
-            return movie_name
-        
-        # Try District format: https://www.district.in/movies/movie-name-movie-tickets-in-{city}-...
+            return movie_slug.replace('-', ' ').title()
         if '/movies/' in url and '-movie-tickets-in-' in url:
             movie_slug = url.split('/movies/')[1].split('-movie-tickets-in-')[0]
-            movie_name = movie_slug.replace('-', ' ').title()
-            return movie_name
+            return movie_slug.replace('-', ' ').title()
     except Exception as e:
         print(f"Could not extract movie name from URL: {e}")
-    
-    return "Movie Collection"  # Default fallback
+    return "Movie Collection"
+
 
 # =============================================================================
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 # =============================================================================
 if __name__ == "__main__":
-    print(f"🎬 Starting multi-city run for {len(DISTRICT_CITIES)} city/cities...\n")
+    total_cities = len(DISTRICT_CITIES)
+    print(f"🎬 Starting parallel District + BMS run for {total_cities} cities...\n")
+    print(f"   District workers : {MAX_WORKERS}  (each handles ~{math.ceil(total_cities / MAX_WORKERS)} cities)")
+    print(f"   BMS city-workers : {MAX_WORKERS}  (each handles ~{math.ceil(total_cities / MAX_WORKERS)} cities)")
+    print(f"   BMS venue-workers: {MAX_WORKERS}  (per city, inside each BMS city-worker)\n")
+
+    all_city_cfgs   = [build_city_cfg(d, b) for d, b in zip(DISTRICT_CITIES, BMS_CITIES)]
+    chunk_size      = math.ceil(total_cities / MAX_WORKERS)
+    city_cfg_chunks = [all_city_cfgs[i:i + chunk_size] for i in range(0, total_cities, chunk_size)]
 
     all_dist_data = []
     all_bms_data  = []
 
-    # ── 1. Fetch all cities ───────────────────────────────────────────────────
-    for d_slug, b_slug in zip(DISTRICT_CITIES, BMS_CITIES):
-        city_cfg = build_city_cfg(d_slug, b_slug)
-        try:
-            dist_data, bms_data = fetch_city(city_cfg)
-            all_dist_data.extend(dist_data)
-            all_bms_data.extend(bms_data)
-        except Exception as e:
-            print(f"❌ [{city_cfg['name']}] Fatal error: {e}")
-        print("-" * 60)
+    print("🚦 Submitting District and BMS workers in parallel...\n")
 
-    # ── 2. Single merge across all cities (same as states reporter) ───────────
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS * 2) as top_executor:
+
+        district_futures = {
+            top_executor.submit(district_worker, chunk): f"District-Worker-{i}"
+            for i, chunk in enumerate(city_cfg_chunks)
+        }
+        bms_futures = {
+            top_executor.submit(bms_city_chunk_worker, chunk): f"BMS-Worker-{i}"
+            for i, chunk in enumerate(city_cfg_chunks)
+        }
+
+        all_futures = {**district_futures, **bms_futures}
+
+        print("⏳ Waiting for all District + BMS workers to finish...\n")
+        done, not_done = wait(all_futures.keys())
+
+        for future in done:
+            worker_label = all_futures[future]
+            try:
+                results = future.result()
+                if worker_label.startswith("District"):
+                    all_dist_data.extend(results)
+                    print(f"✅ {worker_label} done — {len(results)} District shows collected.")
+                else:
+                    all_bms_data.extend(results)
+                    print(f"✅ {worker_label} done — {len(results)} BMS shows collected.")
+            except Exception as e:
+                print(f"❌ {worker_label} raised an exception: {e}")
+
+        if not_done:
+            print(f"⚠️  {len(not_done)} worker(s) did not complete — results may be partial.")
+
+    # All workers finished — dedup then merge
     print(f"\n🔄 Merging {len(all_dist_data)} District + {len(all_bms_data)} BMS shows across all cities...")
     all_cities_data = merge_data(all_dist_data, all_bms_data, "ALL")
 
-    # ── 3. Generate combined reports ──────────────────────────────────────────
     if all_cities_data:
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts            = datetime.now().strftime("%Y%m%d_%H%M%S")
         movie_name    = extract_movie_name_from_url(DISTRICT_URL_TEMPLATE)
         show_date_fmt = datetime.strptime(SHOW_DATE, "%Y-%m-%d").strftime("%d %b %Y")
 
-        print(f"\n📦 Generating reports — {len(all_cities_data)} shows across {len(DISTRICT_CITIES)} cities...")
+        print(f"\n📦 Generating reports — {len(all_cities_data)} shows across {total_cities} cities...")
 
         generate_excel(all_cities_data, f"Cities_Report_{ts}.xlsx")
 
