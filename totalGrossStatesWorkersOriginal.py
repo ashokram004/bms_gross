@@ -20,7 +20,6 @@ import math
 
 # --- IMPORT IMAGE GENERATORS ---
 from utils.generatePremiumStatesImageReport import generate_premium_states_image_report
-from utils.generateHybridStatesImageReport import generate_hybrid_image_report
 from utils.generateHybridStatesHTMLReport import generate_hybrid_states_html_report
 
 # =========================== CONFIGURATION ===========================
@@ -958,7 +957,6 @@ if __name__ == "__main__":
             movie_name=extracted_movie_name,
             show_date=SHOW_DATE
         )
-        generate_hybrid_image_report(final_data, BMS_URL_TEMPLATE, f"reports/Total_States_Report_Standard_{ts_final}.png", "bms")
         generate_hybrid_states_html_report(
             final_data, 
             f"reports/Total_States_Report_{ts_final}.html",
