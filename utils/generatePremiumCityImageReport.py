@@ -474,7 +474,7 @@ if __name__ == "__main__":
                 "source":         random.choice(["bms", "district"]),
             })
 
-    generate_city_image_report(
+    generate_premium_city_image_report(
         sample,
         output_path="city_report_hyderabad.png",
         movie_name="DEVARA PART 2",

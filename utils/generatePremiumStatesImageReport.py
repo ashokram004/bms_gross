@@ -610,7 +610,7 @@ if __name__ == "__main__":
                         "source":         source,
                     })
 
-    generate_image_report(
+    generate_premium_states_image_report(
         sample_data,
         output_path="box_office_report.png",
         movie_name="KALKI 2898 AD",
