@@ -7,6 +7,10 @@ import threading
 import queue
 import requests
 from base64 import b64decode
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
@@ -147,6 +151,22 @@ def _create_chrome_driver():
 
 
 # =============================================================================
+# ── GLOBAL BMS SIDs SET (shared across all workers) ──────────────────────────
+# =============================================================================
+
+_global_bms_sids = set()
+_global_bms_sids_lock = threading.Lock()
+
+
+# =============================================================================
+# ── GLOBAL DISTRICT SIDs SET (shared across all workers) ────────────────────
+# =============================================================================
+
+_global_district_sids = set()
+_global_district_sids_lock = threading.Lock()
+
+
+# =============================================================================
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 # =============================================================================
 
@@ -230,8 +250,10 @@ def get_district_seat_layout(cinema_id, session_id):
     return None
 
 
-def process_district_venue(cin, state, city_name, reporting_city, processed_sids):
-    """Processes all shows for a single District venue using HTTP."""
+def process_district_venue(cin, state, city_name, reporting_city):
+    """Processes all shows for a single District venue using HTTP.
+    Uses global _global_district_sids set to skip already-processed SIDs across all workers.
+    """
     results = []
     # venue = cin['entityName']
     venue = cin['cinemaInfo']['name']
@@ -239,9 +261,11 @@ def process_district_venue(cin, state, city_name, reporting_city, processed_sids
         sid = str(s.get('sid', ''))
         cid = s.get('cid')
 
-        if sid in processed_sids:
-            continue
-        processed_sids.add(sid)
+        # Check if SID already processed (thread-safe global check)
+        with _global_district_sids_lock:
+            if sid in _global_district_sids:
+                continue
+            _global_district_sids.add(sid)
 
         price_map     = {}
         code_to_label = {}
@@ -367,10 +391,9 @@ def fetch_district_city(state, city, city_counter_str):
         return []
 
     # Step 2: Process each venue sequentially (HTTP calls are fast, no driver overhead)
-    processed_sids = set()
     city_results   = []
     for cin in cinemas:
-        results = process_district_venue(cin, state, city_name, reporting_city, processed_sids)
+        results = process_district_venue(cin, state, city_name, reporting_city)
         city_results.extend(results)
 
     gross = sum(r['booked_gross'] for r in city_results)
@@ -603,11 +626,12 @@ def calculate_show_collection(decrypted, price_map):
     return t_tkts, b_tkts, int(t_gross), int(b_gross), occ, seats, local_price_map
 
 
-def process_bms_venue(driver, venue, city_name, reporting_city, state_name, local_bms_sids, use_http=False):
+def process_bms_venue(driver, venue, city_name, reporting_city, state_name, use_http=False):
     """
     Processes ONE BMS venue. Uses HTTP seat layout if use_http=True (faster, parallelizable),
     otherwise uses Selenium XHR via the provided driver.
     Preserves all business logic: sold-out recovery, screen caching, deferred SIDs.
+    Uses global _global_bms_sids set to skip already-processed SIDs across all workers.
     """
     results            = []
     screen_details_map = {}
@@ -629,9 +653,11 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, loca
             raw_screen = show.get("screenAttr", "")
             screenName = raw_screen if raw_screen else "Main Screen"
 
-            if sid in local_bms_sids:
-                continue
-            local_bms_sids.add(sid)
+            # Check if SID already processed (thread-safe global check)
+            with _global_bms_sids_lock:
+                if sid in _global_bms_sids:
+                    continue
+                _global_bms_sids.add(sid)
 
             soldOut        = False
             seat_map       = {}
@@ -725,7 +751,8 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, loca
                             # print(f"         ⚡ Smart Fallback: {screenName} ({t_tkts} seats)")
                         elif sid not in deferred_sids and len(show_queue) > 0:
                             deferred_sids.add(sid)
-                            local_bms_sids.discard(sid)
+                            with _global_bms_sids_lock:
+                                _global_bms_sids.discard(sid)
                             show_queue.append(show)
                             continue
                         else:
@@ -838,7 +865,7 @@ def fetch_bms_city(state_name, city_name, city_slug, city_counter_str):
                 futures = [
                     venue_pool.submit(
                         process_bms_venue, None, v, city_name,
-                        reporting_city, state_name, set(), True
+                        reporting_city, state_name, True
                     )
                     for v in venues
                 ]
@@ -849,10 +876,9 @@ def fetch_bms_city(state_name, city_name, city_slug, city_counter_str):
                         pass
         else:
             # HTTP unavailable — sequential Selenium mode (same driver)
-            local_bms_sids = set()
             city_results   = []
             for venue in venues:
-                results = process_bms_venue(driver, venue, city_name, reporting_city, state_name, local_bms_sids)
+                results = process_bms_venue(driver, venue, city_name, reporting_city, state_name)
                 city_results.extend(results)
 
         gross = sum(r['booked_gross'] for r in city_results)
@@ -1170,6 +1196,12 @@ if __name__ == "__main__":
 
     total_d = len(district_cities)
     total_b = len(bms_cities)
+
+    # Clear global SIDs sets for fresh run
+    with _global_district_sids_lock:
+        _global_district_sids.clear()
+    with _global_bms_sids_lock:
+        _global_bms_sids.clear()
 
     print(f"🎬 Starting run — District: {total_d} cities | BMS: {total_b} cities")
     print(f"   Both sources run in PARALLEL (2 threads)")

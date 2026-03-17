@@ -6,6 +6,10 @@ import threading
 import requests
 from datetime import datetime, timedelta
 from base64 import b64decode
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 from fake_useragent import UserAgent
@@ -163,8 +167,10 @@ def get_district_seat_layout_http(cinema_id, session_id):
     return None
 
 
-def district_process_venue_http(cin, city_name, processed_sids):
-    """Processes a single District venue via HTTP — no Selenium driver needed."""
+def district_process_venue_http(cin, city_name):
+    """Processes a single District venue via HTTP — no Selenium driver needed.
+    Uses global _global_district_sids set to skip already-processed SIDs across all workers.
+    """
     results = []
     try:
         venue = cin['entityName']
@@ -172,9 +178,11 @@ def district_process_venue_http(cin, city_name, processed_sids):
             sid = str(s.get('sid', ''))
             cid = s.get('cid')
 
-            if sid in processed_sids:
-                continue
-            processed_sids.add(sid)
+            # Check if SID already processed (thread-safe global check)
+            with _global_district_sids_lock:
+                if sid in _global_district_sids:
+                    continue
+                _global_district_sids.add(sid)
 
             code_to_label  = {}
             default_prices = {}
@@ -301,11 +309,10 @@ def fetch_district_city(city_name, city_slug, city_index, total_cities):
         return []
 
     # Step 2: Parallel HTTP venue processing (no drivers needed)
-    processed_sids = set()
     city_results   = []
     with ThreadPoolExecutor(max_workers=VENUE_WORKERS) as executor:
         futures = [
-            executor.submit(district_process_venue_http, cin, city_name, processed_sids)
+            executor.submit(district_process_venue_http, cin, city_name)
             for cin in cinemas
         ]
         for future in as_completed(futures):
@@ -460,8 +467,16 @@ _bms_http_tested = False
 _bms_http_works  = False
 _bms_http_lock   = threading.Lock()
 
+# Global BMS SIDs set (shared across all cities/workers)
+_global_bms_sids = set()
+_global_bms_sids_lock = threading.Lock()
 
-def bms_fetch_single_venue(venue, city_name, local_bms_sids, use_http=False):
+# Global District SIDs set (shared across all cities/workers)
+_global_district_sids = set()
+_global_district_sids_lock = threading.Lock()
+
+
+def bms_fetch_single_venue(venue, city_name, use_http=False):
     """Processes a single BMS venue. Uses HTTP if available, otherwise Selenium driver."""
     results            = []
     driver             = None if use_http else get_driver()
@@ -485,9 +500,11 @@ def bms_fetch_single_venue(venue, city_name, local_bms_sids, use_http=False):
                 raw_screen = show.get("screenAttr", "")
                 screenName = raw_screen if raw_screen else "Main Screen"
 
-                if sid in local_bms_sids:
-                    continue
-                local_bms_sids.add(sid)
+                # Check if SID already processed (thread-safe global check)
+                with _global_bms_sids_lock:
+                    if sid in _global_bms_sids:
+                        continue
+                    _global_bms_sids.add(sid)
 
                 soldOut        = False
                 seat_map       = {}
@@ -581,7 +598,8 @@ def bms_fetch_single_venue(venue, city_name, local_bms_sids, use_http=False):
                                 print(f"         ⚡ Smart Fallback: {screenName} ({t_tkts} seats)")
                             elif sid not in deferred_sids and len(show_queue) > 0:
                                 deferred_sids.add(sid)
-                                local_bms_sids.discard(sid)
+                                with _global_bms_sids_lock:
+                                    _global_bms_sids.discard(sid)
                                 show_queue.append(show)
                                 continue
                             else:
@@ -723,11 +741,10 @@ def fetch_bms_city(city_name, city_slug, city_index, total_cities):
             print(f"   🔍 [BMS] Seat layout mode: {mode}")
 
     # Step 2: Process venues
-    local_bms_sids = set()
     city_results   = []
     with ThreadPoolExecutor(max_workers=VENUE_WORKERS) as executor:
         futures = [
-            executor.submit(bms_fetch_single_venue, venue, city_name, local_bms_sids, _bms_http_works)
+            executor.submit(bms_fetch_single_venue, venue, city_name, _bms_http_works)
             for venue in venues
         ]
         for future in as_completed(futures):
@@ -945,6 +962,12 @@ if __name__ == "__main__":
         (d_slug.replace("-", " ").title(), b_slug)
         for d_slug, b_slug in zip(DISTRICT_CITIES, BMS_CITIES)
     ]
+
+    # Clear global SIDs sets for fresh run
+    with _global_district_sids_lock:
+        _global_district_sids.clear()
+    with _global_bms_sids_lock:
+        _global_bms_sids.clear()
 
     total = len(district_pairs)
     print(f"🎬 Starting run — {total} cities")

@@ -1,5 +1,6 @@
 my_env
 reports
+__pycache__
 utils/__pycache__/
 HTML_CUSTOMIZATION_GUIDE.md
 HTML_REPORT_GUIDE.md
