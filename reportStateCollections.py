@@ -45,10 +45,14 @@ BOOKED_STATES  = {"2"}
 
 # ── PERFORMANCE TUNING ──
 DISTRICT_CITY_WORKERS = 8     # parallel city workers for District (HTTP)
-BMS_WORKERS           = 3     # parallel BMS workers (each creates fresh driver per city)
+BMS_WORKERS           = 5     # parallel BMS workers (each creates fresh driver per city)
+VENUE_WORKERS         = 3     # parallel venue workers per city (HTTP seat layout calls)
 DISTRICT_RATE         = 5     # max requests/second to district.in (conservative to avoid 403)
-BMS_RATE              = 3     # max requests/second to bookmyshow.com (conservative)
+BMS_RATE              = 8     # max requests/second to bookmyshow.com
 BMS_RATE_LIMIT_WAIT   = 30    # seconds to wait on BMS rate limit
+
+# Pre-generate a User-Agent for HTTP seat layout calls (avoid per-call overhead)
+_BMS_HTTP_UA = UserAgent().random
 
 
 # =============================================================================
@@ -413,12 +417,17 @@ def extract_initial_state_from_page(driver, url):
     """Load BMS page in Selenium and extract window.__INITIAL_STATE__ JSON."""
     try:
         driver.get(url)
-        time.sleep(2)
+        time.sleep(1)
         html   = driver.page_source
         marker = "window.__INITIAL_STATE__"
         start  = html.find(marker)
         if start == -1:
-            return None
+            # Retry once with extra wait for slower pages
+            time.sleep(1)
+            html  = driver.page_source
+            start = html.find(marker)
+            if start == -1:
+                return None
         start = html.find("{", start)
         brace_count = 0; end = start
         while end < len(html):
@@ -487,6 +496,61 @@ def get_seat_layout(driver, venue_code, session_id):
             return None, err_line
     return None, "Unknown Error"
 
+
+def get_seat_layout_http(venue_code, session_id):
+    """HTTP-based seat layout call — no Selenium driver needed.
+    Much faster than Selenium XHR and allows parallel venue processing.
+    Uses thread-local session for HTTP keep-alive connection pooling."""
+    api_url = "https://services-in.bookmyshow.com/doTrans.aspx"
+    payload = (
+        f"strCommand=GETSEATLAYOUT&strAppCode=WEB&strVenueCode={venue_code}"
+        f"&lngTransactionIdentifier=0&strParam1={session_id}"
+        f"&strParam2=WEB&strParam5=Y&strFormat=json"
+    )
+
+    # Thread-local session for connection pooling (keep-alive reuse)
+    if not hasattr(_thread_local, 'bms_session'):
+        s = requests.Session()
+        s.headers.update({
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": _BMS_HTTP_UA,
+            "Origin": "https://in.bookmyshow.com",
+            "Referer": "https://in.bookmyshow.com/",
+        })
+        _thread_local.bms_session = s
+
+    session = _thread_local.bms_session
+    max_retries = 2
+    for i in range(max_retries + 1):
+        try:
+            bms_limiter.acquire()
+            resp = session.post(api_url, data=payload, timeout=15)
+            if resp.status_code != 200:
+                return None, f"HTTP {resp.status_code}"
+            data = resp.json().get("BookMyShow", {})
+            if data.get("blnSuccess") == "true":
+                return data.get("strData"), None
+            error_msg = data.get("strException", "")
+            if any(kw in error_msg.lower() for kw in ["rate limit", "connectivity issue", "high demand"]):
+                if i < max_retries:
+                    wait = BMS_RATE_LIMIT_WAIT if "rate limit" in error_msg.lower() else 5
+                    time.sleep(wait)
+                    continue
+            return None, error_msg
+        except Exception as e:
+            if i < max_retries and "timeout" in str(e).lower():
+                time.sleep(2)
+                continue
+            return None, str(e).split('\n')[0]
+    return None, "Unknown Error"
+
+
+# Global: detect whether HTTP seat layout works (tested once, used for all cities)
+_bms_http_tested = False
+_bms_http_works  = False
+_bms_http_lock   = threading.Lock()
+
+
 def decrypt_data(enc):
     decoded = b64decode(enc)
     cipher  = AES.new(ENCRYPTION_KEY.encode(), AES.MODE_CBC, iv=bytes(16))
@@ -534,9 +598,10 @@ def calculate_show_collection(decrypted, price_map):
     return t_tkts, b_tkts, int(t_gross), int(b_gross), occ, seats, local_price_map
 
 
-def process_bms_venue(driver, venue, city_name, reporting_city, state_name, local_bms_sids):
+def process_bms_venue(driver, venue, city_name, reporting_city, state_name, local_bms_sids, use_http=False):
     """
-    Processes ONE BMS venue using Selenium driver from pool.
+    Processes ONE BMS venue. Uses HTTP seat layout if use_http=True (faster, parallelizable),
+    otherwise uses Selenium XHR via the provided driver.
     Preserves all business logic: sold-out recovery, screen caching, deferred SIDs.
     """
     results            = []
@@ -571,7 +636,7 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, loca
             try:
                 cats      = show["additionalData"].get("categories", [])
                 price_map = {c["areaCatCode"]: float(c["curPrice"]) for c in cats}
-                enc, error_msg = get_seat_layout(driver, v_code, sid)
+                enc, error_msg = get_seat_layout_http(v_code, sid) if use_http else get_seat_layout(driver, v_code, sid)
                 data           = None
 
                 if not enc:
@@ -596,7 +661,7 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, loca
                                 base_sid = int(sid)
                                 for offset in range(7, 0, -1):
                                     target_sid = str(base_sid + offset)
-                                    n_enc, _ = get_seat_layout(driver, v_code, target_sid)
+                                    n_enc, _ = get_seat_layout_http(v_code, target_sid) if use_http else get_seat_layout(driver, v_code, target_sid)
                                     if n_enc:
                                         n_dec = decrypt_data(n_enc)
                                         n_res = calculate_show_collection(n_dec, {})
@@ -723,7 +788,10 @@ def fetch_bms_city(state_name, city_name, city_slug, city_counter_str):
     """
     Fetches all BMS data for one city.
     Creates a FRESH Chrome driver per city (Cloudflare blocks reused sessions).
+    If HTTP seat layout API works, quits driver early and processes venues in parallel.
     """
+    global _bms_http_tested, _bms_http_works
+
     reporting_city = get_normalized_city_name(state_name, city_name, "bms")
     url            = BMS_URL_TEMPLATE.format(city=city_slug)
     driver         = None
@@ -739,12 +807,48 @@ def fetch_bms_city(state_name, city_name, city_slug, city_counter_str):
         if not venues:
             return []
 
-        # Process all venues with the same driver
-        local_bms_sids = set()
-        city_results   = []
-        for venue in venues:
-            results = process_bms_venue(driver, venue, city_name, reporting_city, state_name, local_bms_sids)
-            city_results.extend(results)
+        # Probe HTTP mode once (first city with venues triggers the test)
+        with _bms_http_lock:
+            if not _bms_http_tested:
+                for v in venues:
+                    shows = v.get("showtimes", [])
+                    if not shows:
+                        continue
+                    test_vcode = v["additionalData"]["venueCode"]
+                    test_sid   = str(shows[0]["additionalData"]["sessionId"])
+                    enc, err   = get_seat_layout_http(test_vcode, test_sid)
+                    _bms_http_works = enc is not None or (err and "sold out" in err.lower())
+                    break
+                _bms_http_tested = True
+                mode = "parallel HTTP" if _bms_http_works else "Selenium"
+                print(f"   🔍 [BMS] Seat layout mode: {mode}")
+
+        if _bms_http_works:
+            # HTTP works — quit driver early and process venues in parallel
+            driver.quit()
+            driver = None
+
+            city_results = []
+            with ThreadPoolExecutor(max_workers=VENUE_WORKERS) as venue_pool:
+                futures = [
+                    venue_pool.submit(
+                        process_bms_venue, None, v, city_name,
+                        reporting_city, state_name, set(), True
+                    )
+                    for v in venues
+                ]
+                for f in as_completed(futures):
+                    try:
+                        city_results.extend(f.result())
+                    except Exception:
+                        pass
+        else:
+            # HTTP unavailable — sequential Selenium mode (same driver)
+            local_bms_sids = set()
+            city_results   = []
+            for venue in venues:
+                results = process_bms_venue(driver, venue, city_name, reporting_city, state_name, local_bms_sids)
+                city_results.extend(results)
 
         gross = sum(r['booked_gross'] for r in city_results)
         if city_results:
@@ -773,7 +877,7 @@ def run_bms(all_cities):
     lock        = threading.Lock()
 
     print(f"\n🚀 [BMS] Starting — {total} cities, {BMS_WORKERS} parallel workers, {BMS_RATE} req/sec")
-    print(f"   Fresh Chrome driver per city (Cloudflare bypass)\n")
+    print(f"   Fresh Chrome driver per city | {VENUE_WORKERS} venue workers per city\n")
 
     def _process(args):
         idx, (state, city_name, city_slug) = args
