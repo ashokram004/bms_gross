@@ -1,0 +1,10 @@
+Using fonts:
+  Regular: C:\Windows\Fonts\segoeui.ttf
+  Bold:    C:\Windows\Fonts\seguisb.ttf
+=== Page Load Test ===
+City 1: Vizag (Visakhapatnam)     | Page: OK | Venues: 8 | Shows: 36 | 7.9s
+City 2: Mumbai                    | Page: OK | Venues: 114 | Shows: 722 | 14.4s
+City 3: Bengaluru                 | Page: OK | Venues: 54 | Shows: 476 | 12.8s
+City 4: Chennai                   | Page: OK | Venues: 28 | Shows: 186 | 10.4s
+City 5: Hyderabad                 | Page: OK | Venues: 65 | Shows: 454 | 11.6s
+DONE

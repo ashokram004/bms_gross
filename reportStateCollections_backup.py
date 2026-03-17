@@ -1,13 +1,10 @@
 import json
 import time
 import os
-import sys
 import random
-import threading
-import queue
-import requests
 from base64 import b64decode
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait
+from itertools import cycle
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 from selenium import webdriver
@@ -42,104 +39,11 @@ BMS_URL_TEMPLATE      = "https://in.bookmyshow.com/movies/{city}/ustaad-bhagat-s
 
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 BOOKED_STATES  = {"2"}
+SLEEP_TIME     = 1.0
+VENUE_WORKERS  = 3   # parallel venue workers per city (both BMS & District)
 
-# ── PERFORMANCE TUNING ──
-DISTRICT_CITY_WORKERS = 8     # parallel city workers for District (HTTP)
-BMS_WORKERS           = 3     # parallel BMS workers (each creates fresh driver per city)
-DISTRICT_RATE         = 5     # max requests/second to district.in (conservative to avoid 403)
-BMS_RATE              = 3     # max requests/second to bookmyshow.com (conservative)
-BMS_RATE_LIMIT_WAIT   = 30    # seconds to wait on BMS rate limit
-
-
-# =============================================================================
-# ── RATE LIMITER (thread-safe, non-blocking scheduling) ───────────────────────
-# =============================================================================
-
-class RateLimiter:
-    def __init__(self, rate):
-        self.min_interval = 1.0 / rate
-        self._lock = threading.Lock()
-        self._next_slot = 0.0
-
-    def acquire(self):
-        with self._lock:
-            now = time.monotonic()
-            if self._next_slot <= now:
-                self._next_slot = now + self.min_interval
-                return
-            wait_until = self._next_slot
-            self._next_slot = wait_until + self.min_interval
-        sleep_time = wait_until - time.monotonic()
-        if sleep_time > 0:
-            time.sleep(sleep_time)
-
-
-district_limiter = RateLimiter(DISTRICT_RATE)
-bms_limiter      = RateLimiter(BMS_RATE)
-
-
-# =============================================================================
-# ── HTTP SESSION (for District — thread-local, connection-pooled) ─────────────
-# =============================================================================
-
-_thread_local = threading.local()
-
-def get_http_session():
-    if not hasattr(_thread_local, 'session'):
-        s = requests.Session()
-        ua = UserAgent()
-        s.headers.update({
-            'User-Agent': ua.random,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Cache-Control': 'no-cache',
-        })
-        adapter = requests.adapters.HTTPAdapter(
-            pool_connections=20,
-            pool_maxsize=20,
-            max_retries=requests.adapters.Retry(total=2, backoff_factor=0.5,
-                                                 status_forcelist=[502, 503, 504]),
-        )
-        s.mount('https://', adapter)
-        s.mount('http://', adapter)
-        _thread_local.session = s
-    return _thread_local.session
-
-
-# =============================================================================
-# ── SELENIUM DRIVER POOL (for BMS — reusable Chrome instances) ────────────────
-# =============================================================================
-
-def _create_chrome_driver():
-    ua = UserAgent()
-    options = Options()
-    options.add_argument(f"user-agent={ua.random}")
-    options.add_argument("--headless=new")
-    options.add_argument("start-maximized")
-    options.add_argument("--disable-web-security")
-    options.add_argument("--disable-site-isolation-trials")
-    options.add_argument("disable-csp")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option("useAutomationExtension", False)
-    prefs = {
-        "profile.managed_default_content_settings.images": 2,
-        "profile.default_content_setting_values.notifications": 2,
-    }
-    options.add_experimental_option("prefs", prefs)
-    driver = webdriver.Chrome(options=options)
-    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-        "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
-    })
-    return driver
-
-
-
-
+PROXY_LIST = []
+proxy_pool = cycle(PROXY_LIST) if PROXY_LIST else None
 
 # =============================================================================
 # ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -182,6 +86,26 @@ def get_normalized_city_name(state, raw_city, source):
     return lookup.get((state, raw_city), raw_city)
 
 
+def get_driver(proxy=None):
+    ua = UserAgent()
+    options = Options()
+    options.add_argument(f"user-agent={ua.random}")
+    options.add_argument("--headless=new")
+    options.add_argument("start-maximized")
+    options.add_argument("--disable-web-security")
+    options.add_argument("--disable-site-isolation-trials")
+    options.add_argument("disable-csp")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    prefs = {
+        "profile.managed_default_content_settings.images": 2,
+        "profile.default_content_setting_values.notifications": 2,
+    }
+    options.add_experimental_option("prefs", prefs)
+    if proxy:
+        options.add_argument(f'--proxy-server={proxy}')
+    return webdriver.Chrome(options=options)
+
+
 def district_gmt_to_ist(dt_str):
     gmt = datetime.fromisoformat(dt_str)
     ist = gmt + timedelta(hours=5, minutes=30)
@@ -196,221 +120,204 @@ def build_seat_signature(seat_map):
 
 
 # =============================================================================
-# ── DISTRICT (HTTP-based, no Selenium) ────────────────────────────────────────
+# ── DISTRICT ──────────────────────────────────────────────────────────────────
 # =============================================================================
 
-def get_district_seat_layout(cinema_id, session_id):
-    """Direct HTTP POST for District seat layout API."""
-    api_url = "https://www.district.in/gw/consumer/movies/v1/select-seat"
-    params  = {
-        "version": "3", "site_id": "1", "channel": "mweb",
-        "child_site_id": "1", "platform": "district",
-    }
-    payload = {"cinemaId": int(cinema_id), "sessionId": str(session_id)}
-    headers = {
-        "Content-Type": "application/json",
-        "x-guest-token": str(random.randint(1, 9999999999)),
-        "Origin": "https://www.district.in",
-        "Referer": "https://www.district.in/",
-    }
+def get_district_seat_layout(driver, cinema_id, session_id):
+    api_url     = "https://www.district.in/gw/consumer/movies/v1/select-seat?version=3&site_id=1&channel=mweb&child_site_id=1&platform=district"
+    payload     = json.dumps({"cinemaId": int(cinema_id), "sessionId": str(session_id)})
+    guest_token = str(random.randint(1, 9999999999))
+    js = f"""
+    var cb = arguments[0];
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "{api_url}", true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("x-guest-token", "{guest_token}");
+    xhr.onload = function() {{ cb(xhr.responseText); }};
+    xhr.onerror = function() {{ cb(null); }};
+    xhr.send('{payload}');
+    """
     try:
-        district_limiter.acquire()
-        session = get_http_session()
-        resp = session.post(api_url, params=params, json=payload,
-                            headers=headers, timeout=10)
-        if resp.status_code == 200:
-            return resp.json()
+        resp = driver.execute_async_script(js)
+        if resp:
+            return json.loads(resp)
     except Exception:
         pass
     return None
 
 
-def process_district_venue(cin, state, city_name, reporting_city, processed_sids):
-    """Processes all shows for a single District venue using HTTP."""
+def district_fetch_single_venue(cin, state, city_name, reporting_city, processed_sids):
+    """
+    Fetches District seat data for ONE venue. Owns its own driver.
+    Submitted individually per venue — executor assigns dynamically.
+    """
     results = []
-    venue = cin['entityName']
-    for s in cin.get('sessions', []):
-        sid = str(s.get('sid', ''))
-        cid = s.get('cid')
+    driver  = get_driver()
+    try:
+        venue = cin['entityName']
+        for s in cin.get('sessions', []):
+            sid = str(s.get('sid', ''))
+            cid = s.get('cid')
 
-        if sid in processed_sids:
-            continue
-        processed_sids.add(sid)
+            if sid in processed_sids:
+                continue
+            processed_sids.add(sid)
 
-        price_map     = {}
-        code_to_label = {}
-        for area in s.get('areas', []):
-            price_map[area['code']]     = float(area['price'])
-            code_to_label[area['code']] = area['label']
+            price_map     = {}
+            code_to_label = {}
+            for area in s.get('areas', []):
+                price_map[area['code']]     = float(area['price'])
+                code_to_label[area['code']] = area['label']
 
-        b_gross, p_gross, b_tkts, t_tkts = 0, 0, 0, 0
-        seat_map       = defaultdict(int)
-        price_seat_map = defaultdict(int)
-        layout_res     = None
+            b_gross, p_gross, b_tkts, t_tkts = 0, 0, 0, 0
+            seat_map       = defaultdict(int)
+            price_seat_map = defaultdict(int)
+            layout_res     = None
 
-        if cid:
-            layout_res = get_district_seat_layout(cid, sid)
+            if cid:
+                layout_res = get_district_seat_layout(driver, cid, sid)
 
-        if layout_res and 'seatLayout' in layout_res:
-            for area in layout_res['seatLayout'].get('colAreas', {}).get('objArea', []):
-                area_code = area.get('AreaCode')
-                price     = area.get('AreaPrice', price_map.get(area_code, 0))
-                label     = code_to_label.get(area_code, area_code)
-                for row in area.get('objRow', []):
-                    for seat in row.get('objSeat', []):
-                        status = seat.get('SeatStatus')
-                        t_tkts += 1; p_gross += price
-                        seat_map[label] += 1
-                        price_seat_map[float(price)] += 1
-                        if status != '0' and status != 0:
-                            b_tkts += 1; b_gross += price
-        else:
-            for a in s.get('areas', []):
-                tot, av, pr = a['sTotal'], a['sAvail'], a['price']
-                bk = tot - av
-                seat_map[a['label']]      = tot
-                b_tkts += bk; t_tkts += tot
-                b_gross += bk * pr; p_gross += tot * pr
-                price_seat_map[float(pr)] += tot
+            if layout_res and 'seatLayout' in layout_res:
+                for area in layout_res['seatLayout'].get('colAreas', {}).get('objArea', []):
+                    area_code = area.get('AreaCode')
+                    price     = area.get('AreaPrice', price_map.get(area_code, 0))
+                    label     = code_to_label.get(area_code, area_code)
+                    for row in area.get('objRow', []):
+                        for seat in row.get('objSeat', []):
+                            status = seat.get('SeatStatus')
+                            t_tkts += 1; p_gross += price
+                            seat_map[label] += 1
+                            price_seat_map[float(price)] += 1
+                            if status != '0' and status != 0:
+                                b_tkts += 1; b_gross += price
+            else:
+                print(f"      ⚠️  [District][{city_name}] API failed for {sid}. Using cached data.")
+                for a in s.get('areas', []):
+                    tot, av, pr = a['sTotal'], a['sAvail'], a['price']
+                    bk = tot - av
+                    seat_map[a['label']]      = tot
+                    b_tkts += bk; t_tkts += tot
+                    b_gross += bk * pr; p_gross += tot * pr
+                    price_seat_map[float(pr)] += tot
 
-        price_seat_list = sorted(price_seat_map.items())
-        occ             = round((b_tkts / t_tkts) * 100, 2) if t_tkts else 0
-        normalized_time = district_gmt_to_ist(s['showTime'])
+            price_seat_list = sorted(price_seat_map.items())
+            occ             = round((b_tkts / t_tkts) * 100, 2) if t_tkts else 0
+            normalized_time = district_gmt_to_ist(s['showTime'])
 
-        results.append({
-            "source":               "district",
-            "sid":                  sid,
-            "state":                state,
-            "city":                 reporting_city,
-            "venue":                venue,
-            "showTime":             s['showTime'],
-            "normalized_show_time": normalized_time,
-            "seat_category_map":    dict(seat_map),
-            "price_seat_map":       dict(price_seat_map),
-            "price_seat_signature": price_seat_list,
-            "seat_signature":       build_seat_signature(seat_map),
-            "total_tickets":        abs(t_tkts),
-            "booked_tickets":       min(abs(b_tkts), abs(t_tkts)),
-            "total_gross":          abs(p_gross),
-            "booked_gross":         min(abs(int(b_gross)), abs(int(p_gross))),
-            "occupancy":            min(100, abs(occ)),
-            "is_fallback":          False,
-        })
+            results.append({
+                "source":               "district",
+                "sid":                  sid,
+                "state":                state,
+                "city":                 reporting_city,
+                "venue":                venue,
+                "showTime":             s['showTime'],
+                "normalized_show_time": normalized_time,
+                "seat_category_map":    dict(seat_map),
+                "price_seat_map":       dict(price_seat_map),
+                "price_seat_signature": price_seat_list,
+                "seat_signature":       build_seat_signature(seat_map),
+                "total_tickets":        abs(t_tkts),
+                "booked_tickets":       min(abs(b_tkts), abs(t_tkts)),
+                "total_gross":          abs(p_gross),
+                "booked_gross":         min(abs(int(b_gross)), abs(int(p_gross))),
+                "occupancy":            min(100, abs(occ)),
+                "is_fallback":          False,
+            })
+    except Exception as e:
+        print(f"❌ [District][{city_name}] Venue worker error: {e}")
+    finally:
+        driver.quit()
     return results
 
 
-def fetch_district_city(state, city, city_counter_str):
+def fetch_district_city(state, city, city_index, total_cities):
     """
-    Fetches all District data for one city via HTTP.
-    Step 1: HTTP GET page to extract __NEXT_DATA__ JSON.
-    Step 2: Process each venue's shows (seat layout via HTTP POST).
+    Fetches all District data for one city.
+    Step 1: One driver scrapes the page to get the session list.
+    Step 2: Each venue submitted as its own task — VENUE_WORKERS workers
+            pick them up dynamically (no idle waiting between venues).
     """
     city_name      = city['name']
-    slug           = city.get('slug')
     reporting_city = get_normalized_city_name(state, city_name, "district")
+    url            = DISTRICT_URL_TEMPLATE.format(city=city['slug'])
 
-    # Skip cities with null/empty slug
-    if not slug:
-        print(f"   ⚠️  [District] {city_counter_str} {city_name:<15} — skipped (no slug)")
-        return []
+    print(f"   🏙️  [District] City {city_index}/{total_cities}: {city_name}")
 
-    url = DISTRICT_URL_TEMPLATE.format(city=slug)
+    # Step 1: Scrape page to get session list
+    page_driver = get_driver()
+    cinemas     = []
+    try:
+        page_driver.set_script_timeout(10)
+        page_driver.get(url)
+        time.sleep(1)
+        html = page_driver.page_source
 
-    # Step 1: Fetch page HTML via HTTP (with 403 retry)
-    cinemas = []
-    for attempt in range(2):
-        try:
-            district_limiter.acquire()
-            session = get_http_session()
-            resp    = session.get(url, timeout=15)
-
-            if resp.status_code == 403 and attempt == 0:
-                # Rate limited — wait and retry with fresh session (new User-Agent)
-                time.sleep(15)
-                if hasattr(_thread_local, 'session'):
-                    delattr(_thread_local, 'session')
-                continue
-
-            if resp.status_code != 200:
-                print(f"   ⚠️  [District] {city_counter_str} {city_name:<15} — HTTP {resp.status_code}")
-                return []
-            html = resp.text
-
-            marker = 'id="__NEXT_DATA__"'
-            idx    = html.find(marker)
-            if idx == -1:
-                return []
-
-            start    = html.find('>', idx) + 1
-            end      = html.find('</script>', start)
-            data     = json.loads(html[start:end])
-            sessions = data['props']['pageProps']['data']['serverState']['movieSessions']
-            if not sessions:
-                return []  # Movie not showing in this city
-            key      = list(sessions.keys())[0]
-            cinemas  = sessions[key].get('arrangedSessions', [])
-            break  # Success
-        except Exception as e:
-            print(f"   ❌ [District] {city_counter_str} {city_name:<15} — Error: {e}")
+        marker = 'id="__NEXT_DATA__"'
+        idx    = html.find(marker)
+        if idx == -1:
+            print(f"      ⚠️  [District][{city_name}] No data found on page.")
             return []
 
+        start    = html.find('>', idx) + 1
+        end      = html.find('</script>', start)
+        data     = json.loads(html[start:end])
+        sessions = data['props']['pageProps']['data']['serverState']['movieSessions']
+        key      = list(sessions.keys())[0]
+        cinemas  = sessions[key].get('arrangedSessions', [])
+    except Exception as e:
+        print(f"❌ [District][{city_name}] Page scrape error: {e}")
+        return []
+    finally:
+        page_driver.quit()
+
     if not cinemas:
+        print(f"      ⚠️  [District][{city_name}] No sessions found.")
         return []
 
-    # Step 2: Process each venue sequentially (HTTP calls are fast, no driver overhead)
+    # Step 2: Each venue is its own task — executor assigns dynamically
     processed_sids = set()
     city_results   = []
-    for cin in cinemas:
-        results = process_district_venue(cin, state, city_name, reporting_city, processed_sids)
-        city_results.extend(results)
+
+    with ThreadPoolExecutor(max_workers=VENUE_WORKERS) as executor:
+        futures = {
+            executor.submit(district_fetch_single_venue, cin, state, city_name, reporting_city, processed_sids): cin['entityName']
+            for cin in cinemas
+        }
+        for future in as_completed(futures):
+            venue_name = futures[future]
+            try:
+                city_results.extend(future.result())
+            except Exception as e:
+                print(f"❌ [District][{city_name}] {venue_name}: {e}")
 
     gross = sum(r['booked_gross'] for r in city_results)
-    if city_results:
-        print(f"   ✅ [District] {city_counter_str} {city_name:<15} → {reporting_city:<15} | Shows: {len(city_results):<3} | Gross: ₹{gross:<10,}")
+    print(f"   ✅ [District] {city_name:<15} → {reporting_city:<15} | Shows: {len(city_results):<3} | Gross: ₹{gross:<10,}")
     return city_results
 
 
 def run_district(all_cities):
     """
-    Main District runner. Processes cities in PARALLEL with DISTRICT_CITY_WORKERS threads.
-    Rate limiter controls request frequency globally.
+    Main District runner. Processes cities one at a time (sequentially),
+    with VENUE_WORKERS dynamic workers per city.
     """
     all_results = []
     total       = len(all_cities)
-    completed   = [0]
-    lock        = threading.Lock()
-    print(f"\n🚀 [District] Starting — {total} cities, {DISTRICT_CITY_WORKERS} parallel workers, {DISTRICT_RATE} req/sec\n")
+    print(f"\n🚀 [District] Starting — {total} cities, {VENUE_WORKERS} venue workers per city\n")
 
-    def _wrapped(state, city, idx, total):
-        counter_str = f"[{idx}/{total}]"
-        results = fetch_district_city(state, city, counter_str)
-        with lock:
-            completed[0] += 1
-            if completed[0] % 50 == 0:
-                print(f"   📊 [District] Progress: {completed[0]}/{total} cities done")
-        return results
-
-    with ThreadPoolExecutor(max_workers=DISTRICT_CITY_WORKERS) as executor:
-        futures = {
-            executor.submit(_wrapped, state, city, idx, total): city['name']
-            for idx, (state, city) in enumerate(all_cities, 1)
-        }
-        for future in as_completed(futures):
-            try:
-                all_results.extend(future.result())
-            except Exception as e:
-                print(f"❌ [District] City worker error: {e}")
+    for idx, (state, city) in enumerate(all_cities, 1):
+        results = fetch_district_city(state, city, idx, total)
+        all_results.extend(results)
+        time.sleep(SLEEP_TIME)
 
     print(f"\n✅ [District] Done — {len(all_results)} total shows across {total} cities.")
     return all_results
 
 
 # =============================================================================
-# ── BMS (Selenium driver pool — Cloudflare requires real browser) ─────────────
+# ── BMS ───────────────────────────────────────────────────────────────────────
 # =============================================================================
 
 def extract_initial_state_from_page(driver, url):
-    """Load BMS page in Selenium and extract window.__INITIAL_STATE__ JSON."""
     try:
         driver.get(url)
         time.sleep(2)
@@ -427,7 +334,7 @@ def extract_initial_state_from_page(driver, url):
             if brace_count == 0:   break
             end += 1
         return json.loads(html[start:end + 1])
-    except Exception:
+    except:
         return None
 
 def extract_venues(state):
@@ -444,47 +351,35 @@ def extract_venues(state):
                 for g in w["data"]:
                     if g.get("type") == "venueGroup":
                         return g["data"]
-    except Exception:
+    except:
         pass
     return []
 
 def get_seat_layout(driver, venue_code, session_id):
-    """Selenium XHR for BMS seat layout API (bypasses Cloudflare)."""
-    api_url = "https://services-in.bookmyshow.com/doTrans.aspx"
+    api_url     = "https://services-in.bookmyshow.com/doTrans.aspx"
+    max_retries = 2
     js = """
         var cb = arguments[0]; var x = new XMLHttpRequest();
         x.open("POST", "%s", true);
         x.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
         x.onload = function() { cb(x.responseText); };
-        x.onerror = function() { cb(null); };
         x.send("strCommand=GETSEATLAYOUT&strAppCode=WEB&strVenueCode=%s&lngTransactionIdentifier=0&strParam1=%s&strParam2=WEB&strParam5=Y&strFormat=json");
     """ % (api_url, venue_code, session_id)
 
-    max_retries = 2
     for i in range(max_retries + 1):
         try:
-            bms_limiter.acquire()
-            driver.set_script_timeout(20)
+            driver.set_script_timeout(10)
             resp = driver.execute_async_script(js)
-            if not resp:
-                return None, "Empty response"
             data = json.loads(resp).get("BookMyShow", {})
             if data.get("blnSuccess") == "true":
                 return data.get("strData"), None
             error_msg = data.get("strException", "")
-            # Retry on transient errors
-            if any(kw in error_msg.lower() for kw in ["rate limit", "connectivity issue", "high demand"]):
-                if i < max_retries:
-                    wait = BMS_RATE_LIMIT_WAIT if "rate limit" in error_msg.lower() else 5
-                    time.sleep(wait)
-                    continue
+            if "Rate limit" in error_msg:
+                if i < max_retries: time.sleep(60); continue
+                return None, "Rate limit exceeded"
             return None, error_msg
         except Exception as e:
-            err_line = str(e).split('\n')[0]  # First line only, skip stacktrace
-            if i < max_retries and "timeout" in err_line.lower():
-                time.sleep(2)
-                continue  # Retry on script timeout
-            return None, err_line
+            return None, str(e)
     return None, "Unknown Error"
 
 def decrypt_data(enc):
@@ -534,12 +429,13 @@ def calculate_show_collection(decrypted, price_map):
     return t_tkts, b_tkts, int(t_gross), int(b_gross), occ, seats, local_price_map
 
 
-def process_bms_venue(driver, venue, city_name, reporting_city, state_name, local_bms_sids):
+def bms_fetch_single_venue(venue, city_name, reporting_city, state_name, local_bms_sids):
     """
-    Processes ONE BMS venue using Selenium driver from pool.
-    Preserves all business logic: sold-out recovery, screen caching, deferred SIDs.
+    Processes ONE BMS venue. Owns its own driver.
+    Submitted individually per venue — executor assigns dynamically.
     """
     results            = []
+    driver             = get_driver()
     screen_details_map = {}
 
     try:
@@ -582,20 +478,21 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, loca
                         price_seat_map[float(p)] = 0
 
                     if error_msg and "sold out" in error_msg.lower():
-                        # print(f"      🔴 [BMS][{city_name}] Sold Out: {sid}. Checking recovery...")
+                        print(f"      🔴 [BMS][{city_name}] Sold Out: {sid}. Checking recovery...")
                         recovered_capacity = None
                         recovered_seat_map = None
 
                         if screenName in screen_details_map:
                             recovered_seat_map = screen_details_map[screenName]
                             recovered_capacity = sum(recovered_seat_map.values())
-                            # print(f"         ⚡ Using cached layout ({recovered_capacity} seats)")
+                            print(f"         ⚡ Using cached layout ({recovered_capacity} seats)")
 
                         if not recovered_capacity:
                             try:
                                 base_sid = int(sid)
                                 for offset in range(7, 0, -1):
                                     target_sid = str(base_sid + offset)
+                                    time.sleep(1)
                                     n_enc, _ = get_seat_layout(driver, v_code, target_sid)
                                     if n_enc:
                                         n_dec = decrypt_data(n_enc)
@@ -603,7 +500,7 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, loca
                                         if n_res[0] > 0:
                                             recovered_capacity = n_res[0]
                                             recovered_seat_map = n_res[5]
-                                            # print(f"         ✨ Recovered using {target_sid}")
+                                            print(f"         ✨ Recovered using {target_sid}")
                                             break
                             except Exception:
                                 pass
@@ -627,7 +524,7 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, loca
                             FALLBACK_SEATS = 400
                             t_tkts  = b_tkts  = FALLBACK_SEATS
                             t_gross = b_gross = int(FALLBACK_SEATS * max_price)
-                            # print(f"         ❌ [BMS][{city_name}] Recovery failed. Using default {FALLBACK_SEATS}.")
+                            print(f"         ❌ [BMS][{city_name}] Recovery failed. Using default {FALLBACK_SEATS}.")
 
                         occ     = 100.0
                         soldOut = True
@@ -639,7 +536,7 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, loca
                         continue
 
                     else:
-                        # print(f"      ⚠️  [BMS][{city_name}] Error for {sid}: {error_msg}")
+                        print(f"      ⚠️  [BMS][{city_name}] Error for {sid}: {error_msg}")
                         if screenName in screen_details_map:
                             cached = screen_details_map[screenName]
                             seat_map     = cached
@@ -652,7 +549,7 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, loca
                             price_seat_map = dict(ps_map)
                             t_gross = int(t_gross_calc); b_gross = int(t_gross * 0.5)
                             occ = 50.0; is_fallback = False
-                            # print(f"         ⚡ Smart Fallback: {screenName} ({t_tkts} seats)")
+                            print(f"         ⚡ Smart Fallback: {screenName} ({t_tkts} seats)")
                         elif sid not in deferred_sids and len(show_queue) > 0:
                             deferred_sids.add(sid)
                             local_bms_sids.discard(sid)
@@ -662,7 +559,7 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, loca
                             t_tkts  = 400; b_tkts  = 200
                             t_gross = int(400 * max_price); b_gross = int(200 * max_price)
                             occ     = 50.0
-                            # print(f"         ❌ [BMS][{city_name}] Hard Fallback 400/200")
+                            print(f"         ❌ [BMS][{city_name}] Hard Fallback 400/200")
                         data = {"total_tickets": t_tkts, "booked_tickets": b_tkts,
                                 "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ}
                 else:
@@ -690,10 +587,10 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, loca
                 if data and data['total_tickets'] > 0:
                     normalized_time = normalize_bms_time(SHOW_DATE, show_time)
                     tag = "(SOLD OUT)" if soldOut else ""
-                    # print(
-                    #     f"   🎬 [BMS][{city_name}] {v_name[:15]:<15} | {normalized_time} | "
-                    #     f"Occ: {data['occupancy']:>5}% | Gross: ₹{data['booked_gross']:<8,} {tag}"
-                    # )
+                    print(
+                        f"   🎬 [BMS][{city_name}] {v_name[:15]:<15} | {normalized_time} | "
+                        f"Occ: {data['occupancy']:>5}% | Gross: ₹{data['booked_gross']:<8,} {tag}"
+                    )
                     data.update({
                         "source":               "bms",
                         "sid":                  sid,
@@ -713,91 +610,77 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, loca
             except Exception:
                 continue
 
+            time.sleep(SLEEP_TIME)
+
     except Exception as e:
         print(f"❌ [BMS] Venue worker error for {city_name}: {e}")
+    finally:
+        driver.quit()
 
     return results
 
 
-def fetch_bms_city(state_name, city_name, city_slug, city_counter_str):
+def fetch_bms_city(state_name, city_name, city_slug, city_index, total_cities):
     """
     Fetches all BMS data for one city.
-    Creates a FRESH Chrome driver per city (Cloudflare blocks reused sessions).
+    Step 1: One driver scrapes the BMS page to get venue list.
+    Step 2: Each venue submitted as its own task — VENUE_WORKERS workers
+            pick them up dynamically (no idle waiting between venues).
     """
     reporting_city = get_normalized_city_name(state_name, city_name, "bms")
     url            = BMS_URL_TEMPLATE.format(city=city_slug)
-    driver         = None
 
+    print(f"   🏙️  [BMS] City {city_index}/{total_cities}: {city_name}")
+
+    # Step 1: Scrape BMS page to get venue list
+    page_driver = get_driver()
+    venues      = []
     try:
-        bms_limiter.acquire()
-        driver = _create_chrome_driver()
-        driver.set_script_timeout(20)
-
-        state_data = extract_initial_state_from_page(driver, url)
+        state_data = extract_initial_state_from_page(page_driver, url)
         venues     = extract_venues(state_data) if state_data else []
-
-        if not venues:
-            return []
-
-        # Process all venues with the same driver
-        local_bms_sids = set()
-        city_results   = []
-        for venue in venues:
-            results = process_bms_venue(driver, venue, city_name, reporting_city, state_name, local_bms_sids)
-            city_results.extend(results)
-
-        gross = sum(r['booked_gross'] for r in city_results)
-        if city_results:
-            print(f"   ✅ [BMS] {city_counter_str} {city_name:<15} → {reporting_city:<15} | Shows: {len(city_results):<3} | Gross: ₹{gross:<10,}")
-        return city_results
-
     except Exception as e:
-        print(f"   ❌ [BMS] {city_counter_str} {city_name:<15} — Error: {e}")
-        return []
+        print(f"❌ [BMS][{city_name}] Page scrape error: {e}")
     finally:
-        if driver:
+        page_driver.quit()
+
+    if not venues:
+        print(f"      ⚠️  [BMS][{city_name}] No venues found.")
+        return []
+
+    # Step 2: Each venue is its own task — executor assigns dynamically
+    local_bms_sids = set()
+    city_results   = []
+
+    with ThreadPoolExecutor(max_workers=VENUE_WORKERS) as executor:
+        futures = {
+            executor.submit(bms_fetch_single_venue, venue, city_name, reporting_city, state_name, local_bms_sids): venue["additionalData"]["venueName"]
+            for venue in venues
+        }
+        for future in as_completed(futures):
+            venue_name = futures[future]
             try:
-                driver.quit()
-            except Exception:
-                pass
+                city_results.extend(future.result())
+            except Exception as e:
+                print(f"❌ [BMS][{city_name}] {venue_name}: {e}")
+
+    gross = sum(r['booked_gross'] for r in city_results)
+    print(f"   ✅ [BMS] {city_name:<15} → {reporting_city:<15} | Shows: {len(city_results):<3} | Gross: ₹{gross:<10,}")
+    return city_results
 
 
 def run_bms(all_cities):
     """
-    Main BMS runner. Fresh Chrome driver created per city (Cloudflare blocks reused sessions).
-    Cities processed in parallel by BMS_WORKERS threads.
+    Main BMS runner. Processes cities one at a time (sequentially),
+    with VENUE_WORKERS dynamic workers per city.
     """
     all_results = []
     total       = len(all_cities)
-    completed   = [0]
-    lock        = threading.Lock()
+    print(f"\n🚀 [BMS] Starting — {total} cities, {VENUE_WORKERS} venue workers per city\n")
 
-    print(f"\n🚀 [BMS] Starting — {total} cities, {BMS_WORKERS} parallel workers, {BMS_RATE} req/sec")
-    print(f"   Fresh Chrome driver per city (Cloudflare bypass)\n")
-
-    def _process(args):
-        idx, (state, city_name, city_slug) = args
-        counter_str = f"[{idx}/{total}]"
-        results = fetch_bms_city(state, city_name, city_slug, counter_str)
-        with lock:
-            completed[0] += 1
-            if completed[0] % 50 == 0:
-                print(f"   📊 [BMS] Progress: {completed[0]}/{total} cities done")
-        return results
-
-    try:
-        with ThreadPoolExecutor(max_workers=BMS_WORKERS) as executor:
-            futures = {
-                executor.submit(_process, (i + 1, ct)): ct[1]
-                for i, ct in enumerate(all_cities)
-            }
-            for future in as_completed(futures):
-                try:
-                    all_results.extend(future.result())
-                except Exception as e:
-                    print(f"❌ [BMS] Worker error: {e}")
-    except Exception as e:
-        print(f"❌ [BMS] Fatal error: {e}")
+    for idx, (state, city_name, city_slug) in enumerate(all_cities, 1):
+        results = fetch_bms_city(state, city_name, city_slug, idx, total)
+        all_results.extend(results)
+        time.sleep(SLEEP_TIME)
 
     print(f"\n✅ [BMS] Done — {len(all_results)} total shows across {total} cities.")
     return all_results
@@ -1012,33 +895,6 @@ def generate_consolidated_excel(all_results, filename):
 # =============================================================================
 
 if __name__ == "__main__":
-    # ── LOG FILE SETUP ──
-    os.makedirs("logs", exist_ok=True)
-    log_path = os.path.join("logs", f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
-    _log_file = open(log_path, 'w', encoding='utf-8')
-
-    class _Tee:
-        """Writes to both console and log file simultaneously."""
-        def __init__(self, *streams):
-            self.streams = streams
-        def write(self, text):
-            for s in self.streams:
-                try:
-                    s.write(text)
-                    s.flush()
-                except Exception:
-                    pass
-        def flush(self):
-            for s in self.streams:
-                try:
-                    s.flush()
-                except Exception:
-                    pass
-
-    sys.stdout = _Tee(sys.__stdout__, _log_file)
-    sys.stderr = _Tee(sys.__stderr__, _log_file)
-    print(f"📝 Logging to: {log_path}\n")
-
     if not os.path.exists(DISTRICT_CONFIG_PATH) or not os.path.exists(BMS_CONFIG_PATH):
         print("❌ Config files missing. Exiting.")
         exit(1)
@@ -1064,11 +920,7 @@ if __name__ == "__main__":
 
     print(f"🎬 Starting run — District: {total_d} cities | BMS: {total_b} cities")
     print(f"   Both sources run in PARALLEL (2 threads)")
-    print(f"   District: {DISTRICT_CITY_WORKERS} HTTP workers | BMS: {BMS_WORKERS} workers (fresh driver/city)")
-    print(f"   Rate limits: District {DISTRICT_RATE} req/s | BMS {BMS_RATE} req/s")
-    print(f"   District: pure HTTP | BMS: Selenium (Cloudflare bypass)\n")
-
-    start_time = time.monotonic()
+    print(f"   Each city processed sequentially, {VENUE_WORKERS} venue workers dynamically assigned per city\n")
 
     all_dist_data = []
     all_bms_data  = []
@@ -1081,8 +933,7 @@ if __name__ == "__main__":
         all_dist_data = district_future.result()
         all_bms_data  = bms_future.result()
 
-    elapsed = time.monotonic() - start_time
-    print(f"\n📋 Both sources done in {elapsed/60:.1f} minutes.")
+    print(f"\n📋 Both sources done.")
     print(f"   District: {len(all_dist_data)} shows")
     print(f"   BMS:      {len(all_bms_data)} shows")
 
@@ -1115,7 +966,6 @@ if __name__ == "__main__":
             show_date=show_date_fmt,
         )
 
-        total_elapsed = time.monotonic() - start_time
-        print(f"\n🏁 All done in {total_elapsed/60:.1f} minutes. Reports saved with timestamp {ts}")
+        print(f"\n🏁 All done. Reports saved with timestamp {ts}")
     else:
         print("❌ No data found.")

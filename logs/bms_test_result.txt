@@ -1,0 +1,23 @@
+Using fonts:
+  Regular: C:\Windows\Fonts\segoeui.ttf
+  Bold:    C:\Windows\Fonts\seguisb.ttf
+=== Testing BMS fresh-driver-per-city ===
+   ✅ [BMS] [1/5] Vizag (Visakhapatnam) → Visakhapatnam   | Shows: 36  | Gross: ₹1,030,252 
+City 1: Vizag (Visakhapatnam)     -> 36 shows (38.0s)
+      🚫 [BMS][Mumbai] Rate Limit for BMX Cinemas (Ba
+      🚫 [BMS][Mumbai] Rate Limit for BMX Cinemas (Ba
+      🚫 [BMS][Mumbai] Rate Limit for BMX Cinemas (Ba
+      🚫 [BMS][Mumbai] Rate Limit for BMX Cinemas (Ba
+      🚫 [BMS][Mumbai] Rate Limit for BMX Cinemas (Ba
+Traceback (most recent call last):
+  File "<string>", line 31, in <module>
+    results = fetch_bms_city(state, city, slug, f'[{i}/5]')
+  File "reportStateCollections.py", line 752, in fetch_bms_city
+    results = process_bms_venue(driver, venue, city_name, reporting_city, state_name, local_bms_sids)
+  File "reportStateCollections.py", line 580, in process_bms_venue
+    enc, error_msg = get_seat_layout(driver, v_code, sid)
+                     ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "reportStateCollections.py", line 485, in get_seat_layout
+    time.sleep(wait)
+    ~~~~~~~~~~^^^^^^
+KeyboardInterrupt

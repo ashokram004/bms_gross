@@ -1,0 +1,42 @@
+📝 Logging to: logs\run_20260317_182343.log
+
+🎬 Starting run — District: 401 cities | BMS: 579 cities
+   Both sources run in PARALLEL (2 threads)
+   District: 8 HTTP workers | BMS: 3 workers (fresh driver/city)
+   Rate limits: District 5 req/s | BMS 3 req/s
+   District: pure HTTP | BMS: Selenium (Cloudflare bypass)
+
+
+🚀 [District] Starting — 401 cities, 8 parallel workers, 5 req/sec
+
+
+🚀 [BMS] Starting — 579 cities, 3 parallel workers, 3 req/sec
+   Fresh Chrome driver per city (Cloudflare bypass)
+
+   ✅ [District] [2/401] Addanki         → Ongole          | Shows: 2   | Gross: ₹122,700   
+   ✅ [District] [5/401] Allagadda       → Nandyal         | Shows: 1   | Gross: ₹2,000     
+   ✅ [District] [9/401] Anantapur       → Anantapur       | Shows: 5   | Gross: ₹980,500   
+   ✅ [BMS] [2/579] Addanki         → Ongole          | Shows: 3   | Gross: ₹532,800   
+   ✅ [District] [4/401] Akividu         → Bhimavaram      | Shows: 8   | Gross: ₹791,600   
+   ✅ [District] [6/401] Amalapuram      → Amalapuram      | Shows: 9   | Gross: ₹936,800   
+   ✅ [District] [15/401] Atmakur Nellore → Nellore         | Shows: 2   | Gross: ₹2,000     
+   ✅ [District] [17/401] B Kothakota     → Madanapalle     | Shows: 1   | Gross: ₹134,500   
+   ✅ [District] [16/401] Attili          → Tanuku          | Shows: 5   | Gross: ₹507,600   
+   ✅ [District] [20/401] Bapatla         → Guntur          | Shows: 4   | Gross: ₹465,500   
+   ✅ [District] [19/401] Bangarupallem   → Chittoor        | Shows: 7   | Gross: ₹373,000   
+   ✅ [BMS] [7/579] Amadalavalasa   → Srikakulam      | Shows: 5   | Gross: ₹129,200   
+   ✅ [District] [12/401] Angara          → Rajahmundry     | Shows: 24  | Gross: ₹2,175,030 
+   ✅ [District] [23/401] Bhimavaram      → Bhimavaram      | Shows: 2   | Gross: ₹136,000   
+   ✅ [District] [21/401] Bendamurulanka  → Amalapuram      | Shows: 7   | Gross: ₹685,200   
+   ✅ [BMS] [8/579] Amalapuram      → Amalapuram      | Shows: 20  | Gross: ₹731,650   
+   ✅ [District] [25/401] Buchireddypalem → Nellore         | Shows: 7   | Gross: ₹72,150    
+   ✅ [District] [24/401] Bobbili         → Vizianagaram    | Shows: 9   | Gross: ₹435,740   
+   ✅ [District] [10/401] Anaparthi       → Rajahmundry     | Shows: 39  | Gross: ₹4,041,509 
+   ✅ [District] [26/401] Chagallu        → Rajahmundry     | Shows: 11  | Gross: ₹836,430   
+   ✅ [District] [11/401] Anaparthy       → Rajahmundry     | Shows: 45  | Gross: ₹4,673,674 
+   ✅ [District] [31/401] Chimakurthy     → Ongole          | Shows: 3   | Gross: ₹172,700   
+   ✅ [District] [30/401] Chilakaluripet  → Guntur          | Shows: 14  | Gross: ₹638,605   
+   ✅ [BMS] [14/579] Angara          → Rajahmundry     | Shows: 1   | Gross: ₹107,000   
+   ✅ [District] [29/401] Cherukupalli    → Guntur          | Shows: 19  | Gross: ₹681,300   
+   ✅ [District] [33/401] Chirala         → Guntur          | Shows: 4   | Gross: ₹465,500   
+   ✅ [District] [28/401] Cheepurupalli   → Vizianagaram    | Shows: 31  | Gross: ₹1,091,540 
