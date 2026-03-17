@@ -24,7 +24,7 @@ from utils.generateHybridStatesHTMLReport import generate_hybrid_states_html_rep
 # =============================================================================
 
 INPUT_STATE_LIST = [
-    'Andhra Pradesh', 'Karnataka', 'Telangana'
+    'Andhra Pradesh'
 ]
 
 DISTRICT_CONFIG_PATH = os.path.join("utils", "district_cities_config.json")

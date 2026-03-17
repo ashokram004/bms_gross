@@ -35,14 +35,10 @@ BMS_URL_TEMPLATE = (
 )
 
 DISTRICT_CITIES = [
-    "vizag", "new-delhi", "mumbai", "ahmedabad", "pune", "surat",
-    "kolkata", "lucknow", "jaipur", "chandigarh", "bengaluru", "bhopal",
-    "chennai", "hyderabad",
+    "vizag"
 ]
 BMS_CITIES = [
-    "vizag-visakhapatnam", "national-capital-region-ncr", "mumbai", "ahmedabad",
-    "pune", "surat", "kolkata", "lucknow", "jaipur", "chandigarh",
-    "bengaluru", "bhopal", "chennai", "hyderabad",
+    "vizag-visakhapatnam"
 ]
 
 BMS_KEY      = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
