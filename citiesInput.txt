@@ -1,0 +1,11 @@
+DISTRICT_CITIES = [
+    "vizag", "new-delhi", "mumbai", "ahmedabad", "pune", "surat",
+    "kolkata", "lucknow", "jaipur", "chandigarh", "bengaluru", "bhopal",
+    "chennai", "hyderabad"
+]
+
+BMS_CITIES = [
+    "vizag-visakhapatnam", "national-capital-region-ncr", "mumbai", "ahmedabad",
+    "pune", "surat", "kolkata", "lucknow", "jaipur", "chandigarh",
+    "bengaluru", "bhopal", "chennai", "hyderabad"
+]
