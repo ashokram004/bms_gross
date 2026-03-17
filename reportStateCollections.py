@@ -23,7 +23,15 @@ from utils.generateHybridStatesHTMLReport import generate_hybrid_states_html_rep
 # ── CONFIGURATION ─────────────────────────────────────────────────────────────
 # =============================================================================
 
-INPUT_STATE_LIST = ["Telangana", "Andhra Pradesh"]
+INPUT_STATE_LIST = [
+    'Andaman And Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam',
+    'Bihar', 'Chandigarh', 'Chhattisgarh', 'Dadra And Nagar Haveli And Daman And Diu',
+    'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu And Kashmir',
+    'Jharkhand', 'Karnataka', 'Kerala', 'Ladakh', 'Madhya Pradesh', 'Maharashtra',
+    'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Puducherry', 'Punjab',
+    'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh',
+    'Uttarakhand', 'West Bengal'
+]
 
 DISTRICT_CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
 BMS_CONFIG_PATH      = os.path.join("utils", "bms_cities_config.json")
