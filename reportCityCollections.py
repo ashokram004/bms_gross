@@ -124,12 +124,12 @@ def get_district_seat_layout(driver, cinema_id, session_id):
     return None
 
 
-def district_fetch_venue_chunk(venues_chunk, city_name, processed_sids):
-    """Fetches District seat data for a chunk of venues. Owns its own driver."""
+def district_fetch_single_venue(cin, city_name, processed_sids):
+    """Fetches District seat data for a single venue. Owns its own driver."""
     results = []
     driver  = get_driver()
     try:
-        for cin in venues_chunk:
+        if True:  # single venue
             venue = cin['entityName']
             for s in cin.get('sessions', []):
                 sid = str(s.get('sid', ''))
@@ -256,16 +256,13 @@ def fetch_district_city(city_name, city_slug, city_index, total_cities):
         print(f"   ⚠️  [District][{city_name}] No sessions found.")
         return []
 
-    # Step 2: Fan out to VENUE_WORKERS parallel workers
+    # Step 2: Submit one task per venue — workers pick dynamically from the pool
     processed_sids = set()
-    chunk_size     = math.ceil(len(cinemas) / VENUE_WORKERS)
-    chunks         = [cinemas[i:i+chunk_size] for i in range(0, len(cinemas), chunk_size)]
-
-    city_results = []
+    city_results   = []
     with ThreadPoolExecutor(max_workers=VENUE_WORKERS) as executor:
         futures = [
-            executor.submit(district_fetch_venue_chunk, chunk, city_name, processed_sids)
-            for chunk in chunks
+            executor.submit(district_fetch_single_venue, cin, city_name, processed_sids)
+            for cin in cinemas
         ]
         for future in as_completed(futures):
             try:
@@ -376,14 +373,14 @@ def get_seat_layout(driver, venue_code, session_id):
     return None, "Unknown Error"
 
 
-def bms_fetch_venue_chunk(venues_chunk, city_name, local_bms_sids):
-    """Processes a chunk of BMS venues for one city. Owns its own driver."""
+def bms_fetch_single_venue(venue, city_name, local_bms_sids):
+    """Processes a single BMS venue. Owns its own driver."""
     results            = []
     driver             = get_driver()
     screen_details_map = {}
 
     try:
-        for venue in venues_chunk:
+        if True:  # single venue
             v_name = venue["additionalData"]["venueName"]
             v_code = venue["additionalData"]["venueCode"]
 
@@ -614,16 +611,13 @@ def fetch_bms_city(city_name, city_slug, city_index, total_cities):
         print(f"   ⚠️  [BMS][{city_name}] No venues found.")
         return []
 
-    # Step 2: Fan out to VENUE_WORKERS parallel workers
+    # Step 2: Submit one task per venue — workers pick dynamically from the pool
     local_bms_sids = set()
-    chunk_size     = math.ceil(len(venues) / VENUE_WORKERS)
-    chunks         = [venues[i:i+chunk_size] for i in range(0, len(venues), chunk_size)]
-
-    city_results = []
+    city_results   = []
     with ThreadPoolExecutor(max_workers=VENUE_WORKERS) as executor:
         futures = [
-            executor.submit(bms_fetch_venue_chunk, chunk, city_name, local_bms_sids)
-            for chunk in chunks
+            executor.submit(bms_fetch_single_venue, venue, city_name, local_bms_sids)
+            for venue in venues
         ]
         for future in as_completed(futures):
             try:
