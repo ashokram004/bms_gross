@@ -15,7 +15,7 @@ PAD = 56        # ← slightly more padding to match proportionally
 # ── WATERMARK ────────────────────────────────────────────────────────────────
 WATERMARK_ENABLED = True
 WATERMARK_TEXT    = "CINEPULSEBO"
-WATERMARK_OPACITY = 100
+WATERMARK_OPACITY = 90
 WATERMARK_ANGLE   = 35
 
 # ── EXACT COLOURS FROM REFERENCE ─────────────────────────────────────────────
