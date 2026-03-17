@@ -232,7 +232,8 @@ def get_district_seat_layout(cinema_id, session_id):
 def process_district_venue(cin, state, city_name, reporting_city, processed_sids):
     """Processes all shows for a single District venue using HTTP."""
     results = []
-    venue = cin['entityName']
+    # venue = cin['entityName']
+    venue = cin['cinemaInfo']['name']
     for s in cin.get('sessions', []):
         sid = str(s.get('sid', ''))
         cid = s.get('cid')
@@ -352,7 +353,10 @@ def fetch_district_city(state, city, city_counter_str):
             if not sessions:
                 return []  # Movie not showing in this city
             key      = list(sessions.keys())[0]
-            cinemas  = sessions[key].get('arrangedSessions', [])
+
+            # Use arrangedSessions (same as city reporter)
+            # cinemas = sessions[key].get('arrangedSessions', [])
+            cinemas = sessions[key]['pageData']['nearbyCinemas']
             break  # Success
         except Exception as e:
             print(f"   ❌ [District] {city_counter_str} {city_name:<15} — Error: {e}")
