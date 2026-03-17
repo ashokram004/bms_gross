@@ -21,6 +21,7 @@ import math
 
 from utils.generatePremiumStatesImageReport import generate_premium_states_image_report
 from utils.generateHybridStatesHTMLReport import generate_hybrid_states_html_report
+from utils.sendReportEmail import send_collection_report
 
 # =============================================================================
 # ── CONFIGURATION ─────────────────────────────────────────────────────────────
@@ -1221,6 +1222,18 @@ if __name__ == "__main__":
             f"reports/Total_States_Report_{ts}.html",
             movie_name=movie_name,
             show_date=show_date_fmt,
+        )
+
+        # Email reports
+        send_collection_report(
+            report_type="states",
+            movie_name=movie_name,
+            show_date=show_date_fmt,
+            attachment_paths=[
+                f"reports/Total_States_Report_{ts}.xlsx",
+                f"reports/Total_States_Report_Premium_{ts}.png",
+                f"reports/Total_States_Report_{ts}.html",
+            ],
         )
 
         total_elapsed = time.monotonic() - start_time

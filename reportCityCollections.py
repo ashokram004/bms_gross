@@ -19,6 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 
 from utils.generatePremiumCityImageReport import generate_premium_city_image_report
 from utils.generateHybridCityHTMLReport import generate_hybrid_city_html_report
+from utils.sendReportEmail import send_collection_report
 
 # =============================================================================
 # ── CONFIGURATION ─────────────────────────────────────────────────────────────
@@ -989,6 +990,18 @@ if __name__ == "__main__":
             final_data,
             DISTRICT_URL_TEMPLATE.replace("{city}", DISTRICT_CITIES[0]),
             f"reports/Cities_Report_{ts}.html",
+        )
+
+        # Email reports
+        send_collection_report(
+            report_type="cities",
+            movie_name=movie_name,
+            show_date=show_date_fmt,
+            attachment_paths=[
+                f"reports/Cities_Report_{ts}.xlsx",
+                f"reports/Cities_Report_{ts}.png",
+                f"reports/Cities_Report_{ts}.html",
+            ],
         )
 
         print(f"\n🏁 All done. Reports saved with timestamp {ts}")
