@@ -240,6 +240,7 @@ def district_process_venue_http(cin, city_name):
                 "sid":                  sid,
                 "city":                 city_name,
                 "venue":                venue,
+                "cinema_id":            str(cid) if cid else "",
                 "showTime":             s['showTime'],
                 "normalized_show_time": normalized_time,
                 "seat_category_map":    dict(seat_map),
@@ -643,6 +644,7 @@ def bms_fetch_single_venue(venue, city_name, use_http=False):
                             "sid":                  sid,
                             "city":                 city_name,
                             "venue":                v_name,
+                            "venue_code":           v_code,
                             "showTime":             show_time,
                             "normalized_show_time": normalized_time,
                             "seat_category_map":    seat_map,
@@ -777,6 +779,38 @@ def run_bms(city_pairs):
 
 
 # =============================================================================
+# ── VENUE MAPPING ─────────────────────────────────────────────────────────────
+# =============================================================================
+
+VENUE_MAP = {}   # BMS VenueCode → District cinema_id
+
+def load_venue_mapping():
+    global VENUE_MAP
+    mapping_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'utils', 'venue_mapping.json')
+    if os.path.exists(mapping_path):
+        with open(mapping_path, encoding='utf-8') as f:
+            data = json.load(f)
+        VENUE_MAP = data.get('bms_to_district', {})
+        print(f"📍 Loaded venue mapping: {len(VENUE_MAP)} BMS→District pairs")
+    else:
+        print("⚠️  Venue mapping not found (utils/venue_mapping.json). Venue-based matching disabled.")
+
+def _is_same_venue(bms_show, dist_show):
+    """Check venue mapping. Returns True/False if mapping exists, 'unmapped' if BMS venue not in map."""
+    bms_code = bms_show.get('venue_code', '')
+    dist_cid = dist_show.get('cinema_id', '')
+    if not bms_code or not dist_cid:
+        return 'unmapped'
+    mapped_dist = VENUE_MAP.get(bms_code)
+    if mapped_dist is None:
+        return 'unmapped'
+    return mapped_dist == dist_cid
+
+def _fuzzy_venue_ok(bms_show, dist_show, threshold=0.4):
+    """Fallback fuzzy name check for venues not in the mapping."""
+    return difflib.SequenceMatcher(None, bms_show['venue'].lower(), dist_show['venue'].lower()).ratio() > threshold
+
+# =============================================================================
 # ── DEDUP + MERGE ─────────────────────────────────────────────────────────────
 # =============================================================================
 
@@ -834,10 +868,15 @@ def merge_data(dist_data, bms_data):
                 if not b_sig or not d_sig or len(b_sig) != len(d_sig): continue
                 if all(bp == dp and abs(bs - ds) <= SEAT_TOLERANCE
                        for (bp, bs), (dp, ds) in zip(b_sig, d_sig)):
-                    ratio = difflib.SequenceMatcher(None, bms['venue'].lower(), c['venue'].lower()).ratio()
-                    if ratio > 0.4:
+                    venue_check = _is_same_venue(bms, c)
+                    if venue_check is True:
                         match = c
-                        print(f"   🔗 Price/Seat Sig: {bms['venue']} == {c['venue']} ({int(ratio*100)}%)")
+                        print(f"   🔗 Price/Seat Sig + Venue Map: {bms['venue']} == {c['venue']}")
+                        break
+                    elif venue_check == 'unmapped' and _fuzzy_venue_ok(bms, c):
+                        ratio = difflib.SequenceMatcher(None, bms['venue'].lower(), c['venue'].lower()).ratio()
+                        match = c
+                        print(f"   🔗 Price/Seat Sig + Fuzzy: {bms['venue']} == {c['venue']} ({int(ratio*100)}%)")
                         break
 
         # 3. Seat signature only
@@ -847,25 +886,36 @@ def merge_data(dist_data, bms_data):
                 d_seats = sorted(c.get('seat_category_map', {}).values())
                 if not b_seats or not d_seats or len(b_seats) != len(d_seats): continue
                 if all(abs(bs - ds) <= SEAT_TOLERANCE for bs, ds in zip(b_seats, d_seats)):
-                    ratio = difflib.SequenceMatcher(None, bms['venue'].lower(), c['venue'].lower()).ratio()
-                    if ratio > 0.4:
+                    venue_check = _is_same_venue(bms, c)
+                    if venue_check is True:
                         match = c
-                        print(f"   🔗 Seat Sig: {bms['venue']} == {c['venue']} ({int(ratio*100)}%)")
+                        print(f"   🔗 Seat Sig + Venue Map: {bms['venue']} == {c['venue']}")
+                        break
+                    elif venue_check == 'unmapped' and _fuzzy_venue_ok(bms, c):
+                        ratio = difflib.SequenceMatcher(None, bms['venue'].lower(), c['venue'].lower()).ratio()
+                        match = c
+                        print(f"   🔗 Seat Sig + Fuzzy: {bms['venue']} == {c['venue']} ({int(ratio*100)}%)")
                         break
 
-        # 4. Fuzzy venue + strict price set
+        # 4. Venue map + strict price set (with fuzzy fallback)
         if not match and candidates:
+            b_prices = {p for p in bms.get('price_seat_map', {}).keys() if p > 0}
             best_ratio = 0; best_cand = None
-            b_prices   = {p for p in bms.get('price_seat_map', {}).keys() if p > 0}
             for c in candidates:
                 d_prices = {p for p in c.get('price_seat_map', {}).keys() if p > 0}
                 if b_prices != d_prices: continue
-                ratio = difflib.SequenceMatcher(None, bms['venue'].lower(), c['venue'].lower()).ratio()
-                if ratio > 0.55 and ratio > best_ratio:
-                    best_ratio = ratio; best_cand = c
-            if best_cand:
+                venue_check = _is_same_venue(bms, c)
+                if venue_check is True:
+                    match = c
+                    print(f"   🔗 Venue Map + Price: {bms['venue']} == {c['venue']}")
+                    break
+                elif venue_check == 'unmapped':
+                    ratio = difflib.SequenceMatcher(None, bms['venue'].lower(), c['venue'].lower()).ratio()
+                    if ratio > 0.55 and ratio > best_ratio:
+                        best_ratio = ratio; best_cand = c
+            if not match and best_cand:
                 match = best_cand
-                print(f"   🔗 Fuzzy: {bms['venue']} == {match['venue']} ({int(best_ratio*100)}%)")
+                print(f"   🔗 Fuzzy + Price: {bms['venue']} == {match['venue']} ({int(best_ratio*100)}%)")
 
         if match:
             candidates.remove(match)
@@ -989,7 +1039,8 @@ if __name__ == "__main__":
     print(f"   District: {len(all_dist_data)} shows")
     print(f"   BMS:      {len(all_bms_data)} shows")
 
-    # Merge
+    # Load venue mapping and merge
+    load_venue_mapping()
     final_data = merge_data(all_dist_data, all_bms_data)
 
     # Reports

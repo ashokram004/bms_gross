@@ -1,0 +1,33 @@
+Hey Hi
+
+So far, our scraper is doing excellent job. Now, let's improve our duplicate removal.
+Our last matching is fuzzy match for venue names. That's very inaccurate currently.
+
+So what I decided is to get all the Indian cities list from both BMS and District apps separately.
+And for each city, map bms theatre to district theatre. We can use our existing cities config list which has all citites per state for both bms and district under our utils directory.
+So both bms and district will have venues per city even though the city names might differ in both platforms. But we are already aggregating those with our config right. because 
+we are already presenting city wise reports. SO we can use that logic.
+
+SO now we have cities for each. Now, we have to get the venues inside each city for both bms and district. 
+
+I have these APIs for bms and district:
+BMS:  https://in.bookmyshow.com/{city}/venue-list
+
+District: https://www.district.in/movies/cinemas-in-{city}
+
+we use their respective slugs in these urls {city}. both are get requests. I think district is normal means direct http, but bms is strit as we already tried for our speed imrpvement you know already.
+
+You can check the sample response for both the urls under "Duplicate removal tools directory". districtVenuesPercity and bmsVenuespercity.
+
+We run these for each and every city for all the states we have in our cities configs. Means all states in India.
+Ofcourse, it can take a lot of time. But this is just one time run effort. We will store the output mapping of district theatre to bms theatre or vice versa.
+
+So in responses, we have all the venues for that city. We run for all our cities and get all theatres for both bms and district. Store them separately. 
+Then, we can create another code file to map them properly. We can do this later. First, lets try to get venues and all useful data for all cities for both bms and district.
+Need separate files for bms and district with all cities. This we will run only 1 time. So make suire that we are not missing any imporant field or value in our outputs.
+
+
+
+Before starting the code, you can ask me any questions if you have. Take your own time. But it should be perfect.
+Once we get both platforms venues per city with all important fields. We can play with those 2 files and see how can we map them.
+
