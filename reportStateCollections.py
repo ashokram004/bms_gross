@@ -21,7 +21,6 @@ from fake_useragent import UserAgent
 from datetime import datetime, timedelta
 import difflib
 from collections import defaultdict, deque
-import math
 
 from utils.generatePremiumStatesImageReport import generate_premium_states_image_report
 from utils.generateHybridStatesHTMLReport import generate_hybrid_states_html_report
@@ -32,7 +31,7 @@ from utils.sendReportEmail import send_collection_report
 # =============================================================================
 
 INPUT_STATE_LIST = [
-    'Andhra Pradesh', 'Karnataka', 'Telangana'
+    'Andhra Pradesh','Karnataka','Telangana'
 ]
 
 DISTRICT_CONFIG_PATH = os.path.join("utils", "district_cities_config.json")
@@ -42,7 +41,7 @@ BMS_MAP_PATH         = os.path.join("utils", "bms_area_city_mapping.json")
 
 DISTRICT_URL          = "https://www.district.in/movies/ustaad-bhagat-singh-movie-tickets-in-{city}-MV161614"
 SHOW_DATE             = "2026-03-19"
-DISTRICT_URL_TEMPLATE = DISTRICT_URL + "?frmtid=v833gyzof7&fromdate=" + SHOW_DATE
+DISTRICT_URL_TEMPLATE = DISTRICT_URL + "?frmtid=TVQjMJQmE&fromdate=" + SHOW_DATE
 BMS_URL_TEMPLATE      = "https://in.bookmyshow.com/movies/{city}/ustaad-bhagat-singh/buytickets/ET00339939/20260319"
 
 ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
@@ -735,7 +734,7 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, use_
                         continue
 
                     else:
-                        # print(f"      ⚠️  [BMS][{city_name}] Error for {sid}: {error_msg}")
+                        print(f"      ⚠️  [BMS][{city_name}] Error for {sid}: {error_msg}")
                         if screenName in screen_details_map:
                             cached = screen_details_map[screenName]
                             seat_map     = cached
