@@ -98,7 +98,7 @@ bms_mapped = set(m['bms_to_district'].keys())
 dist_mapped = set(m['district_to_bms'].keys())
 
 print(f"\n{'='*60}")
-print("  POTENTIAL MISSED MATCHES (within 0.5km, name > 0.35)")
+print("  POTENTIAL MISSED MATCHES (within 1.5km, name > 0.5)")
 print(f"{'='*60}")
 
 missed = []
@@ -112,12 +112,12 @@ for bms_code, bv in bms_all.items():
         dlat = float(dv.get('lat') or 0)
         dlon = float(dv.get('lon') or 0)
         if dlat == 0: continue
-        if abs(blat - dlat) > 0.005: continue
-        if abs(blon - dlon) > 0.007: continue
+        if abs(blat - dlat) > 0.015: continue
+        if abs(blon - dlon) > 0.02: continue
         km = haversine_km(blat, blon, dlat, dlon)
-        if km > 0.5: continue
+        if km > 1.5: continue
         ratio = difflib.SequenceMatcher(None, bv['VenueName'].lower(), dv['cinema_name'].lower()).ratio()
-        if ratio > 0.35:
+        if ratio > 0.5:
             missed.append((ratio, km, bv['VenueName'], dv['cinema_name'], bms_code, dist_id))
 
 missed.sort(key=lambda x: -x[0])

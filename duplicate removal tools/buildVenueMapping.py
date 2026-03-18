@@ -18,20 +18,63 @@ DIST_PATH   = os.path.join(os.path.dirname(__file__), '..', 'duplicate removal t
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), '..', 'utils', 'venue_mapping.json')
 
 # ── Matching parameters ───────────────────────────────────────────────────────
-MAX_DISTANCE_KM    = 0.5
-MIN_COMBINED_SCORE = 0.20
-LAT_PREFILTER      = 0.005   # ~0.55km, skip haversine for obvious non-matches
-LON_PREFILTER      = 0.007   # ~0.55km at Indian latitudes
+MAX_DISTANCE_KM    = 1.5
+MIN_COMBINED_SCORE = 0.25
+LAT_PREFILTER      = 0.015   # ~1.6km, skip haversine for obvious non-matches
+LON_PREFILTER      = 0.02    # ~1.6km at Indian latitudes
+
+# Manual overrides for venues with broken GPS (>1.5km apart) but confirmed same
+# Format: {bms_venue_code: district_cinema_id}
+MANUAL_OVERRIDES = {
+    'IPCM': '1039499',    # IP Cinemas: IP Vijaya Mall, Varanasi (1710m GPS offset)
+    'PBOX': '51932',      # FUN Cinemas Playbox Cinema: Dimapur (1877m GPS offset)
+    'MPDX': '1016291',    # MPT DDX Drive in Cinema: Bhopal (1937m GPS offset)
+    'KAWS': '48675',      # Kalpana Cine World: Sonari (1698m GPS offset)
+    'GDMT': '876',        # Gold Cinema: Mathura (111m, noise-word identity)
+    'CPEB': '128',        # Cinepolis: Binnypet Mall (423m, name split mismatch)
+    'TCPK': '9530',       # Thrilok Cinemas: Pandalam (1517m GPS offset)
+    'CSQS': '58318',      # Cine Square Cinemas: Shirpur (1543m GPS offset)
+    'PLTT': '1992',       # Palace Theatre: Tiruchirappalli/Kulittalai (71m, noise-word identity)
+}
+
+# Pairs confirmed as FALSE POSITIVES during manual review — block these specific matches
+# Format: {bms_venue_code: district_cinema_id}
+EXCLUDED_PAIRS = {
+    ('MTLM', '22684'),    # "Mani Talkies" ≠ "K K Cinemas" (Minjur, 152m)
+    ('SLRT', '1102120'),  # "Laxmi 70MM" ≠ "Mythri Theatres Ganesh 70MM" (Shamshabad, 617m)
+    ('NLTC', '1037496'),  # "National Theatre" ≠ "Vidya Theatre" (Tambaram, 478m)
+    ('GKGM', '1020826'),  # "Gayathiri Cinemas" ≠ "Alankar Theatre" (Maduranthakam, 574m)
+    ('ANAC', '4184'),     # "Anna Cinemas" ≠ "Devi Cineplex" (Chennai, 124m — 'Anna' is street name)
+    ('APCY', '24929'),    # "Asian Paradise Cinemas" ≠ "Prathima Multiplex" (Karimnagar, 935m)
+    ('PAAD', '4881'),     # "Parameswara 70MM" ≠ "SVC Rama Krishna 70MM" (Shadnagar, 683m)
+    ('SRTW', '1039878'),  # "Sri Rama 70mm" ≠ "Mythri Theatres Srinivasa 70MM" (Wanaparthy, 764m)
+    ('ASHN', '14166'),    # "Asian Cinemart" ≠ "Sangeetha Theatre" (RC Puram, 1186m)
+    ('ATTK', '1082832'),  # "Annapurna Picture Palace" ≠ "Sri Raja Rajeshwari Picture Palace" (Narsapur, 188m)
+    ('BDCG', '47385'),    # "Bhumika Digital: Gandhinagar" ≠ "Bhoomika Theatre: Bengaluru" (DIFFERENT CITIES)
+    ('SISD', '9887'),     # "SSR Cinemas" ≠ "Durgapur Cinema" (Durgapur, 361m)
+    ('AMZB', '1041690'),  # "Asian Sri Mohan" ≠ "Asian Mukta A2, Sri Venkateswara Cinemax" (Zaheerabad, 700m)
+    ('AVMT', '3896'),     # "AVM Cinemas" ≠ "Sri Kumari Cinemas" (Uthukkottai, 31m)
+    ('RTDM', '4903'),     # "Ravi A/C 4K Laser" ≠ "Sai Chitra Theatre" (Madanapalle, 46m)
+    ('PTHK', '1102072'),  # "Prasanthi Theatre" ≠ "Sri Koteswara Theatre" (Kandukur, 24m)
+    ('PKHC', '1102077'),  # "Prakash Cinema" ≠ "Kailash Cinemas" (Salem, 21m)
+}
 
 # Noise words stripped before token comparison
 NOISE_WORDS = frozenset({
+    # Technical specs
     'a/c', 'ac', '2k', '4k', 'hdr', 'dolby', 'atmos', 'dts', 'digital',
     'laser', '7.1', 'ultrasound', '3d', 'imax', 'projection',
     'screen', 'screens', 'deluxe', 'premium', 'gold', 'platinum',
-    'only', 'recliners', 'sofa', 'seating', 'and', 'the', 'of', 'in',
-    'at', 'on', 'with', 'new', 'mini', 'cinemas', 'cinema', 'theatre',
-    'theater', 'theaters', 'theatres', 'multiplex', 'mall', 'talkies',
-    'complex', 'picture', 'palace', 'house',
+    'only', 'recliners', 'sofa', 'seating',
+    # Common words
+    'and', 'the', 'of', 'in', 'at', 'on', 'with', 'new', 'mini',
+    # Venue type words
+    'cinemas', 'cinema', 'theatre', 'theater', 'theaters', 'theatres',
+    'multiplex', 'mall', 'talkies', 'complex', 'picture', 'palace', 'house',
+    # Address words (District names often have these, BMS doesn't)
+    'near', 'road', 'street', 'colony', 'nagar', 'market', 'marg',
+    'highway', 'stand', 'bus', 'stop', 'old', 'opp', 'opposite',
+    'chowk', 'tower', 'sector', 'main', 'alias', 'plaza',
 })
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
@@ -46,22 +89,45 @@ def haversine_km(lat1, lon1, lat2, lon2):
     return R * 2 * math.asin(math.sqrt(a))
 
 
+def _split_alphanum(token):
+    """Split mixed alpha+digit tokens: 'nh22' → ['nh','22'], 'pvr' → ['pvr']."""
+    parts = re.findall(r'[a-z]+|\d+', token)
+    return parts if len(parts) > 1 else [token]
+
+
 def clean_tokens(raw_name, city=''):
-    """Lowercase, strip punctuation/noise/city tokens → set of meaningful words."""
-    name   = re.sub(r'[:\-,&()\[\]/.\'\"]', ' ', raw_name.lower())
-    tokens = [t for t in name.split() if t not in NOISE_WORDS and len(t) > 1]
+    """Lowercase, strip punctuation/noise/city tokens → set of meaningful words.
+    Falls back to keeping noise words if stripping them empties the set."""
+    name       = re.sub(r'[:\-,&()\[\]/.\'\"]', ' ', raw_name.lower())
+    raw_tokens = name.split()
+    # Split mixed alphanumeric tokens (nh22 → nh + 22)
+    expanded = []
+    for t in raw_tokens:
+        expanded.extend(_split_alphanum(t))
+    all_tokens = [t for t in expanded if len(t) > 1]
+    tokens     = [t for t in all_tokens if t not in NOISE_WORDS]
+    if not tokens:
+        # Name is entirely noise words (e.g. "Gold Cinema") — keep them all
+        tokens = all_tokens
+        return set(tokens)          # skip city stripping to preserve identity
     if city:
         city_toks = set(re.sub(r'[:\-,&()\[\]/.\'\"]', ' ', city.lower()).split())
-        tokens = [t for t in tokens if t not in city_toks]
+        result    = [t for t in tokens if t not in city_toks]
+        if result:
+            tokens = result         # only strip city if tokens remain
     return set(tokens)
 
 
 def name_similarity(bms_name, dist_name, bms_city='', dist_city=''):
-    """Fuzzy token Dice coefficient — matches tokens even with slight spelling diffs."""
+    """Fuzzy token Dice coefficient — matches tokens even with slight spelling diffs.
+    Falls back to raw SequenceMatcher (penalised) when token Dice gives 0."""
     bt = clean_tokens(bms_name, bms_city)
     dt = clean_tokens(dist_name, dist_city)
     if not bt or not dt:
-        return 0.0
+        # Both empty after stripping — use raw name comparison
+        cb = re.sub(r'[:\-,&()\[\]/.\'\"]', ' ', bms_name.lower()).strip()
+        cd = re.sub(r'[:\-,&()\[\]/.\'\"]', ' ', dist_name.lower()).strip()
+        return difflib.SequenceMatcher(None, cb, cd).ratio() * 0.4
     # For each BMS token, find a fuzzy match in District tokens (SequenceMatcher > 0.8)
     matches = 0
     used    = set()
@@ -74,7 +140,13 @@ def name_similarity(bms_name, dist_name, bms_city='', dist_city=''):
                 matches += 1
                 used.add(b)
                 break
-    return (2 * matches) / (len(bt) + len(dt))
+    dice = (2 * matches) / (len(bt) + len(dt))
+    if dice == 0:
+        # No token overlap — try raw name comparison as fallback (penalised)
+        cb = re.sub(r'[:\-,&()\[\]/.\'\"]', ' ', bms_name.lower()).strip()
+        cd = re.sub(r'[:\-,&()\[\]/.\'\"]', ' ', dist_name.lower()).strip()
+        return difflib.SequenceMatcher(None, cb, cd).ratio() * 0.35
+    return dice
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -137,8 +209,23 @@ def main():
             if km > MAX_DISTANCE_KM:
                 continue
 
+            if (bms_code, dist_id) in EXCLUDED_PAIRS:
+                continue
+
             ns       = name_similarity(bv['name'], dv['name'], bv['city'], dv['city'])
-            combined = ns * (1 - km / MAX_DISTANCE_KM)
+
+            # Require higher name similarity for distant venues to avoid false positives
+            if km < 0.05:          # Within 50m — same building, allow lower name match
+                min_ns = 0.15
+            elif km < 0.2:         # Within 200m — nearby, moderate threshold
+                min_ns = 0.25
+            else:                  # Farther — require strong name evidence
+                min_ns = 0.35
+            if ns < min_ns:
+                continue
+
+            # Additive score: name is primary (85%), distance is tiebreaker (15%)
+            combined = ns * 0.85 + (1 - km / MAX_DISTANCE_KM) * 0.15
 
             if combined >= MIN_COMBINED_SCORE:
                 all_candidates.append((combined, ns, km, bms_code, dist_id))
@@ -149,6 +236,25 @@ def main():
     used_dist     = set()
     mapping       = {}
     match_details = []
+
+    # Apply manual overrides first (GPS-broken pairs)
+    for bms_code, dist_id in MANUAL_OVERRIDES.items():
+        if bms_code in bms_venues and dist_id in dist_venues:
+            mapping[bms_code] = dist_id
+            used_bms.add(bms_code)
+            used_dist.add(dist_id)
+            km = haversine_km(bms_venues[bms_code]['lat'], bms_venues[bms_code]['lon'],
+                              dist_venues[dist_id]['lat'], dist_venues[dist_id]['lon'])
+            match_details.append({
+                'bms_code':     bms_code,
+                'bms_name':     bms_venues[bms_code]['name'],
+                'dist_id':      dist_id,
+                'dist_name':    dist_venues[dist_id]['name'],
+                'distance_km':  round(km, 4),
+                'name_score':   1.0,
+                'combined':     1.0,
+                'source':       'manual_override',
+            })
 
     for combined, ns, km, bms_code, dist_id in all_candidates:
         if bms_code in used_bms or dist_id in used_dist:
