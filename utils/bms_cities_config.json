@@ -11,6 +11,10 @@
     ],
     "Andhra Pradesh": [
         {
+            "name": "Vizag (Visakhapatnam)",
+            "slug": "vizag-visakhapatnam"
+        },
+        {
             "name": "Addanki",
             "slug": "addanki"
         },
@@ -1053,10 +1057,6 @@
         {
             "name": "Vissannapeta",
             "slug": "vissannapeta"
-        },
-        {
-            "name": "Vizag (Visakhapatnam)",
-            "slug": "vizag-visakhapatnam"
         },
         {
             "name": "Vizianagaram",
@@ -2575,6 +2575,10 @@
     ],
     "Karnataka": [
         {
+            "name": "Bengaluru",
+            "slug": "bengaluru"
+        },
+        {
             "name": "Alur",
             "slug": "alur"
         },
@@ -2649,10 +2653,6 @@
         {
             "name": "Belur",
             "slug": "belur"
-        },
-        {
-            "name": "Bengaluru",
-            "slug": "bengaluru"
         },
         {
             "name": "Bhadravati",
@@ -4175,6 +4175,14 @@
     ],
     "Maharashtra": [
         {
+            "name": "Mumbai",
+            "slug": "mumbai"
+        },
+        {
+            "name": "Pune",
+            "slug": "pune"
+        },
+        {
             "name": "Ahilyanagar (Ahmednagar)",
             "slug": "ahilyanagar-ahmednagar"
         },
@@ -4515,10 +4523,6 @@
             "slug": "miraj"
         },
         {
-            "name": "Mumbai",
-            "slug": "mumbai"
-        },
-        {
             "name": "Murtizapur",
             "slug": "murtizapur"
         },
@@ -4617,10 +4621,6 @@
         {
             "name": "Pulgaon",
             "slug": "pulgaon"
-        },
-        {
-            "name": "Pune",
-            "slug": "pune"
         },
         {
             "name": "Pusad",
@@ -5719,6 +5719,10 @@
     ],
     "Tamil Nadu": [
         {
+            "name": "Chennai",
+            "slug": "chennai"
+        },
+        {
             "name": "Acharapakkam",
             "slug": "acharapakkam"
         },
@@ -5793,10 +5797,6 @@
         {
             "name": "Chengalpattu",
             "slug": "chengalpattu"
-        },
-        {
-            "name": "Chennai",
-            "slug": "chennai"
         },
         {
             "name": "Chetpet",
@@ -6413,6 +6413,10 @@
     ],
     "Telangana": [
         {
+            "name": "Hyderabad",
+            "slug": "hyderabad"
+        },
+        {
             "name": "Achampet",
             "slug": "achampet"
         },
@@ -6591,10 +6595,6 @@
         {
             "name": "Huzurnagar",
             "slug": "huzurnagar"
-        },
-        {
-            "name": "Hyderabad",
-            "slug": "hyderabad"
         },
         {
             "name": "Ieeja",

@@ -1,0 +1,68 @@
+📝 Logging to: logs\run_20260317_195858.log
+
+🎬 Starting run — District: 401 cities | BMS: 579 cities
+   Both sources run in PARALLEL (2 threads)
+   District: 8 HTTP workers | BMS: 5 workers (fresh driver/city)
+   Rate limits: District 5 req/s | BMS 8 req/s
+   District: pure HTTP | BMS: Selenium (Cloudflare bypass)
+
+
+🚀 [District] Starting — 401 cities, 8 parallel workers, 5 req/sec
+
+
+🚀 [BMS] Starting — 579 cities, 5 parallel workers, 8 req/sec
+   Fresh Chrome driver per city | 3 venue workers per city
+
+   ✅ [District] [5/401] Allagadda       → Nandyal         | Shows: 1   | Gross: ₹10,500    
+   ✅ [District] [9/401] Anantapur       → Anantapur       | Shows: 5   | Gross: ₹717,000   
+   ✅ [District] [2/401] Addanki         → Ongole          | Shows: 7   | Gross: ₹148,950   
+   ✅ [District] [4/401] Akividu         → Bhimavaram      | Shows: 10  | Gross: ₹944,700   
+   ✅ [District] [6/401] Amalapuram      → Amalapuram      | Shows: 12  | Gross: ₹878,550   
+   🔍 [BMS] Seat layout mode: parallel HTTP
+   ✅ [BMS] [2/579] Addanki         → Ongole          | Shows: 10  | Gross: ₹1,671,900 
+   ✅ [District] [15/401] Atmakur Nellore → Nellore         | Shows: 7   | Gross: ₹2,200     
+   ✅ [District] [16/401] Attili          → Tanuku          | Shows: 6   | Gross: ₹553,700   
+   ✅ [District] [17/401] B Kothakota     → Madanapalle     | Shows: 1   | Gross: ₹149,000   
+   ✅ [BMS] [7/579] Amadalavalasa   → Srikakulam      | Shows: 5   | Gross: ₹131,600   
+   ✅ [BMS] [8/579] Amalapuram      → Amalapuram      | Shows: 20  | Gross: ₹793,550   
+   ✅ [District] [19/401] Bangarupallem   → Chittoor        | Shows: 7   | Gross: ₹378,900   
+   ✅ [District] [20/401] Bapatla         → Guntur          | Shows: 9   | Gross: ₹569,500   
+Traceback (most recent call last):
+  File "G:\Fun Projects\BMS District Collections\reportStateCollections.py", line 1185, in <module>
+    all_dist_data = district_future.result()
+  File "C:\Program Files\Python314\Lib\concurrent\futures\_base.py", line 445, in result
+    self._condition.wait(timeout)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Program Files\Python314\Lib\threading.py", line 369, in wait
+    waiter.acquire()
+    ~~~~~~~~~~~~~~^^
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\Fun Projects\BMS District Collections\reportStateCollections.py", line 1181, in <module>
+    with ThreadPoolExecutor(max_workers=2) as pool:
+         ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python314\Lib\concurrent\futures\_base.py", line 667, in __exit__
+    self.shutdown(wait=True)
+    ~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Program Files\Python314\Lib\concurrent\futures\thread.py", line 273, in shutdown
+    t.join()
+    ~~~~~~^^
+  File "C:\Program Files\Python314\Lib\threading.py", line 1133, in join
+    self._os_thread_handle.join(timeout)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+Traceback (most recent call last):
+  File "G:\Fun Projects\BMS District Collections\reportStateCollections.py", line 1185, in <module>
+    all_dist_data = district_future.result()Exception ignored on threading shutdown:
+Traceback (most recent call last):
+  File "C:\Program Files\Python314\Lib\threading.py", line 1577, in _shutdown
+    atexit_call()
+  File "C:\Program Files\Python314\Lib\threading.py", line 1548, in <lambda>
+    _threading_atexits.append(lambda: func(*arg, **kwargs))
+  File "C:\Program Files\Python314\Lib\concurrent\futures\thread.py", line 31, in _python_exit
+    t.join()
+  File "C:\Program Files\Python314\Lib\threading.py", line 1133, in join
+    self._os_thread_handle.join(timeout)
+KeyboardInterrupt: 

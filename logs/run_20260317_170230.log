@@ -1,0 +1,653 @@
+📝 Logging to: logs\run_20260317_170230.log
+
+🎬 Starting run — District: 1316 cities | BMS: 1967 cities
+   Both sources run in PARALLEL (2 threads)
+   District: 8 HTTP workers | BMS: 4 Chrome workers
+   Rate limits: District 5 req/s | BMS 5 req/s
+   District: pure HTTP | BMS: Selenium (Cloudflare bypass)
+
+
+🚀 [District] Starting — 1316 cities, 8 parallel workers, 5 req/sec
+
+
+🚀 [BMS] Starting — 1967 cities, 4 worker threads, 5 req/sec
+
+   ✅ [District] [4/1316] Adoni           → Kurnool         | Shows: 4   | Gross: ₹12,390    
+   ✅ [District] [1/1316] Port Blair      → Port Blair      | Shows: 5   | Gross: ₹128,860   
+   ✅ [District] [5/1316] Akividu         → Bhimavaram      | Shows: 6   | Gross: ₹177,354   
+   ✅ [District] [10/1316] Anantapur       → Anantapur       | Shows: 4   | Gross: ₹183,822   
+   ✅ [BMS] [2/1967] Addanki         → Ongole          | Shows: 2   | Gross: ₹119,205   
+   ✅ [District] [13/1316] Angara          → Rajahmundry     | Shows: 2   | Gross: ₹54,180    
+   ✅ [District] [11/1316] Anaparthi       → Rajahmundry     | Shows: 7   | Gross: ₹232,918   
+   ✅ [District] [3/1316] Addanki         → Ongole          | Shows: 12  | Gross: ₹18,800    
+      ⚠️  [BMS][Vizag (Visakhapatnam)] Error for 124862: We are facing some connectivity issue with the cinema. Please try again after some time or proceed with another cinema. (#5)
+         ⚡ Smart Fallback: ATMOS (156 seats)
+   ✅ [District] [12/1316] Anaparthy       → Rajahmundry     | Shows: 7   | Gross: ₹232,628   
+   ✅ [District] [16/1316] Atmakur Nellore → Nellore         | Shows: 3   | Gross: ₹60,700    
+   ✅ [District] [18/1316] B Kothakota     → Madanapalle     | Shows: 2   | Gross: ₹54,789    
+   ✅ [District] [7/1316] Amalapuram      → Amalapuram      | Shows: 15  | Gross: ₹260,210   
+   ✅ [District] [20/1316] Bangarupallem   → Chittoor        | Shows: 2   | Gross: ₹5,040     
+   ✅ [District] [14/1316] Atchutapuram    → Visakhapatnam   | Shows: 9   | Gross: ₹182,960   
+      ⚠️  [BMS][Vizag (Visakhapatnam)] Error for 89952: This venue is currently experiencing high demand. Please try again in a few moments or consider selecting a different venue. (#-112)
+   ✅ [District] [2/1316] Visakhapatnam   → Visakhapatnam   | Shows: 21  | Gross: ₹502,688   
+      ⚠️  [BMS][Vizag (Visakhapatnam)] Error for 89946: This venue is currently experiencing high demand. Please try again in a few moments or consider selecting a different venue. (#-112)
+      🔄 [BMS Worker-4] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [26/1316] Buchireddypalem → Nellore         | Shows: 3   | Gross: ₹60,500    
+   ✅ [District] [8/1316] Anakapalle      → Visakhapatnam   | Shows: 22  | Gross: ₹497,602   
+   ✅ [District] [27/1316] Chagallu        → Rajahmundry     | Shows: 2   | Gross: ₹54,180    
+      🔄 [BMS Worker-2] 10 empty cities in a row → refreshing driver...
+      🔄 [BMS Worker-3] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [25/1316] Bobbili         → Vizianagaram    | Shows: 8   | Gross: ₹113,680   
+      🔄 [BMS Worker-4] Driver refreshed
+   ✅ [District] [30/1316] Cherukupalli    → Guntur          | Shows: 2   | Gross: ₹15,900    
+      ⚠️  [BMS][Vizag (Visakhapatnam)] Error for 89708: Message: script timeout
+  (Session info: chrome=146.0.7680.80)
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff6df8f10a5+14cc5]
+	chromedriver!GetHandleVerifier [0x7ff6df8f1110+14d30]
+	chromedriver!(No symbol) [0x7ff6df65d956]
+	chromedriver!(No symbol) [0x7ff6df705b21]
+	chromedriver!(No symbol) [0x7ff6df6e036a]
+	chromedriver!(No symbol) [0x7ff6df703f7b]
+	chromedriver!(No symbol) [0x7ff6df6a96e8]
+	chromedriver!(No symbol) [0x7ff6df6aa5d3]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf5ddd+3199fd]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf04bd+3140dd]
+	chromedriver!GetHandleVerifier [0x7ff6dfc129ba+3365da]
+	chromedriver!GetHandleVerifier [0x7ff6df90ca45+30665]
+	chromedriver!GetHandleVerifier [0x7ff6df915b9c+397bc]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa4c4+1e0e4]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa676+1e296]
+	chromedriver!GetHandleVerifier [0x7ff6df8def87+2ba7]
+	KERNEL32!BaseThreadInitThunk [0x7ff8387ae8d7+17]
+	ntdll!RtlUserThreadStart [0x7ff83a3ec48c+2c]
+
+   ✅ [District] [22/1316] Bendamurulanka  → Amalapuram      | Shows: 11  | Gross: ₹217,750   
+   ✅ [District] [17/1316] Attili          → Tanuku          | Shows: 16  | Gross: ₹330,400   
+      🔄 [BMS Worker-2] Driver refreshed
+      🔄 [BMS Worker-3] Driver refreshed
+   ✅ [District] [31/1316] Chilakaluripet  → Guntur          | Shows: 3   | Gross: ₹77,865    
+   ✅ [District] [24/1316] Bhimavaram      → Bhimavaram      | Shows: 13  | Gross: ₹196,766   
+   ✅ [District] [21/1316] Bapatla         → Guntur          | Shows: 16  | Gross: ₹82,860    
+      ⚠️  [BMS][Vizag (Visakhapatnam)] Error for 89945: Message: script timeout
+  (Session info: chrome=146.0.7680.80)
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff6df8f10a5+14cc5]
+	chromedriver!GetHandleVerifier [0x7ff6df8f1110+14d30]
+	chromedriver!(No symbol) [0x7ff6df65d956]
+	chromedriver!(No symbol) [0x7ff6df705b21]
+	chromedriver!(No symbol) [0x7ff6df6e036a]
+	chromedriver!(No symbol) [0x7ff6df703f7b]
+	chromedriver!(No symbol) [0x7ff6df6a96e8]
+	chromedriver!(No symbol) [0x7ff6df6aa5d3]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf5ddd+3199fd]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf04bd+3140dd]
+	chromedriver!GetHandleVerifier [0x7ff6dfc129ba+3365da]
+	chromedriver!GetHandleVerifier [0x7ff6df90ca45+30665]
+	chromedriver!GetHandleVerifier [0x7ff6df915b9c+397bc]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa4c4+1e0e4]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa676+1e296]
+	chromedriver!GetHandleVerifier [0x7ff6df8def87+2ba7]
+	KERNEL32!BaseThreadInitThunk [0x7ff8387ae8d7+17]
+	ntdll!RtlUserThreadStart [0x7ff83a3ec48c+2c]
+
+   ✅ [District] [29/1316] Cheepurupalli   → Vizianagaram    | Shows: 12  | Gross: ₹277,609   
+   ✅ [District] [32/1316] Chimakurthy     → Ongole          | Shows: 12  | Gross: ₹18,800    
+   ✅ [District] [36/1316] Chodavaram      → Visakhapatnam   | Shows: 9   | Gross: ₹182,960   
+      ⚠️  [BMS][Vizag (Visakhapatnam)] Error for 89960: Message: script timeout
+  (Session info: chrome=146.0.7680.80)
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff6df8f10a5+14cc5]
+	chromedriver!GetHandleVerifier [0x7ff6df8f1110+14d30]
+	chromedriver!(No symbol) [0x7ff6df65d956]
+	chromedriver!(No symbol) [0x7ff6df705b21]
+	chromedriver!(No symbol) [0x7ff6df6e036a]
+	chromedriver!(No symbol) [0x7ff6df703f7b]
+	chromedriver!(No symbol) [0x7ff6df6a96e8]
+	chromedriver!(No symbol) [0x7ff6df6aa5d3]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf5ddd+3199fd]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf04bd+3140dd]
+	chromedriver!GetHandleVerifier [0x7ff6dfc129ba+3365da]
+	chromedriver!GetHandleVerifier [0x7ff6df90ca45+30665]
+	chromedriver!GetHandleVerifier [0x7ff6df915b9c+397bc]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa4c4+1e0e4]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa676+1e296]
+	chromedriver!GetHandleVerifier [0x7ff6df8def87+2ba7]
+	KERNEL32!BaseThreadInitThunk [0x7ff8387ae8d7+17]
+	ntdll!RtlUserThreadStart [0x7ff83a3ec48c+2c]
+
+   ✅ [District] [39/1316] Dharmavaram     → Anantapur       | Shows: 4   | Gross: ₹183,822   
+   📊 [BMS] Progress: 50/1967 cities done
+   ✅ [District] [33/1316] Chipurupalle    → Vizianagaram    | Shows: 14  | Gross: ₹332,598   
+   ✅ [District] [28/1316] Chebrolu        → Guntur          | Shows: 21  | Gross: ₹601,806   
+   ✅ [District] [41/1316] Dowlaiswaram    → Rajahmundry     | Shows: 2   | Gross: ₹54,470    
+      🔄 [BMS Worker-4] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [35/1316] Chittoor        → Chittoor        | Shows: 14  | Gross: ₹219,420   
+   ✅ [District] [34/1316] Chirala         → Guntur          | Shows: 16  | Gross: ₹83,160    
+   ✅ [District] [37/1316] Darsi           → Ongole          | Shows: 12  | Gross: ₹18,800    
+   ✅ [District] [42/1316] Draksharamam    → Kakinada        | Shows: 4   | Gross: ₹146,969   
+      ⚠️  [BMS][Vizag (Visakhapatnam)] Error for 89709: Message: script timeout
+  (Session info: chrome=146.0.7680.80)
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff6df8f10a5+14cc5]
+	chromedriver!GetHandleVerifier [0x7ff6df8f1110+14d30]
+	chromedriver!(No symbol) [0x7ff6df65d956]
+	chromedriver!(No symbol) [0x7ff6df705b21]
+	chromedriver!(No symbol) [0x7ff6df6e036a]
+	chromedriver!(No symbol) [0x7ff6df703f7b]
+	chromedriver!(No symbol) [0x7ff6df6a96e8]
+	chromedriver!(No symbol) [0x7ff6df6aa5d3]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf5ddd+3199fd]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf04bd+3140dd]
+	chromedriver!GetHandleVerifier [0x7ff6dfc129ba+3365da]
+	chromedriver!GetHandleVerifier [0x7ff6df90ca45+30665]
+	chromedriver!GetHandleVerifier [0x7ff6df915b9c+397bc]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa4c4+1e0e4]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa676+1e296]
+	chromedriver!GetHandleVerifier [0x7ff6df8def87+2ba7]
+	KERNEL32!BaseThreadInitThunk [0x7ff8387ae8d7+17]
+	ntdll!RtlUserThreadStart [0x7ff83a3ec48c+2c]
+
+      ⚠️  [BMS][Vizag (Visakhapatnam)] Error for 89952: This venue is currently experiencing high demand. Please try again in a few moments or consider selecting a different venue. (#-112)
+         ❌ [BMS][Vizag (Visakhapatnam)] Hard Fallback 400/200
+      🔄 [BMS Worker-2] 10 empty cities in a row → refreshing driver...
+      🔄 [BMS Worker-3] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [50/1316] Gokavaram       → Rajahmundry     | Shows: 2   | Gross: ₹54,470    
+      🔄 [BMS Worker-4] Driver refreshed
+   ✅ [District] [46/1316] Eluru           → Eluru           | Shows: 6   | Gross: ₹177,000   
+      🔄 [BMS Worker-2] Driver refreshed
+      🔄 [BMS Worker-3] Driver refreshed
+   ✅ [District] [51/1316] Gorantla        → Anantapur       | Shows: 3   | Gross: ₹50,880    
+      ⚠️  [BMS][Vizag (Visakhapatnam)] Error for 89946: Message: script timeout
+  (Session info: chrome=146.0.7680.80)
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff6df8f10a5+14cc5]
+	chromedriver!GetHandleVerifier [0x7ff6df8f1110+14d30]
+	chromedriver!(No symbol) [0x7ff6df65d956]
+	chromedriver!(No symbol) [0x7ff6df705b21]
+	chromedriver!(No symbol) [0x7ff6df6e036a]
+	chromedriver!(No symbol) [0x7ff6df703f7b]
+	chromedriver!(No symbol) [0x7ff6df6a96e8]
+	chromedriver!(No symbol) [0x7ff6df6aa5d3]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf5ddd+3199fd]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf04bd+3140dd]
+	chromedriver!GetHandleVerifier [0x7ff6dfc129ba+3365da]
+	chromedriver!GetHandleVerifier [0x7ff6df90ca45+30665]
+	chromedriver!GetHandleVerifier [0x7ff6df915b9c+397bc]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa4c4+1e0e4]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa676+1e296]
+	chromedriver!GetHandleVerifier [0x7ff6df8def87+2ba7]
+	KERNEL32!BaseThreadInitThunk [0x7ff8387ae8d7+17]
+	ntdll!RtlUserThreadStart [0x7ff83a3ec48c+2c]
+
+         ❌ [BMS][Vizag (Visakhapatnam)] Hard Fallback 400/200
+   ✅ [District] [45/1316] Elamanchili     → Visakhapatnam   | Shows: 12  | Gross: ₹197,063   
+   ✅ [District] [47/1316] Gajapathinagaram → Vizianagaram    | Shows: 12  | Gross: ₹250,518   
+   ✅ [District] [53/1316] Gudur           → Nellore         | Shows: 6   | Gross: ₹58,185    
+      ⚠️  [BMS][Vizag (Visakhapatnam)] Error for 89708: Message: script timeout
+  (Session info: chrome=146.0.7680.80)
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff6df8f10a5+14cc5]
+	chromedriver!GetHandleVerifier [0x7ff6df8f1110+14d30]
+	chromedriver!(No symbol) [0x7ff6df65d956]
+	chromedriver!(No symbol) [0x7ff6df705b21]
+	chromedriver!(No symbol) [0x7ff6df6e036a]
+	chromedriver!(No symbol) [0x7ff6df703f7b]
+	chromedriver!(No symbol) [0x7ff6df6a96e8]
+	chromedriver!(No symbol) [0x7ff6df6aa5d3]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf5ddd+3199fd]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf04bd+3140dd]
+	chromedriver!GetHandleVerifier [0x7ff6dfc129ba+3365da]
+	chromedriver!GetHandleVerifier [0x7ff6df90ca45+30665]
+	chromedriver!GetHandleVerifier [0x7ff6df915b9c+397bc]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa4c4+1e0e4]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa676+1e296]
+	chromedriver!GetHandleVerifier [0x7ff6df8def87+2ba7]
+	KERNEL32!BaseThreadInitThunk [0x7ff8387ae8d7+17]
+	ntdll!RtlUserThreadStart [0x7ff83a3ec48c+2c]
+
+         ❌ [BMS][Vizag (Visakhapatnam)] Hard Fallback 400/200
+   ✅ [District] [54/1316] Gudur (Kurnool) → Kurnool         | Shows: 4   | Gross: ₹138,237   
+   ✅ [District] [55/1316] Guntakal        → Anantapur       | Shows: 3   | Gross: ₹23,160    
+   📊 [District] Progress: 50/1316 cities done
+   ✅ [District] [49/1316] Ganapavaram     → Tadepalligudem  | Shows: 19  | Gross: ₹416,366   
+   ✅ [District] [52/1316] Gudivada        → Vijayawada      | Shows: 14  | Gross: ₹350,356   
+   ✅ [District] [57/1316] Gurazala        → Guntur          | Shows: 4   | Gross: ₹30,345    
+      🔄 [BMS Worker-4] 10 empty cities in a row → refreshing driver...   ✅ [District] [44/1316] Edlapadu        → Guntur          | Shows: 22  | Gross: ₹664,421   
+
+      ⚠️  [BMS][Vizag (Visakhapatnam)] Error for 89945: Message: script timeout
+  (Session info: chrome=146.0.7680.80)
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff6df8f10a5+14cc5]
+	chromedriver!GetHandleVerifier [0x7ff6df8f1110+14d30]
+	chromedriver!(No symbol) [0x7ff6df65d956]
+	chromedriver!(No symbol) [0x7ff6df705b21]
+	chromedriver!(No symbol) [0x7ff6df6e036a]
+	chromedriver!(No symbol) [0x7ff6df703f7b]
+	chromedriver!(No symbol) [0x7ff6df6a96e8]
+	chromedriver!(No symbol) [0x7ff6df6aa5d3]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf5ddd+3199fd]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf04bd+3140dd]
+	chromedriver!GetHandleVerifier [0x7ff6dfc129ba+3365da]
+	chromedriver!GetHandleVerifier [0x7ff6df90ca45+30665]
+	chromedriver!GetHandleVerifier [0x7ff6df915b9c+397bc]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa4c4+1e0e4]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa676+1e296]
+	chromedriver!GetHandleVerifier [0x7ff6df8def87+2ba7]
+	KERNEL32!BaseThreadInitThunk [0x7ff8387ae8d7+17]
+	ntdll!RtlUserThreadStart [0x7ff83a3ec48c+2c]
+
+         ❌ [BMS][Vizag (Visakhapatnam)] Hard Fallback 400/200
+   ✅ [District] [48/1316] Gajuwaka        → Visakhapatnam   | Shows: 21  | Gross: ₹502,153   
+   ✅ [District] [60/1316] Hiramandalam    → Srikakulam      | Shows: 2   | Gross: ₹32,900    
+      🔄 [BMS Worker-3] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [58/1316] Hanuman Junction → Vijayawada      | Shows: 6   | Gross: ₹177,000   
+      🔄 [BMS Worker-4] Driver refreshed
+      🔄 [BMS Worker-2] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [59/1316] Hindupuram      → Anantapur       | Shows: 3   | Gross: ₹74,700    
+   ✅ [District] [62/1316] Indukurpet      → Nellore         | Shows: 3   | Gross: ₹60,500    
+   ✅ [District] [64/1316] Jaggayyapeta    → Vijayawada      | Shows: 4   | Gross: ₹56,700    
+      ⚠️  [BMS][Vizag (Visakhapatnam)] Error for 89960: Message: script timeout
+  (Session info: chrome=146.0.7680.80)
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff6df8f10a5+14cc5]
+	chromedriver!GetHandleVerifier [0x7ff6df8f1110+14d30]
+	chromedriver!(No symbol) [0x7ff6df65d956]
+	chromedriver!(No symbol) [0x7ff6df705b21]
+	chromedriver!(No symbol) [0x7ff6df6e036a]
+	chromedriver!(No symbol) [0x7ff6df703f7b]
+	chromedriver!(No symbol) [0x7ff6df6a96e8]
+	chromedriver!(No symbol) [0x7ff6df6aa5d3]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf5ddd+3199fd]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf04bd+3140dd]
+	chromedriver!GetHandleVerifier [0x7ff6dfc129ba+3365da]
+	chromedriver!GetHandleVerifier [0x7ff6df90ca45+30665]
+	chromedriver!GetHandleVerifier [0x7ff6df915b9c+397bc]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa4c4+1e0e4]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa676+1e296]
+	chromedriver!GetHandleVerifier [0x7ff6df8def87+2ba7]
+	KERNEL32!BaseThreadInitThunk [0x7ff8387ae8d7+17]
+	ntdll!RtlUserThreadStart [0x7ff83a3ec48c+2c]
+
+         ❌ [BMS][Vizag (Visakhapatnam)] Hard Fallback 400/200
+   ✅ [District] [63/1316] Jaggampeta      → Kakinada        | Shows: 5   | Gross: ₹178,824   
+   ✅ [District] [66/1316] Jammalamadugu   → Kadapa          | Shows: 3   | Gross: ₹12,150    
+      ⚠️  [BMS][Vizag (Visakhapatnam)] Error for 89709: This venue is currently experiencing high demand. Please try again in a few moments or consider selecting a different venue. (#-112)
+         ❌ [BMS][Vizag (Visakhapatnam)] Hard Fallback 400/200
+      🔄 [BMS Worker-3] Driver refreshed
+   ✅ [BMS] [1/1967] Vizag (Visakhapatnam) → Visakhapatnam   | Shows: 36  | Gross: ₹1,140,319 
+   ✅ [District] [68/1316] Kadapa          → Kadapa          | Shows: 4   | Gross: ₹124,450   
+   ✅ [District] [65/1316] Jami            → Vizianagaram    | Shows: 7   | Gross: ₹223,924   
+   ✅ [District] [70/1316] Kaikaluru       → Bhimavaram      | Shows: 6   | Gross: ₹177,000   
+   📊 [BMS] Progress: 100/1967 cities done
+   ✅ [District] [73/1316] Kandukur        → Ongole          | Shows: 4   | Gross: ₹31,105    
+   ✅ [District] [71/1316] Kakinada        → Kakinada        | Shows: 5   | Gross: ₹178,824   
+   ✅ [District] [78/1316] Kasibugga       → Srikakulam      | Shows: 1   | Gross: ₹15,700    
+   ✅ [District] [81/1316] Kavali          → Nellore         | Shows: 4   | Gross: ₹31,105    
+   ✅ [District] [79/1316] Kathipudi       → Kakinada        | Shows: 5   | Gross: ₹178,534   
+      🔄 [BMS Worker-4] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [82/1316] Kodumur         → Kurnool         | Shows: 4   | Gross: ₹138,237   
+   ✅ [District] [80/1316] Katrenikona     → Amalapuram      | Shows: 7   | Gross: ₹75,100    
+   ✅ [District] [86/1316] Kotabommali     → Srikakulam      | Shows: 1   | Gross: ₹15,700    
+      🔄 [BMS Worker-4] Driver refreshed
+      🔄 [BMS Worker-1] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [88/1316] Kothapeta       → Rajahmundry     | Shows: 2   | Gross: ₹53,600    
+      🔄 [BMS Worker-3] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [89/1316] Kovvur          → Rajahmundry     | Shows: 2   | Gross: ₹53,600    
+   ✅ [District] [85/1316] Kota Nellore    → Nellore         | Shows: 6   | Gross: ₹58,185    
+      🔄 [BMS Worker-2] Driver refreshed
+   ✅ [District] [91/1316] Kuppam          → Chittoor        | Shows: 2   | Gross: ₹7,620     
+      🔄 [BMS Worker-1] Driver refreshed
+      🔄 [BMS Worker-3] Driver refreshed
+   ✅ [District] [43/1316] Duggirala       → Guntur          | Shows: 54  | Gross: ₹1,595,621 
+   ✅ [District] [90/1316] Krosuru         → Guntur          | Shows: 7   | Gross: ₹60,310    
+   ✅ [District] [93/1316] Kurnool         → Kurnool         | Shows: 4   | Gross: ₹138,414   
+   ✅ [District] [94/1316] Lakkavaram      → Amalapuram      | Shows: 3   | Gross: ₹26,100    
+   ✅ [District] [72/1316] Kanchikacherla  → Vijayawada      | Shows: 29  | Gross: ₹930,666   
+   ✅ [District] [95/1316] Macherla        → Guntur          | Shows: 4   | Gross: ₹30,345    
+   ✅ [District] [96/1316] Machilipatnam   → Vijayawada      | Shows: 4   | Gross: ₹114,322   
+   ✅ [District] [97/1316] Madanapalle     → Madanapalle     | Shows: 2   | Gross: ₹54,369    
+      🔄 [BMS Worker-4] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [99/1316] Madugula        → Visakhapatnam   | Shows: 2   | Gross: ₹29,783    
+   📊 [BMS] Progress: 150/1967 cities done
+   ✅ [District] [84/1316] Konithiwada     → Bhimavaram      | Shows: 23  | Gross: ₹450,190   
+      🔄 [BMS Worker-2] 10 empty cities in a row → refreshing driver...
+      🔄 [BMS Worker-4] Driver refreshed
+   ✅ [District] [102/1316] Mandapeta       → Rajahmundry     | Shows: 4   | Gross: ₹153,664   
+      🔄 [BMS Worker-3] 10 empty cities in a row → refreshing driver...
+      🔄 [BMS Worker-1] 10 empty cities in a row → refreshing driver...
+      🔄 [BMS Worker-2] Driver refreshed
+      🔄 [BMS Worker-3] Driver refreshed
+   ✅ [District] [101/1316] Malkipuram      → Amalapuram      | Shows: 7   | Gross: ₹90,540    
+   ✅ [District] [98/1316] Madhavaram      → Nellore         | Shows: 9   | Gross: ₹211,750   
+   📊 [District] Progress: 100/1316 cities done
+   ✅ [District] [100/1316] Malikipuram     → Amalapuram      | Shows: 10  | Gross: ₹230,640   
+      🔄 [BMS Worker-1] Driver refreshed
+   ✅ [District] [76/1316] Kankipadu       → Vijayawada      | Shows: 35  | Gross: ₹1,006,962 
+   ✅ [District] [106/1316] Mogalthur       → Bhimavaram      | Shows: 3   | Gross: ₹19,950    
+   ✅ [District] [92/1316] Kurmannapalem   → Visakhapatnam   | Shows: 21  | Gross: ₹501,945   
+   ✅ [District] [104/1316] Martur          → Ongole          | Shows: 3   | Gross: ₹78,165    
+   ✅ [District] [56/1316] Guntur          → Guntur          | Shows: 54  | Gross: ₹1,595,156 
+   ✅ [BMS] [166/1967] Nellore         → Nellore         | Shows: 3   | Gross: ₹83,605    
+   ✅ [District] [109/1316] Nagaram         → Guntur          | Shows: 6   | Gross: ₹178,500      ✅ [District] [116/1316] Narasannapeta   → Srikakulam      | Shows: 3   | Gross: ₹92,223    
+
+   ✅ [District] [114/1316] Nandigama       → Vijayawada      | Shows: 4   | Gross: ₹56,510    
+   ✅ [District] [117/1316] Narasaraopet    → Guntur          | Shows: 3   | Gross: ₹78,165    
+   ✅ [District] [112/1316] Nallajerla      → Tanuku          | Shows: 6   | Gross: ₹103,050   
+      🔄 [BMS Worker-4] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [107/1316] Mummidivaram    → Amalapuram      | Shows: 11  | Gross: ₹116,460   
+   ✅ [District] [120/1316] Neelapalle      → Kakinada        | Shows: 5   | Gross: ₹178,480   
+   ✅ [District] [119/1316] Narsipatnam     → Visakhapatnam   | Shows: 6   | Gross: ₹72,150    
+   ✅ [District] [123/1316] Nidadavolu      → Tanuku          | Shows: 2   | Gross: ₹53,890    
+      🔄 [BMS Worker-4] Driver refreshed
+   ✅ [District] [111/1316] Naidupeta       → Nellore         | Shows: 13  | Gross: ₹133,575   
+      🔄 [BMS Worker-3] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [121/1316] Nellimarla      → Vizianagaram    | Shows: 8   | Gross: ₹209,279   
+   📊 [BMS] Progress: 200/1967 cities done
+   ✅ [District] [124/1316] Nindra          → Tirupati        | Shows: 3   | Gross: ₹13,690    
+   ✅ [District] [126/1316] Ongole          → Ongole          | Shows: 3   | Gross: ₹133,766   
+      🔄 [BMS Worker-1] 10 empty cities in a row → refreshing driver...
+      🔄 [BMS Worker-2] 10 empty cities in a row → refreshing driver...
+      🔄 [BMS Worker-3] Driver refreshed
+   ✅ [District] [118/1316] Narsapur        → Bhimavaram      | Shows: 13  | Gross: ₹110,490   
+   ✅ [District] [125/1316] Nuziveedu       → Vijayawada      | Shows: 6   | Gross: ₹177,000   
+   ✅ [District] [122/1316] Nellore         → Nellore         | Shows: 12  | Gross: ₹427,455   
+   ✅ [District] [130/1316] Palakonda       → Srikakulam      | Shows: 3   | Gross: ₹56,000    
+   ✅ [District] [127/1316] P Dharmavaram   → Vizianagaram    | Shows: 6   | Gross: ₹72,150    
+      🔄 [BMS Worker-1] Driver refreshed
+      🔄 [BMS Worker-2] Driver refreshed
+   ✅ [District] [132/1316] Palasa          → Srikakulam      | Shows: 1   | Gross: ₹15,300    
+   ✅ [District] [131/1316] Palamaner       → Chittoor        | Shows: 2   | Gross: ₹5,040     
+   ✅ [District] [138/1316] Pathapatnam     → Srikakulam      | Shows: 1   | Gross: ₹15,300    
+   ✅ [District] [133/1316] Pamarru         → Vijayawada      | Shows: 4   | Gross: ₹114,322   
+   ✅ [District] [134/1316] Pamidi          → Anantapur       | Shows: 4   | Gross: ₹183,526   
+   ✅ [District] [137/1316] Parvathipuram   → Vizianagaram    | Shows: 6   | Gross: ₹74,485    
+   ✅ [District] [139/1316] Payakaraopeta   → Visakhapatnam   | Shows: 4   | Gross: ₹43,296    
+      🔄 [BMS Worker-4] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [141/1316] Pedana          → Vijayawada      | Shows: 4   | Gross: ₹114,322   
+   ✅ [District] [108/1316] Mylavaram       → Vijayawada      | Shows: 33  | Gross: ₹992,796   
+      🔄 [BMS Worker-3] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [129/1316] Palakollu       → Bhimavaram      | Shows: 17  | Gross: ₹286,540   
+   ✅ [District] [143/1316] Peddapuram      → Kakinada        | Shows: 4   | Gross: ₹146,261   
+   ✅ [District] [128/1316] Palakol         → Bhimavaram      | Shows: 20  | Gross: ₹426,640   
+      🔄 [BMS Worker-3] Driver refreshed
+   ✅ [District] [145/1316] Penuganchiprolu → Vijayawada      | Shows: 4   | Gross: ₹56,510    
+      🔄 [BMS Worker-1] 10 empty cities in a row → refreshing driver...
+      🔄 [BMS Worker-4] Driver refreshed
+      🔄 [BMS Worker-2] 10 empty cities in a row → refreshing driver...   ✅ [District] [148/1316] Piduguralla     → Guntur          | Shows: 3   | Gross: ₹78,315    
+
+   ✅ [District] [150/1316] Pithapuram      → Kakinada        | Shows: 4   | Gross: ₹146,615   
+      🔄 [BMS Worker-1] Driver refreshed
+      🔄 [BMS Worker-2] Driver refreshed
+   ✅ [District] [136/1316] Parawada        → Visakhapatnam   | Shows: 22  | Gross: ₹497,757   
+   📊 [BMS] Progress: 250/1967 cities done
+   ✅ [District] [151/1316] Podili          → Ongole          | Shows: 8   | Gross: ₹16,700    
+   ✅ [District] [152/1316] Ponduru         → Srikakulam      | Shows: 7   | Gross: ₹150,623   
+   ✅ [District] [140/1316] Pedakurapadu    → Guntur          | Shows: 22  | Gross: ₹664,361   
+   📊 [District] Progress: 150/1316 cities done
+   ✅ [District] [142/1316] Pedanandipadu   → Guntur          | Shows: 19  | Gross: ₹586,046   
+   ✅ [District] [155/1316] Pulivendula     → Kadapa          | Shows: 3   | Gross: ₹11,200    
+   ✅ [District] [156/1316] Punganur        → Chittoor        | Shows: 2   | Gross: ₹54,369    
+   ✅ [District] [158/1316] Railway Koduru  → Kadapa          | Shows: 2   | Gross: ₹35,400    
+   ✅ [District] [144/1316] Pendurthi       → Visakhapatnam   | Shows: 21  | Gross: ₹501,738   
+   ✅ [District] [161/1316] Rajampet        → Kadapa          | Shows: 2   | Gross: ₹35,400    
+   ✅ [District] [159/1316] Rajahmundry     → Rajahmundry     | Shows: 4   | Gross: ₹164,490   
+      🔄 [BMS Worker-3] 10 empty cities in a row → refreshing driver...
+      🔄 [BMS Worker-4] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [167/1316] Ravulapalem     → Rajahmundry     | Shows: 2   | Gross: ₹54,180    
+   ✅ [District] [164/1316] Ramachandrapuram → Kakinada        | Shows: 6   | Gross: ₹200,795   
+   ✅ [District] [163/1316] Ramabhadrapuram → Vizianagaram    | Shows: 6   | Gross: ₹74,170    
+   ✅ [District] [166/1316] Rapur           → Nellore         | Shows: 5   | Gross: ₹26,310       ✅ [District] [146/1316] Penugonda       → Tanuku          | Shows: 24  | Gross: ₹411,450   
+
+      🔄 [BMS Worker-3] Driver refreshed      🔄 [BMS Worker-4] Driver refreshed
+
+   ✅ [District] [160/1316] Rajam           → Vizianagaram    | Shows: 11  | Gross: ₹191,508   
+      🔄 [BMS Worker-1] 10 empty cities in a row → refreshing driver...
+      🔄 [BMS Worker-2] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [170/1316] Repalle         → Guntur          | Shows: 2   | Gross: ₹16,200    
+   ✅ [BMS] [323/1967] Tihu            → Tihu            | Shows: 1   | Gross: ₹0         
+   ✅ [BMS] [324/1967] Tinsukia        → Tinsukia        | Shows: 1   | Gross: ₹0         
+   ✅ [District] [174/1316] Samalkota       → Kakinada        | Shows: 4   | Gross: ₹146,615   
+      🔄 [BMS Worker-1] Driver refreshed
+   ✅ [District] [153/1316] Ponnur          → Guntur          | Shows: 21  | Gross: ₹602,773   
+   ✅ [District] [176/1316] Satyavedu       → Tirupati        | Shows: 3   | Gross: ₹12,680    
+   ✅ [District] [165/1316] Ranastalam      → Srikakulam      | Shows: 12  | Gross: ₹324,264   
+      🔄 [BMS Worker-2] Driver refreshed
+   ✅ [District] [172/1316] Salur           → Vizianagaram    | Shows: 6   | Gross: ₹74,485    
+   ✅ [District] [173/1316] Saluru          → Vizianagaram    | Shows: 6   | Gross: ₹74,485    
+   ✅ [District] [178/1316] Somandepalle    → Anantapur       | Shows: 3   | Gross: ₹50,880    
+   ✅ [District] [182/1316] Tadepalligudem  → Tadepalligudem  | Shows: 2   | Gross: ₹54,180    
+   ✅ [BMS] [290/1967] Bongaigaon      → Bongaigaon      | Shows: 5   | Gross: ₹177,680   
+   ✅ [District] [179/1316] Srikakulam      → Srikakulam      | Shows: 6   | Gross: ₹133,813   
+   ✅ [District] [169/1316] Razole          → Amalapuram      | Shows: 14  | Gross: ₹267,040   
+   📊 [BMS] Progress: 300/1967 cities done
+   ✅ [District] [183/1316] Tadikalapudi    → Eluru           | Shows: 6   | Gross: ₹176,646   
+   ✅ [District] [187/1316] Tanuku          → Tanuku          | Shows: 2   | Gross: ₹54,180    
+   ✅ [District] [189/1316] Tekkali         → Srikakulam      | Shows: 1   | Gross: ₹15,500    
+   ✅ [District] [181/1316] Sullurpeta      → Nellore         | Shows: 8   | Gross: ₹93,445    
+   ✅ [District] [186/1316] Tanguturu       → Ongole          | Shows: 4   | Gross: ₹300       
+   ✅ [District] [180/1316] Srikalahasti    → Tirupati        | Shows: 10  | Gross: ₹99,435    
+      🔄 [BMS Worker-3] 10 empty cities in a row → refreshing driver...
+      🔄 [BMS Worker-4] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [194/1316] Tuni            → Kakinada        | Shows: 4   | Gross: ₹43,296    
+   ✅ [District] [192/1316] Tirupati        → Tirupati        | Shows: 5   | Gross: ₹69,400    
+   ✅ [District] [196/1316] Uppada          → Kakinada        | Shows: 4   | Gross: ₹146,969   
+      🔄 [BMS Worker-3] Driver refreshed
+   ✅ [District] [193/1316] Tiruvuru        → Vijayawada      | Shows: 7   | Gross: ₹32,421    
+      🔄 [BMS Worker-4] Driver refreshed
+      🔄 [BMS Worker-1] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [175/1316] Sattenapalle    → Guntur          | Shows: 22  | Gross: ₹664,411   
+   ✅ [District] [188/1316] Tatipaka        → Amalapuram      | Shows: 11  | Gross: ₹217,750   
+   ✅ [District] [197/1316] Velangi         → Kakinada        | Shows: 4   | Gross: ₹146,969   
+   ✅ [BMS] [367/1967] Samastipur      → Samastipur      | Shows: 7   | Gross: ₹84,550    
+      🔄 [BMS Worker-2] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [201/1316] Vinukonda       → Guntur          | Shows: 4   | Gross: ₹16,400    
+      🔄 [BMS Worker-1] Driver refreshed
+   ✅ [District] [202/1316] Vissannapeta    → Vijayawada      | Shows: 7   | Gross: ₹32,421    
+      🔄 [BMS Worker-2] Driver refreshed
+      ⚠️  [BMS][Sasaram] Error for 7544: Message: script timeout
+  (Session info: chrome=146.0.7680.80)
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff6df8f10a5+14cc5]
+	chromedriver!GetHandleVerifier [0x7ff6df8f1110+14d30]
+	chromedriver!(No symbol) [0x7ff6df65d956]
+	chromedriver!(No symbol) [0x7ff6df705b21]
+	chromedriver!(No symbol) [0x7ff6df6e036a]
+	chromedriver!(No symbol) [0x7ff6df703f7b]
+	chromedriver!(No symbol) [0x7ff6df6a96e8]
+	chromedriver!(No symbol) [0x7ff6df6aa5d3]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf5ddd+3199fd]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf04bd+3140dd]
+	chromedriver!GetHandleVerifier [0x7ff6dfc129ba+3365da]
+	chromedriver!GetHandleVerifier [0x7ff6df90ca45+30665]
+	chromedriver!GetHandleVerifier [0x7ff6df915b9c+397bc]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa4c4+1e0e4]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa676+1e296]
+	chromedriver!GetHandleVerifier [0x7ff6df8def87+2ba7]
+	KERNEL32!BaseThreadInitThunk [0x7ff8387ae8d7+17]
+	ntdll!RtlUserThreadStart [0x7ff83a3ec48c+2c]
+
+         ❌ [BMS][Sasaram] Hard Fallback 400/200
+   ✅ [BMS] [368/1967] Sasaram         → Sasaram         | Shows: 1   | Gross: ₹70,000    
+   ✅ [District] [198/1316] Venkatagiri     → Nellore         | Shows: 13  | Gross: ₹119,755   
+   ✅ [District] [203/1316] Vizianagaram    → Vizianagaram    | Shows: 11  | Gross: ₹298,673   
+   📊 [District] Progress: 200/1316 cities done
+   ✅ [District] [207/1316] Yemmiganur      → Kurnool         | Shows: 4   | Gross: ₹13,020    
+   📊 [BMS] Progress: 350/1967 cities done
+   ✅ [District] [205/1316] Yelamanchili    → Visakhapatnam   | Shows: 12  | Gross: ₹198,078   
+      🔄 [BMS Worker-3] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [213/1316] Ziro            → Ziro            | Shows: 2   | Gross: ₹6,150     
+   ✅ [District] [214/1316] Bihpuria        → Bihpuria        | Shows: 3   | Gross: ₹4,110     
+      🔄 [BMS Worker-3] Driver refreshed
+      🔄 [BMS Worker-1] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [216/1316] Dhekiajuli      → Dhekiajuli      | Shows: 2   | Gross: ₹6,540     
+      🔄 [BMS Worker-4] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [217/1316] Dhemaji         → Dhemaji         | Shows: 3   | Gross: ₹151,640   
+      🔄 [BMS Worker-2] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [215/1316] Chaygaon        → Chaygaon        | Shows: 6   | Gross: ₹254,030   
+   ✅ [BMS] [411/1967] Lakhanpur       → Lakhanpur       | Shows: 3   | Gross: ₹0         
+   ✅ [District] [218/1316] Dibrugarh       → Dibrugarh       | Shows: 2   | Gross: ₹151,640   
+      🔄 [BMS Worker-1] Driver refreshed
+      🔄 [BMS Worker-2] Driver refreshed
+   ✅ [District] [219/1316] Golaghat        → Golaghat        | Shows: 3   | Gross: ₹0         
+   ✅ [District] [206/1316] Yeleswaram      → Kakinada        | Shows: 20  | Gross: ₹302,600   
+   ✅ [District] [221/1316] Jorhat          → Jorhat          | Shows: 3   | Gross: ₹56,580    
+   ✅ [District] [224/1316] Mangaldoi       → Mangaldoi       | Shows: 1   | Gross: ₹21,480    
+   ✅ [District] [223/1316] Lakhimpur Assam → Lakhimpur Assam | Shows: 3   | Gross: ₹4,110     
+      ⚠️  [BMS][Ziro] Error for 4422: Message: script timeout
+  (Session info: chrome=146.0.7680.80)
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff6df8f10a5+14cc5]
+	chromedriver!GetHandleVerifier [0x7ff6df8f1110+14d30]
+	chromedriver!(No symbol) [0x7ff6df65d956]
+	chromedriver!(No symbol) [0x7ff6df705b21]
+	chromedriver!(No symbol) [0x7ff6df6e036a]
+	chromedriver!(No symbol) [0x7ff6df703f7b]
+	chromedriver!(No symbol) [0x7ff6df6a96e8]
+	chromedriver!(No symbol) [0x7ff6df6aa5d3]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf5ddd+3199fd]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf04bd+3140dd]
+	chromedriver!GetHandleVerifier [0x7ff6dfc129ba+3365da]
+	chromedriver!GetHandleVerifier [0x7ff6df90ca45+30665]
+	chromedriver!GetHandleVerifier [0x7ff6df915b9c+397bc]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa4c4+1e0e4]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa676+1e296]
+	chromedriver!GetHandleVerifier [0x7ff6df8def87+2ba7]
+	KERNEL32!BaseThreadInitThunk [0x7ff8387ae8d7+17]
+	ntdll!RtlUserThreadStart [0x7ff83a3ec48c+2c]
+
+   ✅ [District] [228/1316] Silchar         → Silchar         | Shows: 2   | Gross: ₹91,950    
+   ✅ [District] [230/1316] Sonari          → Sonari          | Shows: 1   | Gross: ₹7,200     
+   ✅ [District] [204/1316] Vuyyuru         → Vijayawada      | Shows: 35  | Gross: ₹1,010,058 
+      🔄 [BMS Worker-3] 10 empty cities in a row → refreshing driver...
+      ⚠️  [BMS][Ziro] Error for 4423: Message: script timeout
+  (Session info: chrome=146.0.7680.80)
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff6df8f10a5+14cc5]
+	chromedriver!GetHandleVerifier [0x7ff6df8f1110+14d30]
+	chromedriver!(No symbol) [0x7ff6df65d956]
+	chromedriver!(No symbol) [0x7ff6df705b21]
+	chromedriver!(No symbol) [0x7ff6df6e036a]
+	chromedriver!(No symbol) [0x7ff6df703f7b]
+	chromedriver!(No symbol) [0x7ff6df6a96e8]
+	chromedriver!(No symbol) [0x7ff6df6aa5d3]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf5ddd+3199fd]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf04bd+3140dd]
+	chromedriver!GetHandleVerifier [0x7ff6dfc129ba+3365da]
+	chromedriver!GetHandleVerifier [0x7ff6df90ca45+30665]
+	chromedriver!GetHandleVerifier [0x7ff6df915b9c+397bc]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa4c4+1e0e4]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa676+1e296]
+	chromedriver!GetHandleVerifier [0x7ff6df8def87+2ba7]
+	KERNEL32!BaseThreadInitThunk [0x7ff8387ae8d7+17]
+	ntdll!RtlUserThreadStart [0x7ff83a3ec48c+2c]
+
+   ✅ [District] [233/1316] Aurangabad      → Aurangabad      | Shows: 4   | Gross: ₹117,100   
+   ✅ [District] [231/1316] Tezpur          → Tezpur          | Shows: 6   | Gross: ₹47,540    
+   ✅ [District] [234/1316] Basantpur       → Basantpur       | Shows: 3   | Gross: ₹27,270    
+      🔄 [BMS Worker-3] Driver refreshed
+   ✅ [District] [232/1316] Tinsukia        → Tinsukia        | Shows: 6   | Gross: ₹135,600   
+   ✅ [District] [190/1316] Tenali          → Guntur          | Shows: 52  | Gross: ₹1,495,127 
+      🔄 [BMS Worker-2] 10 empty cities in a row → refreshing driver...
+   ✅ [BMS] [455/1967] Bilimora        → Bilimora        | Shows: 4   | Gross: ₹7,070     
+   ✅ [District] [236/1316] Bettiah         → Bettiah         | Shows: 3   | Gross: ₹25,350    
+      🔄 [BMS Worker-2] Driver refreshed
+   ✅ [District] [238/1316] Chanpatia       → Chanpatia       | Shows: 3   | Gross: ₹24,750    
+   ✅ [District] [195/1316] Undavalli       → Vijayawada      | Shows: 54  | Gross: ₹1,596,012 
+      ⚠️  [BMS][Ziro] Error for 4422: Message: script timeout
+  (Session info: chrome=146.0.7680.80)
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff6df8f10a5+14cc5]
+	chromedriver!GetHandleVerifier [0x7ff6df8f1110+14d30]
+	chromedriver!(No symbol) [0x7ff6df65d956]
+	chromedriver!(No symbol) [0x7ff6df705b21]
+	chromedriver!(No symbol) [0x7ff6df6e036a]
+	chromedriver!(No symbol) [0x7ff6df703f7b]
+	chromedriver!(No symbol) [0x7ff6df6a96e8]
+	chromedriver!(No symbol) [0x7ff6df6aa5d3]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf5ddd+3199fd]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf04bd+3140dd]
+	chromedriver!GetHandleVerifier [0x7ff6dfc129ba+3365da]
+	chromedriver!GetHandleVerifier [0x7ff6df90ca45+30665]
+	chromedriver!GetHandleVerifier [0x7ff6df915b9c+397bc]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa4c4+1e0e4]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa676+1e296]
+	chromedriver!GetHandleVerifier [0x7ff6df8def87+2ba7]
+	KERNEL32!BaseThreadInitThunk [0x7ff8387ae8d7+17]
+	ntdll!RtlUserThreadStart [0x7ff83a3ec48c+2c]
+
+         ❌ [BMS][Ziro] Hard Fallback 400/200
+   ✅ [District] [240/1316] Dalmianagar     → Dalmianagar     | Shows: 4   | Gross: ₹117,800   
+   ✅ [District] [239/1316] Chapra          → Chapra          | Shows: 5   | Gross: ₹75,550    
+   ✅ [BMS] [414/1967] Narayanpur (CH) → Narayanpur (CH) | Shows: 1   | Gross: ₹8,000     
+   ✅ [District] [242/1316] Ekma            → Ekma            | Shows: 3   | Gross: ₹27,270    
+   ✅ [District] [237/1316] Bhagalpur       → Bhagalpur       | Shows: 8   | Gross: ₹67,925    
+   ✅ [District] [243/1316] Ekma Chapra     → Ekma Chapra     | Shows: 3   | Gross: ₹27,270    
+   ✅ [District] [199/1316] Vijayawada      → Vijayawada      | Shows: 52  | Gross: ₹1,542,617 
+   ⚠️  [District] [251/1316] Kalyanpur       — skipped (no slug)
+   ✅ [District] [246/1316] Ghorasahan      → Ghorasahan      | Shows: 2   | Gross: ₹101,200   
+   ✅ [District] [244/1316] Forbesganj      → Forbesganj      | Shows: 4   | Gross: ₹27,600    
+   📊 [BMS] Progress: 400/1967 cities done
+      ⚠️  [BMS][Ziro] Error for 4423: Message: script timeout
+  (Session info: chrome=146.0.7680.80)
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff6df8f10a5+14cc5]
+	chromedriver!GetHandleVerifier [0x7ff6df8f1110+14d30]
+	chromedriver!(No symbol) [0x7ff6df65d956]
+	chromedriver!(No symbol) [0x7ff6df705b21]
+	chromedriver!(No symbol) [0x7ff6df6e036a]
+	chromedriver!(No symbol) [0x7ff6df703f7b]
+	chromedriver!(No symbol) [0x7ff6df6a96e8]
+	chromedriver!(No symbol) [0x7ff6df6aa5d3]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf5ddd+3199fd]
+	chromedriver!GetHandleVerifier [0x7ff6dfbf04bd+3140dd]
+	chromedriver!GetHandleVerifier [0x7ff6dfc129ba+3365da]
+	chromedriver!GetHandleVerifier [0x7ff6df90ca45+30665]
+	chromedriver!GetHandleVerifier [0x7ff6df915b9c+397bc]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa4c4+1e0e4]
+	chromedriver!GetHandleVerifier [0x7ff6df8fa676+1e296]
+	chromedriver!GetHandleVerifier [0x7ff6df8def87+2ba7]
+	KERNEL32!BaseThreadInitThunk [0x7ff8387ae8d7+17]
+	ntdll!RtlUserThreadStart [0x7ff83a3ec48c+2c]
+
+         ❌ [BMS][Ziro] Hard Fallback 400/200
+   ✅ [BMS] [285/1967] Ziro            → Ziro            | Shows: 2   | Gross: ₹160,000   
+   ✅ [District] [247/1316] Gopalganj       → Gopalganj       | Shows: 3   | Gross: ₹41,950    
+   ✅ [District] [245/1316] Gaya            → Gaya            | Shows: 5   | Gross: ₹313,900   
+   ✅ [District] [252/1316] Katihar         → Katihar         | Shows: 2   | Gross: ₹133,000   
+   ✅ [District] [254/1316] Motihari        → Motihari        | Shows: 2   | Gross: ₹101,200   
+   📊 [District] Progress: 250/1316 cities done
+   ✅ [District] [250/1316] Jehanabad       → Jehanabad       | Shows: 3   | Gross: ₹28,269    
+   ✅ [District] [253/1316] Madhepura       → Madhepura       | Shows: 3   | Gross: ₹49,520    
+   ✅ [District] [258/1316] Purnia          → Purnia          | Shows: 2   | Gross: ₹133,000   
+      🔄 [BMS Worker-3] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [259/1316] Raxaul          → Raxaul          | Shows: 3   | Gross: ₹24,750    
+      🔄 [BMS Worker-3] Driver refreshed
+   ✅ [District] [260/1316] Saharsa         → Saharsa         | Shows: 5   | Gross: ₹94,800    
+   ✅ [District] [262/1316] Sasaram         → Sasaram         | Shows: 3   | Gross: ₹106,900   
+      🔄 [BMS Worker-2] 10 empty cities in a row → refreshing driver...
+   ✅ [District] [261/1316] Samastipur      → Samastipur      | Shows: 6   | Gross: ₹91,500    
+   ✅ [District] [264/1316] Sugauli         → Sugauli         | Shows: 2   | Gross: ₹101,200   
+   ✅ [BMS] [499/1967] Mahuva          → Mahuva          | Shows: 4   | Gross: ₹34,850    
+      🔄 [BMS Worker-2] Driver refreshed
+   ✅ [District] [265/1316] Supaul          → Supaul          | Shows: 5   | Gross: ₹56,100    
+      🔄 [BMS Worker-1] 10 empty cities in a row → refreshing driver...
+      🔄 [BMS Worker-4] Driver refreshed
+   ✅ [District] [266/1316] West Champaran  → West Champaran  | Shows: 6   | Gross: ₹43,600    
+   ✅ [District] [220/1316] Guwahati        → Guwahati        | Shows: 44  | Gross: ₹1,732,620 
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "G:\Fun Projects\BMS District Collections\reportStateCollections.py", line 1116, in <module>
+    all_dist_data = district_future.result()
+  File "C:\Program Files\Python314\Lib\concurrent\futures\_base.py", line 445, in result
+    Exception ignored on threading shutdown:
+Traceback (most recent call last):
+  File "C:\Program Files\Python314\Lib\threading.py", line 1577, in _shutdown
+    atexit_call()
+  File "C:\Program Files\Python314\Lib\threading.py", line 1548, in <lambda>
+    _threading_atexits.append(lambda: func(*arg, **kwargs))
+  File "C:\Program Files\Python314\Lib\concurrent\futures\thread.py", line 31, in _python_exit
+    t.join()
+  File "C:\Program Files\Python314\Lib\threading.py", line 1133, in join
+    self._os_thread_handle.join(timeout)
+KeyboardInterrupt: 

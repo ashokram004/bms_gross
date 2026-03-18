@@ -1,5 +1,6 @@
 {
   "Andhra Pradesh": [
+    { "name": "Visakhapatnam", "slug": "vizag", "reporting_city": "Visakhapatnam" },
     { "name": "Addanki", "slug": "addanki", "reporting_city": "Ongole" },
     { "name": "Adoni", "slug": "adoni", "reporting_city": "Kurnool" },
     { "name": "Akividu", "slug": "akividu", "reporting_city": "Bhimavaram" },
@@ -199,7 +200,6 @@
     { "name": "Vijayawada", "slug": "vijayawada", "reporting_city": "Vijayawada" },
     { "name": "Vinjamur", "slug": "vinjamur", "reporting_city": "Nellore" },
     { "name": "Vinukonda", "slug": "vinukonda", "reporting_city": "Guntur" },
-    { "name": "Visakhapatnam", "slug": "vizag", "reporting_city": "Visakhapatnam" },
     { "name": "Vissannapeta", "slug": "vissannapeta", "reporting_city": "Vijayawada" },
     { "name": "Vizianagaram", "slug": "vizianagaram", "reporting_city": "Vizianagaram" },
     { "name": "Vuyyuru", "slug": "vuyyuru", "reporting_city": "Vijayawada" },
@@ -209,6 +209,7 @@
     { "name": "Yerraguntla", "slug": "yerraguntla", "reporting_city": "Kadapa" }
   ],
   "Telangana": [
+    { "name": "Hyderabad", "slug": "hyderabad", "reporting_city": "Hyderabad" },
     { "name": "Achampet", "slug": "achampet", "reporting_city": "Mahbubnagar" },
     { "name": "Adilabad", "slug": "adilabad", "reporting_city": "Adilabad" },
     { "name": "Amangal", "slug": "amangal", "reporting_city": "Mahbubnagar" },
@@ -241,7 +242,6 @@
     { "name": "Husnabad", "slug": "husnabad", "reporting_city": "Siddipet" },
     { "name": "Huzurabad", "slug": "huzurabad", "reporting_city": "Karimnagar" },
     { "name": "Huzurnagar", "slug": "huzurnagar", "reporting_city": "Nalgonda" },
-    { "name": "Hyderabad", "slug": "hyderabad", "reporting_city": "Hyderabad" },
     { "name": "Ieeja", "slug": "ieeja", "reporting_city": "Mahbubnagar" },
     { "name": "Jadcherla", "slug": "jadcherla", "reporting_city": "Mahbubnagar" },
     { "name": "Jagtial", "slug": "jagtial", "reporting_city": "Karimnagar" },
@@ -318,6 +318,7 @@
     { "name": "Zaheerabad", "slug": "zaheerabad", "reporting_city": "Hyderabad" }
   ],
   "Karnataka": [
+    { "name": "Bengaluru", "slug": "bengaluru", "reporting_city": "Bengaluru" },
     { "name": "Ankola", "slug": "ankola", "reporting_city": "Karwar" },
     { "name": "Bagalkot", "slug": "bagalkot", "reporting_city": "Bagalkot" },
     { "name": "Bagepalli", "slug": "bagepalli", "reporting_city": "Chikkaballapura" },
@@ -326,7 +327,6 @@
     { "name": "Belagavi", "slug": "belagavi", "reporting_city": "Belagavi" },
     { "name": "Bellary", "slug": "bellary", "reporting_city": "Ballari" },
     { "name": "Belur", "slug": "belur", "reporting_city": "Hassan" },
-    { "name": "Bengaluru", "slug": "bengaluru", "reporting_city": "Bengaluru" },
     { "name": "Bhadravati", "slug": "bhadravati", "reporting_city": "Shivamogga" },
     { "name": "Bidar", "slug": "bidar", "reporting_city": "Bidar" },
     { "name": "Bijapur", "slug": "bijapur", "reporting_city": "Vijayapura" },
@@ -407,6 +407,7 @@
     { "name": "Vijayapura", "slug": "vijayapura", "reporting_city": "Vijayapura" }
   ],
   "Tamil Nadu": [
+    { "name": "Chennai", "slug": "chennai", "reporting_city": "Chennai" },
     { "name": "Acharapakkam", "slug": "acharapakkam", "reporting_city": "Chennai" },
     { "name": "Alangayam", "slug": "alangayam", "reporting_city": "Vellore" },
     { "name": "Alangudi", "slug": "alangudi", "reporting_city": "Pudukkottai" },
@@ -429,7 +430,6 @@
     { "name": "Batlagundu", "slug": "batlagundu", "reporting_city": "Dindigul" },
     { "name": "Bodinayakanur", "slug": "bodi", "reporting_city": "Theni" },
     { "name": "Bommidi", "slug": "bommidi", "reporting_city": "Dharmapuri" },
-    { "name": "Chennai", "slug": "chennai", "reporting_city": "Chennai" },
     { "name": "Cheyyar", "slug": "cheyyar", "reporting_city": "Tiruvannamalai" },
     { "name": "Chidambaram", "slug": "chidambaram", "reporting_city": "Cuddalore" },
     { "name": "Chinnamanur", "slug": "chinnamanur", "reporting_city": "Theni" },
@@ -598,6 +598,8 @@
     { "name": "Virudhachalam", "slug": "virudhachalam", "reporting_city": "Cuddalore" }
   ],
   "Maharashtra": [
+    { "name": "Mumbai", "slug": "mumbai", "reporting_city": "Mumbai" },
+    { "name": "Pune", "slug": "pune", "reporting_city": "Pune" },
     { "name": "Ahmednagar", "slug": "ahmednagar", "reporting_city": "Ahmednagar" },
     { "name": "Akola", "slug": "akola", "reporting_city": "Akola" },
     { "name": "Amalner", "slug": "amalner", "reporting_city": "Jalgaon" },
@@ -643,7 +645,6 @@
     { "name": "Malegaon", "slug": "malegaon", "reporting_city": "Nashik" },
     { "name": "Malkapur", "slug": "malkapur", "reporting_city": "Buldhana" },
     { "name": "Mukhed", "slug": "mukhed", "reporting_city": "Nanded" },
-    { "name": "Mumbai", "slug": "mumbai", "reporting_city": "Mumbai" },
     { "name": "Mumbai (Greater)", "slug": "greater-mumbai", "reporting_city": "Mumbai" },
     { "name": "Murtizapur", "slug": "murtizapur", "reporting_city": "Akola" },
     { "name": "Nagpur", "slug": "nagpur", "reporting_city": "Nagpur" },
@@ -660,7 +661,6 @@
     { "name": "Pen", "slug": "pen", "reporting_city": "Mumbai" },
     { "name": "Pirangut", "slug": "Pirangut", "reporting_city": "Pune" },
     { "name": "Pulgaon", "slug": "pulgaon", "reporting_city": "Wardha" },
-    { "name": "Pune", "slug": "pune", "reporting_city": "Pune" },
     { "name": "Pusad", "slug": "pusad", "reporting_city": "Yavatmal" },
     { "name": "Rahata", "slug": "rahata", "reporting_city": "Ahmednagar" },
     { "name": "Rahuri", "slug": "rahuri", "reporting_city": "Ahmednagar" },

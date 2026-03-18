@@ -1,0 +1,130 @@
+📝 Logging to: logs\run_20260317_172022.log
+
+🎬 Starting run — District: 1316 cities | BMS: 1967 cities
+   Both sources run in PARALLEL (2 threads)
+   District: 8 HTTP workers | BMS: 4 Chrome workers
+   Rate limits: District 5 req/s | BMS 5 req/s
+   District: pure HTTP | BMS: Selenium (Cloudflare bypass)
+
+
+🚀 [District] Starting — 1316 cities, 8 parallel workers, 5 req/sec
+
+🚀 [BMS] Starting — 1967 cities, 4 worker threads, 5 req/sec
+
+
+   ✅ [District] [1/1316] Port Blair      → Port Blair      | Shows: 5   | Gross: ₹128,530   
+   ✅ [District] [4/1316] Adoni           → Kurnool         | Shows: 4   | Gross: ₹12,495    
+   ✅ [District] [5/1316] Akividu         → Bhimavaram      | Shows: 6   | Gross: ₹177,531      ✅ [District] [10/1316] Anantapur       → Anantapur       | Shows: 4   | Gross: ₹184,939   
+
+   ✅ [District] [13/1316] Angara          → Rajahmundry     | Shows: 2   | Gross: ₹54,755    
+   ✅ [BMS] [2/1967] Addanki         → Ongole          | Shows: 2   | Gross: ₹119,205   
+   ✅ [District] [3/1316] Addanki         → Ongole          | Shows: 12  | Gross: ₹19,200    
+   ✅ [District] [11/1316] Anaparthi       → Rajahmundry     | Shows: 7   | Gross: ₹230,553   
+   ✅ [District] [12/1316] Anaparthy       → Rajahmundry     | Shows: 7   | Gross: ₹230,553   
+   ✅ [District] [18/1316] B Kothakota     → Madanapalle     | Shows: 2   | Gross: ₹55,881    
+   ✅ [District] [16/1316] Atmakur Nellore → Nellore         | Shows: 3   | Gross: ₹60,600    
+   ✅ [District] [7/1316] Amalapuram      → Amalapuram      | Shows: 15  | Gross: ₹259,730   
+   ✅ [District] [20/1316] Bangarupallem   → Chittoor        | Shows: 2   | Gross: ₹5,040     
+   ✅ [District] [14/1316] Atchutapuram    → Visakhapatnam   | Shows: 9   | Gross: ₹181,276   
+   ✅ [District] [2/1316] Visakhapatnam   → Visakhapatnam   | Shows: 21  | Gross: ₹500,859   
+   ✅ [District] [26/1316] Buchireddypalem → Nellore         | Shows: 3   | Gross: ₹60,600    
+   ✅ [District] [8/1316] Anakapalle      → Visakhapatnam   | Shows: 22  | Gross: ₹495,840   
+   ✅ [District] [27/1316] Chagallu        → Rajahmundry     | Shows: 2   | Gross: ₹54,755    
+      🔄 [BMS Worker-3] 5 Cloudflare blocks → refreshing driver...
+   ✅ [District] [25/1316] Bobbili         → Vizianagaram    | Shows: 8   | Gross: ₹114,685   
+   ✅ [District] [30/1316] Cherukupalli    → Guntur          | Shows: 2   | Gross: ₹16,200    
+      🔄 [BMS Worker-4] 5 Cloudflare blocks → refreshing driver...
+      🔄 [BMS Worker-3] Driver refreshed after Cloudflare blocks
+      🔄 [BMS Worker-2] 5 Cloudflare blocks → refreshing driver...
+   ✅ [District] [22/1316] Bendamurulanka  → Amalapuram      | Shows: 11  | Gross: ₹218,500   
+   ✅ [District] [17/1316] Attili          → Tanuku          | Shows: 16  | Gross: ₹331,380   
+   ✅ [BMS] [1/1967] Vizag (Visakhapatnam) → Visakhapatnam   | Shows: 36  | Gross: ₹1,023,027 
+   ✅ [District] [31/1316] Chilakaluripet  → Guntur          | Shows: 3   | Gross: ₹77,565    
+   ✅ [District] [24/1316] Bhimavaram      → Bhimavaram      | Shows: 13  | Gross: ₹197,296   
+      🔄 [BMS Worker-2] Driver refreshed after Cloudflare blocks
+      🔄 [BMS Worker-4] Driver refreshed after Cloudflare blocks
+   ✅ [District] [21/1316] Bapatla         → Guntur          | Shows: 16  | Gross: ₹81,390    
+   ✅ [District] [29/1316] Cheepurupalli   → Vizianagaram    | Shows: 12  | Gross: ₹277,709   
+   ✅ [District] [32/1316] Chimakurthy     → Ongole          | Shows: 12  | Gross: ₹19,000    
+   ✅ [District] [36/1316] Chodavaram      → Visakhapatnam   | Shows: 9   | Gross: ₹181,747   
+   ✅ [District] [39/1316] Dharmavaram     → Anantapur       | Shows: 4   | Gross: ₹185,679   
+   ✅ [District] [33/1316] Chipurupalle    → Vizianagaram    | Shows: 14  | Gross: ₹335,352   
+   ✅ [District] [41/1316] Dowlaiswaram    → Rajahmundry     | Shows: 2   | Gross: ₹54,755    
+   ✅ [District] [28/1316] Chebrolu        → Guntur          | Shows: 21  | Gross: ₹603,974   
+   ✅ [District] [35/1316] Chittoor        → Chittoor        | Shows: 14  | Gross: ₹218,965   
+   ✅ [District] [37/1316] Darsi           → Ongole          | Shows: 12  | Gross: ₹19,000    
+      🔄 [BMS Worker-1] 5 Cloudflare blocks → refreshing driver...
+   ✅ [District] [34/1316] Chirala         → Guntur          | Shows: 16  | Gross: ₹81,390    
+   ✅ [District] [42/1316] Draksharamam    → Kakinada        | Shows: 4   | Gross: ₹144,314   
+      🔄 [BMS Worker-3] 5 Cloudflare blocks → refreshing driver...
+      🔄 [BMS Worker-1] Driver refreshed after Cloudflare blocks
+   ✅ [District] [50/1316] Gokavaram       → Rajahmundry     | Shows: 2   | Gross: ₹54,755    
+      🔄 [BMS Worker-3] Driver refreshed after Cloudflare blocks
+      🔄 [BMS Worker-2] 5 Cloudflare blocks → refreshing driver...
+   ✅ [District] [46/1316] Eluru           → Eluru           | Shows: 6   | Gross: ₹177,885   
+      🔄 [BMS Worker-4] 5 Cloudflare blocks → refreshing driver...
+   ✅ [District] [51/1316] Gorantla        → Anantapur       | Shows: 3   | Gross: ₹50,820    
+      🔄 [BMS Worker-2] Driver refreshed after Cloudflare blocks
+      🔄 [BMS Worker-4] Driver refreshed after Cloudflare blocks
+   ✅ [District] [45/1316] Elamanchili     → Visakhapatnam   | Shows: 12  | Gross: ₹197,659   
+   ✅ [District] [47/1316] Gajapathinagaram → Vizianagaram    | Shows: 12  | Gross: ₹248,869   
+   ✅ [District] [53/1316] Gudur           → Nellore         | Shows: 6   | Gross: ₹58,290    
+   📊 [BMS] Progress: 50/1967 cities done
+   ✅ [District] [54/1316] Gudur (Kurnool) → Kurnool         | Shows: 4   | Gross: ₹139,063   
+   ✅ [District] [55/1316] Guntakal        → Anantapur       | Shows: 3   | Gross: ₹22,890    
+   📊 [District] Progress: 50/1316 cities done
+   ✅ [District] [44/1316] Edlapadu        → Guntur          | Shows: 22  | Gross: ₹666,514   
+   ✅ [District] [49/1316] Ganapavaram     → Tadepalligudem  | Shows: 19  | Gross: ₹417,946   
+   ✅ [District] [52/1316] Gudivada        → Vijayawada      | Shows: 14  | Gross: ₹351,770   
+   ✅ [District] [57/1316] Gurazala        → Guntur          | Shows: 4   | Gross: ₹30,975    
+   ✅ [District] [48/1316] Gajuwaka        → Visakhapatnam   | Shows: 21  | Gross: ₹499,620   
+      🔄 [BMS Worker-1] 5 Cloudflare blocks → refreshing driver...
+   ✅ [District] [60/1316] Hiramandalam    → Srikakulam      | Shows: 2   | Gross: ₹32,100    
+   ✅ [District] [58/1316] Hanuman Junction → Vijayawada      | Shows: 6   | Gross: ₹177,885   
+   ✅ [District] [59/1316] Hindupuram      → Anantapur       | Shows: 3   | Gross: ₹74,700    
+      🔄 [BMS Worker-3] 5 Cloudflare blocks → refreshing driver...
+      🔄 [BMS Worker-1] Driver refreshed after Cloudflare blocks
+   ✅ [District] [62/1316] Indukurpet      → Nellore         | Shows: 3   | Gross: ₹60,600    
+   ✅ [District] [64/1316] Jaggayyapeta    → Vijayawada      | Shows: 4   | Gross: ₹56,320    
+   ✅ [District] [66/1316] Jammalamadugu   → Kadapa          | Shows: 3   | Gross: ₹11,550    
+      🔄 [BMS Worker-3] Driver refreshed after Cloudflare blocks
+      🔄 [BMS Worker-2] 5 Cloudflare blocks → refreshing driver...
+   ✅ [District] [63/1316] Jaggampeta      → Kakinada        | Shows: 5   | Gross: ₹175,181   
+Traceback (most recent call last):
+  File "G:\Fun Projects\BMS District Collections\reportStateCollections.py", line 1137, in <module>
+    all_dist_data = district_future.result()
+  File "C:\Program Files\Python314\Lib\concurrent\futures\_base.py", line 445, in result
+    self._condition.wait(timeout)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Program Files\Python314\Lib\threading.py", line 369, in wait
+    waiter.acquire()
+    ~~~~~~~~~~~~~~^^
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\Fun Projects\BMS District Collections\reportStateCollections.py", line 1133, in <module>
+    with ThreadPoolExecutor(max_workers=2) as pool:
+         ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python314\Lib\concurrent\futures\_base.py", line 667, in __exit__
+    self.shutdown(wait=True)
+    ~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Program Files\Python314\Lib\concurrent\futures\thread.py", line 273, in shutdown
+    t.join()
+    ~~~~~~^^
+  File "C:\Program Files\Python314\Lib\threading.py", line 1133, in join
+    self._os_thread_handle.join(timeout)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+KeyboardInterrupt
+Exception ignored on threading shutdown:
+Traceback (most recent call last):
+  File "C:\Program Files\Python314\Lib\threading.py", line 1577, in _shutdown
+    atexit_call()
+  File "C:\Program Files\Python314\Lib\threading.py", line 1548, in <lambda>
+    _threading_atexits.append(lambda: func(*arg, **kwargs))
+  File "C:\Program Files\Python314\Lib\concurrent\futures\thread.py", line 31, in _python_exit
+    t.join()
+  File "C:\Program Files\Python314\Lib\threading.py", line 1133, in join
+    self._os_thread_handle.join(timeout)
+KeyboardInterrupt: 
