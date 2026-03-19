@@ -258,21 +258,32 @@ def main():
                     elif done % 25 == 0:
                         print(f"  [{done}/{len(to_fetch)}] processing...")
 
-        # Merge and assemble state output
+        # Merge and assemble state output (preserve existing venues)
         all_results = {**cached_results, **fresh_results}
+        existing_state = output.get('states', {}).get(state_name, {})
         state_output = {"cities": {}}
         state_venue_count = 0
         cities_with = 0
         cities_without = 0
 
         for city_name, (slug, venues) in all_results.items():
+            # Start with existing venues for this city (keyed by VenueCode)
+            existing_city = existing_state.get('cities', {}).get(city_name, {})
+            venue_index = {v['VenueCode']: v for v in existing_city.get('venues', []) if v.get('VenueCode')}
+            # Add/update with newly fetched venues
+            for v in venues:
+                code = v.get('VenueCode', '')
+                if code:
+                    venue_index[code] = v
+            merged = list(venue_index.values())
+
             state_output['cities'][city_name] = {
                 'slug':        slug,
-                'venue_count': len(venues),
-                'venues':      venues,
+                'venue_count': len(merged),
+                'venues':      merged,
             }
-            state_venue_count += len(venues)
-            if venues:
+            state_venue_count += len(merged)
+            if merged:
                 cities_with += 1
             else:
                 cities_without += 1

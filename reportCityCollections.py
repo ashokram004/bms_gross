@@ -806,10 +806,6 @@ def _is_same_venue(bms_show, dist_show):
         return 'unmapped'
     return mapped_dist == dist_cid
 
-def _fuzzy_venue_ok(bms_show, dist_show, threshold=0.4):
-    """Fallback fuzzy name check for venues not in the mapping."""
-    return difflib.SequenceMatcher(None, bms_show['venue'].lower(), dist_show['venue'].lower()).ratio() > threshold
-
 # =============================================================================
 # ── DEDUP + MERGE ─────────────────────────────────────────────────────────────
 # =============================================================================
@@ -860,7 +856,7 @@ def merge_data(dist_data, bms_data):
             if c['sid'] == bms['sid']:
                 match = c; print(f"   🔗 SID Match: {bms['sid']}"); break
 
-        # 2. Price + Seat signature
+        # 2. Price + Seat signature + Venue Map
         if not match and not bms.get('is_fallback', False):
             b_sig = bms.get('price_seat_signature', [])
             for c in candidates:
@@ -868,54 +864,41 @@ def merge_data(dist_data, bms_data):
                 if not b_sig or not d_sig or len(b_sig) != len(d_sig): continue
                 if all(bp == dp and abs(bs - ds) <= SEAT_TOLERANCE
                        for (bp, bs), (dp, ds) in zip(b_sig, d_sig)):
-                    venue_check = _is_same_venue(bms, c)
-                    if venue_check is True:
+                    if _is_same_venue(bms, c) is True:
                         match = c
                         print(f"   🔗 Price/Seat Sig + Venue Map: {bms['venue']} == {c['venue']}")
                         break
-                    elif venue_check == 'unmapped' and _fuzzy_venue_ok(bms, c):
-                        ratio = difflib.SequenceMatcher(None, bms['venue'].lower(), c['venue'].lower()).ratio()
-                        match = c
-                        print(f"   🔗 Price/Seat Sig + Fuzzy: {bms['venue']} == {c['venue']} ({int(ratio*100)}%)")
-                        break
 
-        # 3. Seat signature only
+        # 3. Seat signature + Venue Map
         if not match and not bms.get('is_fallback', False):
             b_seats = sorted(bms.get('seat_category_map', {}).values())
             for c in candidates:
                 d_seats = sorted(c.get('seat_category_map', {}).values())
                 if not b_seats or not d_seats or len(b_seats) != len(d_seats): continue
                 if all(abs(bs - ds) <= SEAT_TOLERANCE for bs, ds in zip(b_seats, d_seats)):
-                    venue_check = _is_same_venue(bms, c)
-                    if venue_check is True:
+                    if _is_same_venue(bms, c) is True:
                         match = c
                         print(f"   🔗 Seat Sig + Venue Map: {bms['venue']} == {c['venue']}")
                         break
-                    elif venue_check == 'unmapped' and _fuzzy_venue_ok(bms, c):
-                        ratio = difflib.SequenceMatcher(None, bms['venue'].lower(), c['venue'].lower()).ratio()
-                        match = c
-                        print(f"   🔗 Seat Sig + Fuzzy: {bms['venue']} == {c['venue']} ({int(ratio*100)}%)")
-                        break
 
-        # 4. Venue map + strict price set (with fuzzy fallback)
+        # 4. Venue map + strict price set
         if not match and candidates:
             b_prices = {p for p in bms.get('price_seat_map', {}).keys() if p > 0}
-            best_ratio = 0; best_cand = None
             for c in candidates:
                 d_prices = {p for p in c.get('price_seat_map', {}).keys() if p > 0}
                 if b_prices != d_prices: continue
-                venue_check = _is_same_venue(bms, c)
-                if venue_check is True:
+                if _is_same_venue(bms, c) is True:
                     match = c
                     print(f"   🔗 Venue Map + Price: {bms['venue']} == {c['venue']}")
                     break
-                elif venue_check == 'unmapped':
-                    ratio = difflib.SequenceMatcher(None, bms['venue'].lower(), c['venue'].lower()).ratio()
-                    if ratio > 0.55 and ratio > best_ratio:
-                        best_ratio = ratio; best_cand = c
-            if not match and best_cand:
-                match = best_cand
-                print(f"   🔗 Fuzzy + Price: {bms['venue']} == {match['venue']} ({int(best_ratio*100)}%)")
+
+        # 5. Venue map only (seats/prices may differ between platforms)
+        if not match and candidates:
+            for c in candidates:
+                if _is_same_venue(bms, c) is True:
+                    match = c
+                    print(f"   🔗 Venue Map Only: {bms['venue']} == {c['venue']}")
+                    break
 
         if match:
             candidates.remove(match)

@@ -384,10 +384,15 @@ def main():
 
             print(f"  Got details for {ok_count}/{len(unique_cinemas)} venues")
 
-        # ── Phase 3: Assemble enriched output for this state ──
+        # ── Phase 3: Assemble enriched output for this state (preserve existing venues) ──
+        existing_state = output.get('states', {}).get(state_name, {})
         state_output = {"cities": {}}
         for city_name, city_info in city_venue_map.items():
-            enriched = []
+            # Start with existing venues for this city (keyed by cinema_id)
+            existing_city = existing_state.get('cities', {}).get(city_name, {})
+            venue_index = {v['cinema_id']: v for v in existing_city.get('venues', []) if v.get('cinema_id')}
+
+            # Add/update with newly fetched venues
             for v in city_info['venues']:
                 cid = v['cinema_id']
                 detail = global_venue_details.get(cid)
@@ -419,12 +424,13 @@ def main():
                         'session_count':   detail.get('session_count'),
                         'amenities':       detail.get('amenities', []),
                     })
-                enriched.append(entry)
+                venue_index[cid] = entry
 
+            merged = list(venue_index.values())
             state_output['cities'][city_name] = {
                 'slug':        city_info['slug'],
-                'venue_count': len(enriched),
-                'venues':      enriched,
+                'venue_count': len(merged),
+                'venues':      merged,
             }
 
         # ── Save ──
