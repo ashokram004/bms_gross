@@ -51,7 +51,7 @@ DISTRICT_CITY_WORKERS = 12    # parallel city workers for District (pure HTTP)
 BMS_DRIVER_POOL_SIZE  = 12    # cities processed in parallel (each gets a fresh Chrome)
 BMS_VENUE_WORKERS     = 5     # concurrent venue workers per city (HTTP seat layout calls)
 DISTRICT_RATE         = 5     # max requests/second to district.in
-BMS_429_WAIT          = 5     # seconds to wait on actual HTTP 429
+BMS_429_WAIT          = 300   # seconds to wait on actual HTTP 429
 BMS_SOFT_RETRIES      = 1     # quick retries for 'connectivity issue'
 
 # Pre-generate a User-Agent for HTTP seat layout calls (avoid per-call overhead)
