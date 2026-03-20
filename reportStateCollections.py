@@ -695,11 +695,15 @@ def get_seat_layout(driver, venue_code, session_id):
     return None, "RATE_LIMITED"
 
 
-def get_seat_layout_http(venue_code, session_id):
+def get_seat_layout_http(venue_code, session_id, city_session=None):
     """HTTP-based BMS seat layout — with adaptive throttle, exponential backoff,
     per-thread unique fingerprint, and session rotation on 429.
-    On rate limit, the session is destroyed and a fresh one created (new UA,
-    new cookies, new Accept-Language) so BMS sees a “new user”."""
+    If city_session is provided (pre-loaded with PerimeterX/BMS cookies extracted
+    from the Selenium driver that loaded the city page), it is used directly —
+    each city then looks like a distinct browser session to BMS, avoiding rate limits
+    without requiring any external proxies.
+    Without city_session, falls back to a thread-local session with session rotation
+    on 429 (original behaviour)."""
     api_url = "https://services-in.bookmyshow.com/doTrans.aspx"
     payload = (
         f"strCommand=GETSEATLAYOUT&strAppCode=WEB&strVenueCode={venue_code}"
@@ -711,21 +715,26 @@ def get_seat_layout_http(venue_code, session_id):
     timeout_retries = 0
 
     while attempts < BMS_429_MAX_RETRIES:
-        # Get or create thread-local session (fresh UA + cookies each time)
-        if not hasattr(_thread_local, 'bms_session'):
-            s = requests.Session()
-            s.headers.update({
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": UserAgent().random,
-                "Origin": "https://in.bookmyshow.com",
-                "Referer": "https://in.bookmyshow.com/",
-                "Accept-Language": random.choice(_ACCEPT_LANGUAGES),
-            })
-            proxy = _next_proxy()
-            if proxy:
-                s.proxies = {"http": proxy, "https": proxy}
-            _thread_local.bms_session = s
-        session = _thread_local.bms_session
+        # Prefer city_session (browser cookies → unique identity per city).
+        # Fall back to thread-local session when no city session is available.
+        if city_session is not None:
+            session = city_session
+        else:
+            # Get or create thread-local session (fresh UA + cookies each time)
+            if not hasattr(_thread_local, 'bms_session'):
+                s = requests.Session()
+                s.headers.update({
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "User-Agent": UserAgent().random,
+                    "Origin": "https://in.bookmyshow.com",
+                    "Referer": "https://in.bookmyshow.com/",
+                    "Accept-Language": random.choice(_ACCEPT_LANGUAGES),
+                })
+                proxy = _next_proxy()
+                if proxy:
+                    s.proxies = {"http": proxy, "https": proxy}
+                _thread_local.bms_session = s
+            session = _thread_local.bms_session
 
         bms_throttle.acquire()
         try:
@@ -737,8 +746,8 @@ def get_seat_layout_http(venue_code, session_id):
                 if timeout_retries <= 2:
                     continue
                 return None, f"timeout x{timeout_retries}"
-            # Proxy/connection failure → rotate session and retry
-            if _proxy_pool:
+            # Proxy/connection failure → rotate thread-local session and retry
+            if city_session is None and _proxy_pool:
                 p = _next_proxy()
                 if p:
                     session.proxies = {"http": p, "https": p}
@@ -752,10 +761,12 @@ def get_seat_layout_http(venue_code, session_id):
             bms_throttle.report_429()
             wait = min(2 ** min(attempts, 4) + random.uniform(0, 2), 20)
             time.sleep(wait)
-            # Session rotation: destroy session → next iteration creates fresh identity
-            try: _thread_local.bms_session.close()
-            except Exception: pass
-            del _thread_local.bms_session
+            # Session rotation only for thread-local sessions (city sessions keep
+            # their browser cookies which are the whole point of using them)
+            if city_session is None:
+                try: _thread_local.bms_session.close()
+                except Exception: pass
+                del _thread_local.bms_session
             continue
 
         if resp.status_code != 200:
@@ -775,10 +786,12 @@ def get_seat_layout_http(venue_code, session_id):
                 continue
             wait = min(2 ** min(attempts, 4) + random.uniform(0, 2), 20)
             time.sleep(wait)
-            # Rotate session on app-level rate limit too
-            try: _thread_local.bms_session.close()
-            except Exception: pass
-            del _thread_local.bms_session
+            # Rotate thread-local session on app-level rate limit; city sessions
+            # retain their browser cookies through retries
+            if city_session is None:
+                try: _thread_local.bms_session.close()
+                except Exception: pass
+                del _thread_local.bms_session
             continue
 
         return None, error_msg
@@ -839,12 +852,14 @@ def calculate_show_collection(decrypted, price_map):
     return t_tkts, b_tkts, int(t_gross), int(b_gross), occ, seats, local_price_map
 
 
-def process_bms_venue(driver, venue, city_name, reporting_city, state_name, use_http=False):
+def process_bms_venue(driver, venue, city_name, reporting_city, state_name, use_http=False, city_session=None):
     """
     Processes ONE BMS venue. Uses HTTP seat layout if use_http=True (faster, parallelizable),
     otherwise uses Selenium XHR via the provided driver.
     Full business logic: sold-out recovery, screen caching, deferred SIDs.
     Uses global _global_bms_sids set to skip already-processed SIDs across all workers.
+    city_session: per-city requests.Session pre-loaded with browser cookies; passed to
+    get_seat_layout_http so BMS identifies each city as a distinct browser session.
     """
     results            = []
     screen_details_map = {}  # screenName → seat_map (cache successful layouts per screen)
@@ -880,7 +895,7 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, use_
             try:
                 cats      = show["additionalData"].get("categories", [])
                 price_map = {c["areaCatCode"]: float(c["curPrice"]) for c in cats}
-                enc, error_msg = get_seat_layout_http(v_code, sid) if use_http else get_seat_layout(driver, v_code, sid)
+                enc, error_msg = get_seat_layout_http(v_code, sid, city_session=city_session) if use_http else get_seat_layout(driver, v_code, sid)
                 data           = None
 
                 # Rate-limited after all retries → queue for retry sweep
@@ -921,7 +936,7 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, use_
                                 base_sid = int(sid)
                                 for offset in range(7, 0, -1):
                                     target_sid = str(base_sid + offset)
-                                    n_enc, _ = get_seat_layout_http(v_code, target_sid) if use_http else get_seat_layout(driver, v_code, target_sid)
+                                    n_enc, _ = get_seat_layout_http(v_code, target_sid, city_session=city_session) if use_http else get_seat_layout(driver, v_code, target_sid)
                                     if n_enc:
                                         n_dec = decrypt_data(n_enc)
                                         n_res = calculate_show_collection(n_dec, {})
@@ -1058,6 +1073,37 @@ def fetch_bms_city(state_name, city_name, city_slug, city_counter_str):
         venues     = extract_venues(state_data) if state_data else []
         page_ms    = int((time.monotonic() - city_start) * 1000)
 
+        # Extract cookies from the Selenium session before quitting the driver.
+        # These include PerimeterX tokens (_px3, _pxvid) and BMS session cookies
+        # that were set during the Cloudflare-verified page load.  Injecting them
+        # into the HTTP seat-layout requests makes each city look like a distinct
+        # browser session to BMS — effectively free session rotation with no proxies.
+        city_session = None
+        if venues:
+            try:
+                driver_cookies = driver.get_cookies()
+                driver_ua      = driver.execute_script("return navigator.userAgent;")
+                city_session   = requests.Session()
+                city_session.headers.update({
+                    "Content-Type":   "application/x-www-form-urlencoded",
+                    "User-Agent":     driver_ua,
+                    "Origin":         "https://in.bookmyshow.com",
+                    "Referer":        "https://in.bookmyshow.com/",
+                    "Accept-Language": random.choice(_ACCEPT_LANGUAGES),
+                })
+                for ck in driver_cookies:
+                    city_session.cookies.set(
+                        ck["name"], ck["value"],
+                        domain=ck.get("domain", ""),
+                        path=ck.get("path", "/"),
+                        secure=ck.get("secure", False),
+                    )
+                proxy = _next_proxy()
+                if proxy:
+                    city_session.proxies = {"http": proxy, "https": proxy}
+            except Exception:
+                city_session = None  # Fall back to thread-local session
+
         # Driver job done — quit before heavy HTTP seat layout work
         try:
             driver.quit()
@@ -1079,7 +1125,7 @@ def fetch_bms_city(state_name, city_name, city_slug, city_counter_str):
                         continue
                     test_vcode = v["additionalData"]["venueCode"]
                     test_sid   = str(shows[0]["additionalData"]["sessionId"])
-                    enc, err   = get_seat_layout_http(test_vcode, test_sid)
+                    enc, err   = get_seat_layout_http(test_vcode, test_sid, city_session=city_session)
                     _bms_http_works = enc is not None or (err and "sold out" in err.lower())
                     break
                 _bms_http_tested = True
@@ -1087,12 +1133,13 @@ def fetch_bms_city(state_name, city_name, city_slug, city_counter_str):
                 print(f"   🔍 [BMS] Seat layout mode: {mode}")
 
         if _bms_http_works:
-            # HTTP works — process all venues concurrently (driver already quit)
+            # HTTP works — process all venues concurrently (driver already quit).
+            # Pass city_session so each city's requests carry its own browser cookies.
             city_results = []
             with ThreadPoolExecutor(max_workers=BMS_VENUE_WORKERS) as venue_pool:
                 futures = [
                     venue_pool.submit(
-                        process_bms_venue, None, v, city_name, reporting_city, state_name, True
+                        process_bms_venue, None, v, city_name, reporting_city, state_name, True, city_session
                     )
                     for v in venues
                 ]
@@ -1114,6 +1161,11 @@ def fetch_bms_city(state_name, city_name, city_slug, city_counter_str):
                     selenium_driver.quit()
                 except Exception:
                     pass
+        if city_session:
+            try:
+                city_session.close()
+            except Exception:
+                pass
 
         gross   = sum(r['booked_gross'] for r in city_results)
         city_ms = int((time.monotonic() - city_start) * 1000)
