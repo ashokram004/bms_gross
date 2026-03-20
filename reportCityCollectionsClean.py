@@ -494,10 +494,10 @@ _global_district_sids_lock = threading.Lock()
 
 
 def bms_fetch_single_venue(venue, city_name, use_http=False):
-    """Processes a single BMS venue. Uses HTTP if available, otherwise Selenium driver."""
-    results            = []
-    driver             = None if use_http else get_driver()
-    screen_details_map = {}
+    """Processes a single BMS venue. Uses HTTP if available, otherwise Selenium driver.
+    Clean version: no fallback/recovery logic. Skips shows on any error except rate limit."""
+    results = []
+    driver  = None if use_http else get_driver()
 
     try:
         if True:  # single venue
@@ -506,16 +506,12 @@ def bms_fetch_single_venue(venue, city_name, use_http=False):
 
             shows      = venue.get("showtimes", [])
             shows.sort(key=lambda s: s["additionalData"].get("availStatus", "0"), reverse=True)
-            show_queue    = deque(shows)
-            deferred_sids = set()
+            show_queue = deque(shows)
 
             while show_queue:
                 show      = show_queue.popleft()
                 sid       = str(show["additionalData"]["sessionId"])
                 show_time = show["title"]
-
-                raw_screen = show.get("screenAttr", "")
-                screenName = raw_screen if raw_screen else "Main Screen"
 
                 # Check if SID already processed (thread-safe global check)
                 with _global_bms_sids_lock:
@@ -523,137 +519,50 @@ def bms_fetch_single_venue(venue, city_name, use_http=False):
                         continue
                     _global_bms_sids.add(sid)
 
-                soldOut        = False
-                seat_map       = {}
-                is_fallback    = False
-                price_seat_map = {}
-
                 try:
                     cats      = show["additionalData"].get("categories", [])
                     price_map = {c["areaCatCode"]: float(c["curPrice"]) for c in cats}
                     enc, error_msg = get_seat_layout_http(v_code, sid) if use_http else get_seat_layout(driver, v_code, sid)
-                    data           = None
 
                     if not enc:
-                        if not price_map: continue
-                        max_price   = max(price_map.values())
-                        is_fallback = True
-                        for p in price_map.values():
-                            price_seat_map[float(p)] = 0
-
-                        if error_msg and "sold out" in error_msg.lower():
-                            print(f"      🔴 [BMS][{city_name}] Sold Out: {sid}. Checking recovery...")
-                            recovered_capacity = None
-                            recovered_seat_map = None
-
-                            if screenName in screen_details_map:
-                                recovered_seat_map = screen_details_map[screenName]
-                                recovered_capacity = sum(recovered_seat_map.values())
-                                print(f"         ⚡ Using cached layout ({recovered_capacity} seats)")
-
-                            if not recovered_capacity:
-                                try:
-                                    base_sid = int(sid)
-                                    for offset in range(7, 0, -1):
-                                        target_sid = str(base_sid + offset)
-                                        n_enc, _ = get_seat_layout_http(v_code, target_sid) if use_http else get_seat_layout(driver, v_code, target_sid)
-                                        if n_enc:
-                                            n_dec = decrypt_data(n_enc)
-                                            n_res = calculate_bms_collection(n_dec, {})
-                                            if n_res[0] > 0:
-                                                recovered_capacity = n_res[0]
-                                                recovered_seat_map = n_res[5]
-                                                print(f"         ✨ Recovered using {target_sid}")
-                                                break
-                                except Exception:
-                                    pass
-
-                            if recovered_capacity:
-                                calc_gross = sum(count * price_map.get(ac, 0) for ac, count in recovered_seat_map.items())
-                                if calc_gross > 0:
-                                    t_tkts = b_tkts = recovered_capacity
-                                    t_gross = b_gross = calc_gross
-                                    screen_details_map[screenName] = recovered_seat_map
-                                    seat_map    = recovered_seat_map
-                                    is_fallback = False
-                                    ps_map      = defaultdict(int)
-                                    for ac, count in seat_map.items():
-                                        ps_map[float(price_map.get(ac, 0))] += count
-                                    price_seat_map = dict(ps_map)
-                                else:
-                                    recovered_capacity = None
-
-                            if not recovered_capacity:
-                                FALLBACK_SEATS = 400
-                                t_tkts  = b_tkts  = FALLBACK_SEATS
-                                t_gross = b_gross = int(FALLBACK_SEATS * max_price)
-                                print(f"         ❌ [BMS][{city_name}] Recovery failed. Using default {FALLBACK_SEATS}.")
-
-                            occ     = 100.0
-                            soldOut = True
-                            data    = {"total_tickets": t_tkts, "booked_tickets": b_tkts,
-                                       "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ}
-
-                        elif error_msg and "Rate limit" in error_msg:
-                            print(f"      🚫 [BMS][{city_name}] Rate Limit for {v_name[:15]}")
-                            continue
-
+                        if error_msg and "rate limit" in error_msg.lower():
+                            # Rate limit already retried for 5 min inside get_seat_layout_http
+                            # If still failing, re-queue once more at venue level
+                            print(f"      🚫 [BMS][{city_name}] Rate Limit for {v_name[:15]} (SID {sid}) — re-queuing")
+                            with _global_bms_sids_lock:
+                                _global_bms_sids.discard(sid)
+                            show_queue.append(show)
+                            time.sleep(BMS_RATE_LIMIT_WAIT)
                         else:
-                            print(f"      ⚠️  [BMS][{city_name}] Error for {sid}: {error_msg}")
-                            if screenName in screen_details_map:
-                                cached = screen_details_map[screenName]
-                                seat_map     = cached
-                                t_tkts       = sum(cached.values())
-                                b_tkts       = int(t_tkts * 0.5)
-                                ps_map       = defaultdict(int); t_gross_c = 0
-                                for ac, count in cached.items():
-                                    pr = float(price_map.get(ac, 0))
-                                    ps_map[pr] += count; t_gross_c += count * pr
-                                price_seat_map = dict(ps_map)
-                                t_gross = int(t_gross_c); b_gross = int(t_gross * 0.5)
-                                occ = 50.0; is_fallback = False
-                                print(f"         ⚡ Smart Fallback: {screenName} ({t_tkts} seats)")
-                            elif sid not in deferred_sids and len(show_queue) > 0:
-                                deferred_sids.add(sid)
-                                with _global_bms_sids_lock:
-                                    _global_bms_sids.discard(sid)
-                                show_queue.append(show)
-                                continue
-                            else:
-                                t_tkts  = 400; b_tkts  = 200
-                                t_gross = int(400 * max_price); b_gross = int(200 * max_price)
-                                occ     = 50.0
-                                print(f"         ❌ [BMS][{city_name}] Hard Fallback 400/200")
-                            data = {"total_tickets": t_tkts, "booked_tickets": b_tkts,
-                                    "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ}
-                    else:
-                        decrypted = decrypt_data(enc)
-                        res       = calculate_bms_collection(decrypted, price_map)
-                        data      = {
-                            "total_tickets":  abs(res[0]),
-                            "booked_tickets": min(abs(res[1]), abs(res[0])),
-                            "total_gross":    abs(res[2]),
-                            "booked_gross":   min(abs(res[3]), abs(res[2])),
-                            "occupancy":      min(100, abs(res[4])),
-                        }
-                        seat_map        = res[5]
-                        final_price_map = res[6]
+                            print(f"      ⏭️  [BMS][{city_name}] Skipping {sid}: {error_msg}")
+                        continue
 
-                        if data["total_tickets"] > 0:
-                            ps_map  = defaultdict(int); ps_list = []
-                            for ac, count in seat_map.items():
-                                pr = float(final_price_map.get(ac, 0))
-                                ps_map[pr] += count; ps_list.append((pr, count))
-                            price_seat_map             = dict(ps_map)
-                            data["price_seat_signature"] = sorted(ps_list)
-                            screen_details_map[screenName] = seat_map
+                    decrypted = decrypt_data(enc)
+                    res       = calculate_bms_collection(decrypted, price_map)
+                    data      = {
+                        "total_tickets":  abs(res[0]),
+                        "booked_tickets": min(abs(res[1]), abs(res[0])),
+                        "total_gross":    abs(res[2]),
+                        "booked_gross":   min(abs(res[3]), abs(res[2])),
+                        "occupancy":      min(100, abs(res[4])),
+                    }
+                    seat_map        = res[5]
+                    final_price_map = res[6]
+                    price_seat_map  = {}
+
+                    if data["total_tickets"] > 0:
+                        ps_map  = defaultdict(int); ps_list = []
+                        for ac, count in seat_map.items():
+                            pr = float(final_price_map.get(ac, 0))
+                            ps_map[pr] += count; ps_list.append((pr, count))
+                        price_seat_map             = dict(ps_map)
+                        data["price_seat_signature"] = sorted(ps_list)
 
                     if data and data['total_tickets'] > 0:
                         normalized_time = normalize_bms_time(SHOW_DATE, show_time)
-                        tag = "(SOLD OUT)" if soldOut else ""
                         print(
                             f"   🎬 [BMS][{city_name}] {v_name[:15]:<15} | {normalized_time} | "
-                            f"Occ: {data['occupancy']:>5}% | Gross: ₹{data['booked_gross']:<8,} {tag}"
+                            f"Occ: {data['occupancy']:>5}% | Gross: ₹{data['booked_gross']:<8,}"
                         )
                         data.update({
                             "source":               "bms",
@@ -667,7 +576,7 @@ def bms_fetch_single_venue(venue, city_name, use_http=False):
                             "price_seat_map":       price_seat_map,
                             "price_seat_signature": data.get("price_seat_signature", []),
                             "seat_signature":       build_seat_signature(seat_map),
-                            "is_fallback":          is_fallback,
+                            "is_fallback":          False,
                         })
                         results.append(data)
 

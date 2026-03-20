@@ -181,6 +181,8 @@ def send_collection_report(
     movie_name,
     show_date,
     attachment_paths,
+    subject_label=None,
+    sections=None,
     recipients=None,
     sender_email=None,
     sender_password=None,
@@ -198,6 +200,14 @@ def send_collection_report(
         Show date (display format, e.g. "17 Mar 2026").
     attachment_paths : list[str]
         Paths to report files (Excel, PNG, HTML).
+    subject_label : str, optional
+        Label for the subject line (e.g. "Advance Sales", "Tracked Gross + Advance Sales").
+    sections : list[dict], optional
+        Multiple labeled attachment groups in the body.
+        Each dict: {"label": str, "note": str, "files": list[str]}
+        If provided, attachment_paths is ignored for the body listing (but still used
+        as the master attachment list). Typically pass all files via attachment_paths
+        and use sections just for body formatting.
     recipients : list[str], optional
         Override default recipients.
     sender_email : str, optional
@@ -205,21 +215,38 @@ def send_collection_report(
     sender_password : str, optional
         Override default sender password.
     """
-    label   = "States" if report_type == "states" else "Cities"
+    scope   = "States" if report_type == "states" else "Cities"
+    label   = subject_label or "Collection Report"
     now     = datetime.now().strftime("%d %b %Y, %I:%M %p")
-    subject = f"{movie_name} — {label} Collection Report ({show_date})"
+    subject = f"{movie_name} — {scope} {label} ({show_date})"
 
     # Filter to only existing files
     valid_files = [f for f in attachment_paths if os.path.isfile(f)]
-    file_list   = "\n".join(f"  • {os.path.basename(f)}" for f in valid_files)
 
-    body = (
-        f"{movie_name} — {label} Collection Report\n"
-        f"Show Date: {show_date}\n"
-        f"Generated: {now}\n\n"
-        f"Attached files:\n{file_list}\n\n"
-        f"This is an automated report."
-    )
+    # Build body
+    body_parts = [
+        f"{movie_name} — {scope} Report",
+        f"Show Date: {show_date}",
+        f"Generated: {now}",
+        "",
+    ]
+
+    if sections:
+        for sec in sections:
+            sec_files = [f for f in sec.get("files", []) if os.path.isfile(f)]
+            file_list = "\n".join(f"     • {os.path.basename(f)}" for f in sec_files)
+            body_parts.append(f"  {sec['label']}")
+            if sec.get("note"):
+                body_parts.append(f"  {sec['note']}")
+            body_parts.append(f"{file_list}")
+            body_parts.append("")
+    else:
+        file_list = "\n".join(f"  • {os.path.basename(f)}" for f in valid_files)
+        body_parts.append(f"Attached files:\n{file_list}")
+        body_parts.append("")
+
+    body_parts.append("This is an automated report.")
+    body = "\n".join(body_parts)
 
     return send_report_email(
         subject=subject,
