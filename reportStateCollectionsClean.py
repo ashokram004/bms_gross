@@ -5,7 +5,6 @@ import sys
 import random
 import shutil
 import threading
-import queue
 import requests
 from base64 import b64decode
 from dotenv import load_dotenv
@@ -20,7 +19,6 @@ from selenium.webdriver.chrome.options import Options
 from openpyxl import Workbook
 from fake_useragent import UserAgent
 from datetime import datetime, timedelta
-import difflib
 from collections import defaultdict, deque
 
 from utils.generatePremiumStatesImageReport import generate_premium_states_image_report
@@ -49,12 +47,12 @@ ENCRYPTION_KEY = "kYp3s6v9y$B&E)H+MbQeThWmZq4t7w!z"
 BOOKED_STATES  = {"2"}
 
 # ── PERFORMANCE TUNING ──
-DISTRICT_CITY_WORKERS = 8     # parallel city workers for District (HTTP)
-BMS_WORKERS           = 5     # parallel BMS workers (each creates fresh driver per city)
-VENUE_WORKERS         = 3     # parallel venue workers per city (HTTP seat layout calls)
-DISTRICT_RATE         = 5     # max requests/second to district.in (conservative to avoid 403)
-BMS_RATE              = 8     # max requests/second to bookmyshow.com
-BMS_RATE_LIMIT_WAIT   = 30    # seconds to wait on BMS rate limit
+DISTRICT_CITY_WORKERS = 12    # parallel city workers for District (pure HTTP)
+BMS_DRIVER_POOL_SIZE  = 12    # cities processed in parallel (each gets a fresh Chrome)
+BMS_VENUE_WORKERS     = 5     # concurrent venue workers per city (HTTP seat layout calls)
+DISTRICT_RATE         = 5     # max requests/second to district.in
+BMS_429_WAIT          = 5     # seconds to wait on actual HTTP 429
+BMS_SOFT_RETRIES      = 1     # quick retries for 'connectivity issue'
 
 # Pre-generate a User-Agent for HTTP seat layout calls (avoid per-call overhead)
 _BMS_HTTP_UA = UserAgent().random
@@ -84,7 +82,6 @@ class RateLimiter:
 
 
 district_limiter = RateLimiter(DISTRICT_RATE)
-bms_limiter      = RateLimiter(BMS_RATE)
 
 
 # =============================================================================
@@ -498,11 +495,12 @@ def get_seat_layout(driver, venue_code, session_id):
         x.send("strCommand=GETSEATLAYOUT&strAppCode=WEB&strVenueCode=%s&lngTransactionIdentifier=0&strParam1=%s&strParam2=WEB&strParam5=Y&strFormat=json");
     """ % (api_url, venue_code, session_id)
 
-    rate_limit_deadline = None
+    soft_retries    = 0
+    timeout_retries = 0
+    MAX_TIMEOUT_RETRIES = 2
     while True:
         try:
-            bms_limiter.acquire()
-            driver.set_script_timeout(20)
+            driver.set_script_timeout(3)
             resp = driver.execute_async_script(js)
             if not resp:
                 return None, "Empty response"
@@ -510,20 +508,19 @@ def get_seat_layout(driver, venue_code, session_id):
             if data.get("blnSuccess") == "true":
                 return data.get("strData"), None
             error_msg = data.get("strException", "")
-            # Retry on transient errors up to 5 minutes
             if any(kw in error_msg.lower() for kw in ["rate limit", "connectivity issue", "high demand"]):
-                if rate_limit_deadline is None:
-                    rate_limit_deadline = time.time() + 300
-                if time.time() < rate_limit_deadline:
-                    wait = BMS_RATE_LIMIT_WAIT if "rate limit" in error_msg.lower() else 5
-                    time.sleep(wait)
+                soft_retries += 1
+                if soft_retries <= BMS_SOFT_RETRIES:
                     continue
+                return None, error_msg[:50]
             return None, error_msg
         except Exception as e:
             err_line = str(e).split('\n')[0]
             if "timeout" in err_line.lower():
-                time.sleep(2)
-                continue
+                timeout_retries += 1
+                if timeout_retries <= MAX_TIMEOUT_RETRIES:
+                    continue
+                return None, f"timeout after {MAX_TIMEOUT_RETRIES+1} attempts"
             return None, err_line
 
 
@@ -550,18 +547,16 @@ def get_seat_layout_http(venue_code, session_id):
         _thread_local.bms_session = s
 
     session = _thread_local.bms_session
-    rate_limit_deadline = None  # Set on first rate-limit hit
+    soft_retries    = 0
+    timeout_retries = 0
+    MAX_TIMEOUT_RETRIES = 2
     while True:
         try:
-            bms_limiter.acquire()
             resp = session.post(api_url, data=payload, timeout=15)
             if resp.status_code == 429:
-                if rate_limit_deadline is None:
-                    rate_limit_deadline = time.time() + 300  # 5 minutes
-                if time.time() < rate_limit_deadline:
-                    time.sleep(BMS_RATE_LIMIT_WAIT)
-                    continue
-                return None, "Rate limit (HTTP 429) — 5min timeout"
+                print(f"      ⏳ HTTP 429 — waiting {BMS_429_WAIT}s...")
+                time.sleep(BMS_429_WAIT)
+                continue
             if resp.status_code != 200:
                 return None, f"HTTP {resp.status_code}"
             data = resp.json().get("BookMyShow", {})
@@ -569,17 +564,17 @@ def get_seat_layout_http(venue_code, session_id):
                 return data.get("strData"), None
             error_msg = data.get("strException", "")
             if any(kw in error_msg.lower() for kw in ["rate limit", "connectivity issue", "high demand"]):
-                if rate_limit_deadline is None:
-                    rate_limit_deadline = time.time() + 300
-                if time.time() < rate_limit_deadline:
-                    wait = BMS_RATE_LIMIT_WAIT if "rate limit" in error_msg.lower() else 5
-                    time.sleep(wait)
+                soft_retries += 1
+                if soft_retries <= BMS_SOFT_RETRIES:
                     continue
+                return None, error_msg[:50]
             return None, error_msg
         except Exception as e:
             if "timeout" in str(e).lower():
-                time.sleep(2)
-                continue
+                timeout_retries += 1
+                if timeout_retries <= MAX_TIMEOUT_RETRIES:
+                    continue
+                return None, f"timeout after {MAX_TIMEOUT_RETRIES+1} attempts"
             return None, str(e).split('\n')[0]
 
 
@@ -640,10 +635,11 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, use_
     """
     Processes ONE BMS venue. Uses HTTP seat layout if use_http=True (faster, parallelizable),
     otherwise uses Selenium XHR via the provided driver.
-    Clean version: no fallback/recovery logic. Skips shows on any error except rate limit.
+    Preserves all business logic: sold-out recovery, screen caching, deferred SIDs.
     Uses global _global_bms_sids set to skip already-processed SIDs across all workers.
     """
-    results = []
+    results            = []
+    screen_details_map = {}
 
     try:
         v_name = venue["additionalData"]["venueName"]
@@ -651,12 +647,16 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, use_
 
         shows      = venue.get("showtimes", [])
         shows.sort(key=lambda s: s["additionalData"].get("availStatus", "0"), reverse=True)
-        show_queue = deque(shows)
+        show_queue    = deque(shows)
+        deferred_sids = set()
 
         while show_queue:
             show      = show_queue.popleft()
             sid       = str(show["additionalData"]["sessionId"])
             show_time = show["title"]
+
+            raw_screen = show.get("screenAttr", "")
+            screenName = raw_screen if raw_screen else "Main Screen"
 
             # Check if SID already processed (thread-safe global check)
             with _global_bms_sids_lock:
@@ -664,47 +664,134 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, use_
                     continue
                 _global_bms_sids.add(sid)
 
+            soldOut        = False
+            seat_map       = {}
+            is_fallback    = False
+            price_seat_map = {}
+
             try:
                 cats      = show["additionalData"].get("categories", [])
                 price_map = {c["areaCatCode"]: float(c["curPrice"]) for c in cats}
                 enc, error_msg = get_seat_layout_http(v_code, sid) if use_http else get_seat_layout(driver, v_code, sid)
+                data           = None
 
                 if not enc:
-                    if error_msg and "rate limit" in error_msg.lower():
-                        # Rate limit already retried for 5 min inside get_seat_layout_http
-                        # If still failing, re-queue once more at venue level
-                        print(f"      🚫 [BMS][{city_name}] Rate Limit for {v_name[:15]} (SID {sid}) — re-queuing")
-                        with _global_bms_sids_lock:
-                            _global_bms_sids.discard(sid)
-                        show_queue.append(show)
-                        time.sleep(BMS_RATE_LIMIT_WAIT)
+                    if not price_map: continue
+                    max_price   = max(price_map.values())
+                    is_fallback = True
+                    for p in price_map.values():
+                        price_seat_map[float(p)] = 0
+
+                    if error_msg and "sold out" in error_msg.lower():
+                        # print(f"      🔴 [BMS][{city_name}] Sold Out: {sid}. Checking recovery...")
+                        recovered_capacity = None
+                        recovered_seat_map = None
+
+                        if screenName in screen_details_map:
+                            recovered_seat_map = screen_details_map[screenName]
+                            recovered_capacity = sum(recovered_seat_map.values())
+                            # print(f"         ⚡ Using cached layout ({recovered_capacity} seats)")
+
+                        if not recovered_capacity:
+                            try:
+                                base_sid = int(sid)
+                                for offset in range(7, 0, -1):
+                                    target_sid = str(base_sid + offset)
+                                    n_enc, _ = get_seat_layout_http(v_code, target_sid) if use_http else get_seat_layout(driver, v_code, target_sid)
+                                    if n_enc:
+                                        n_dec = decrypt_data(n_enc)
+                                        n_res = calculate_show_collection(n_dec, {})
+                                        if n_res[0] > 0:
+                                            recovered_capacity = n_res[0]
+                                            recovered_seat_map = n_res[5]
+                                            # print(f"         ✨ Recovered using {target_sid}")
+                                            break
+                            except Exception:
+                                pass
+
+                        if recovered_capacity:
+                            calc_gross = sum(count * price_map.get(ac, 0) for ac, count in recovered_seat_map.items())
+                            if calc_gross > 0:
+                                t_tkts = b_tkts = recovered_capacity
+                                t_gross = b_gross = calc_gross
+                                screen_details_map[screenName] = recovered_seat_map
+                                seat_map    = recovered_seat_map
+                                is_fallback = False
+                                ps_map      = defaultdict(int)
+                                for ac, count in seat_map.items():
+                                    ps_map[float(price_map.get(ac, 0))] += count
+                                price_seat_map = dict(ps_map)
+                            else:
+                                recovered_capacity = None
+
+                        if not recovered_capacity:
+                            print(f"         ❌ [BMS][{city_name}] Sold out, recovery failed — skipping {sid}")
+                            continue
+
+                        occ     = 100.0
+                        soldOut = True
+                        data    = {"total_tickets": t_tkts, "booked_tickets": b_tkts,
+                                   "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ}
+
+                    elif error_msg and "Rate limit" in error_msg:
+                        print(f"      🚫 [BMS][{city_name}] Rate Limit for {v_name[:15]}")
+                        continue
+
                     else:
-                        print(f"      ⏭️  [BMS][{city_name}] Skipping {sid}: {error_msg}")
-                    continue
+                        print(f"      ⚠️  [BMS][{city_name}] Error for {sid}: {error_msg}")
+                        if screenName in screen_details_map:
+                            cached = screen_details_map[screenName]
+                            seat_map     = cached
+                            t_tkts       = sum(cached.values())
+                            b_tkts       = int(t_tkts * 0.5)
+                            ps_map       = defaultdict(int); t_gross_calc = 0
+                            for ac, count in cached.items():
+                                pr = float(price_map.get(ac, 0))
+                                ps_map[pr] += count; t_gross_calc += count * pr
+                            price_seat_map = dict(ps_map)
+                            t_gross = int(t_gross_calc); b_gross = int(t_gross * 0.5)
+                            occ = 50.0; is_fallback = False
+                            # print(f"         ⚡ Smart Fallback: {screenName} ({t_tkts} seats)")
+                        elif sid not in deferred_sids and len(show_queue) > 0:
+                            deferred_sids.add(sid)
+                            with _global_bms_sids_lock:
+                                _global_bms_sids.discard(sid)
+                            show_queue.append(show)
+                            continue
+                        else:
+                            print(f"         ❌ [BMS][{city_name}] Error for {sid}, no fallback available — skipping")
+                            continue
+                        data = {"total_tickets": t_tkts, "booked_tickets": b_tkts,
+                                "total_gross": t_gross, "booked_gross": b_gross, "occupancy": occ}
+                else:
+                    decrypted = decrypt_data(enc)
+                    res       = calculate_show_collection(decrypted, price_map)
+                    data      = {
+                        "total_tickets":  abs(res[0]),
+                        "booked_tickets": min(abs(res[1]), abs(res[0])),
+                        "total_gross":    abs(res[2]),
+                        "booked_gross":   min(abs(res[3]), abs(res[2])),
+                        "occupancy":      min(100, abs(res[4])),
+                    }
+                    seat_map        = res[5]
+                    final_price_map = res[6]
 
-                decrypted = decrypt_data(enc)
-                res       = calculate_show_collection(decrypted, price_map)
-                data      = {
-                    "total_tickets":  abs(res[0]),
-                    "booked_tickets": min(abs(res[1]), abs(res[0])),
-                    "total_gross":    abs(res[2]),
-                    "booked_gross":   min(abs(res[3]), abs(res[2])),
-                    "occupancy":      min(100, abs(res[4])),
-                }
-                seat_map        = res[5]
-                final_price_map = res[6]
-                price_seat_map  = {}
-
-                if data["total_tickets"] > 0:
-                    ps_map  = defaultdict(int); ps_list = []
-                    for ac, count in seat_map.items():
-                        pr = float(final_price_map.get(ac, 0))
-                        ps_map[pr] += count; ps_list.append((pr, count))
-                    price_seat_map             = dict(ps_map)
-                    data["price_seat_signature"] = sorted(ps_list)
+                    if data["total_tickets"] > 0:
+                        ps_map  = defaultdict(int); ps_list = []
+                        for ac, count in seat_map.items():
+                            pr = float(final_price_map.get(ac, 0))
+                            ps_map[pr] += count; ps_list.append((pr, count))
+                        price_seat_map             = dict(ps_map)
+                        data["price_seat_signature"] = sorted(ps_list)
+                        screen_details_map[screenName] = seat_map
 
                 if data and data['total_tickets'] > 0:
                     normalized_time = normalize_bms_time(SHOW_DATE, show_time)
+                    tag = "(SOLD OUT)" if soldOut else ""
+                    # print(
+                    #     f"   🎬 [BMS][{city_name}] {v_name[:15]:<15} | {normalized_time} | "
+                    #     f"Occ: {data['occupancy']:>5}% | Gross: ₹{data['booked_gross']:<8,} {tag}"
+                    # )
                     data.update({
                         "source":               "bms",
                         "sid":                  sid,
@@ -718,7 +805,7 @@ def process_bms_venue(driver, venue, city_name, reporting_city, state_name, use_
                         "price_seat_map":       price_seat_map,
                         "price_seat_signature": data.get("price_seat_signature", []),
                         "seat_signature":       build_seat_signature(seat_map),
-                        "is_fallback":          False,
+                        "is_fallback":          is_fallback,
                     })
                     results.append(data)
 
@@ -744,7 +831,6 @@ def fetch_bms_city(state_name, city_name, city_slug, city_counter_str):
     driver         = None
 
     try:
-        bms_limiter.acquire()
         driver = _create_chrome_driver()
         driver.set_script_timeout(20)
 
@@ -776,7 +862,7 @@ def fetch_bms_city(state_name, city_name, city_slug, city_counter_str):
             driver = None
 
             city_results = []
-            with ThreadPoolExecutor(max_workers=VENUE_WORKERS) as venue_pool:
+            with ThreadPoolExecutor(max_workers=BMS_VENUE_WORKERS) as venue_pool:
                 futures = [
                     venue_pool.submit(
                         process_bms_venue, None, v, city_name,
@@ -822,8 +908,8 @@ def run_bms(all_cities):
     completed   = [0]
     lock        = threading.Lock()
 
-    print(f"\n🚀 [BMS] Starting — {total} cities, {BMS_WORKERS} parallel workers, {BMS_RATE} req/sec")
-    print(f"   Fresh Chrome driver per city | {VENUE_WORKERS} venue workers per city\n")
+    print(f"\n🚀 [BMS] Starting — {total} cities, {BMS_DRIVER_POOL_SIZE} parallel workers")
+    print(f"   Fresh Chrome driver per city | {BMS_VENUE_WORKERS} venue workers per city\n")
 
     def _process(args):
         idx, (state, city_name, city_slug) = args
@@ -836,7 +922,7 @@ def run_bms(all_cities):
         return results
 
     try:
-        with ThreadPoolExecutor(max_workers=BMS_WORKERS) as executor:
+        with ThreadPoolExecutor(max_workers=BMS_DRIVER_POOL_SIZE) as executor:
             futures = {
                 executor.submit(_process, (i + 1, ct)): ct[1]
                 for i, ct in enumerate(all_cities)
@@ -989,11 +1075,18 @@ def merge_data(all_dist_data, all_bms_data):
                     'price_seat_map':    bms['price_seat_map'],
                     'seat_signature':    bms['seat_signature'],
                 })
+            match['bms_sid']      = bms['sid']
+            match['district_sid'] = match['sid']
             final_data.append(match)
         else:
+            bms['bms_sid']      = bms['sid']
+            bms['district_sid'] = None
             final_data.append(bms)
 
     for sublist in district_index.values():
+        for show in sublist:
+            show['bms_sid']      = None
+            show['district_sid'] = show['sid']
         final_data.extend(sublist)
 
     print(f"✅ Merge complete — {len(final_data)} final shows.")
@@ -1130,26 +1223,29 @@ def save_report_data(final_data, base_name, reports_dir="reports"):
 
 def merge_with_previous_data(new_data, old_data):
     """Merge current run with previous saved data.
-    - Matches by (state, city, venue, normalized_show_time)
-    - Existing shows: updated with new values
-    - New shows: added
-    - Old-only shows (e.g. morning): preserved
+    - Identity: a show is the same if either its bms_sid or district_sid matches.
+    - Current run data always wins; old-only shows (morning shows etc.) are preserved.
     """
     if not old_data:
         return new_data
 
-    new_by_key = {}
+    new_sids: set[str] = set()
     for show in new_data:
-        key = (show.get("state", ""), show["city"], show["venue"], show["normalized_show_time"])
-        new_by_key[key] = show
+        if show.get('bms_sid'):
+            new_sids.add(show['bms_sid'])
+        if show.get('district_sid'):
+            new_sids.add(show['district_sid'])
 
     merged = list(new_data)
     preserved = 0
     for show in old_data:
-        key = (show.get("state", ""), show["city"], show["venue"], show["normalized_show_time"])
-        if key not in new_by_key:
-            merged.append(show)
-            preserved += 1
+        old_show_sids = {s for s in (show.get('bms_sid'), show.get('district_sid')) if s}
+        if not old_show_sids and show.get('sid'):
+            old_show_sids = {show['sid']}
+        if old_show_sids & new_sids:
+            continue
+        merged.append(show)
+        preserved += 1
 
     if preserved:
         print(f"   📎 Preserved {preserved} shows from previous run")
@@ -1234,8 +1330,8 @@ if __name__ == "__main__":
 
     print(f"🎬 Starting run — District: {total_d} cities | BMS: {total_b} cities")
     print(f"   Both sources run in PARALLEL (2 threads)")
-    print(f"   District: {DISTRICT_CITY_WORKERS} HTTP workers | BMS: {BMS_WORKERS} workers (fresh driver/city)")
-    print(f"   Rate limits: District {DISTRICT_RATE} req/s | BMS {BMS_RATE} req/s")
+    print(f"   District: {DISTRICT_CITY_WORKERS} HTTP workers | BMS: {BMS_DRIVER_POOL_SIZE} workers (fresh driver/city)")
+    print(f"   Rate limits: District {DISTRICT_RATE} req/s")
     print(f"   District: pure HTTP | BMS: Selenium (Cloudflare bypass)\n")
 
     start_time = time.monotonic()
