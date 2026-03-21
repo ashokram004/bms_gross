@@ -51,7 +51,7 @@ BOOKED_CODES = {"2"}
 
 # ── PERFORMANCE TUNING ──
 DISTRICT_CITY_WORKERS = 12    # parallel city workers for District (pure HTTP)
-BMS_DRIVER_POOL_SIZE  = 12    # cities processed in parallel (each gets a fresh Chrome)
+BMS_DRIVER_POOL_SIZE  = 3     # cities processed in parallel (each gets a fresh Chrome)
 DISTRICT_RATE         = 5     # max requests/second to district.in
 # =============================================================================
 # ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -529,7 +529,7 @@ def batch_seat_layouts(driver, calls):
 
     driver.set_script_timeout(20)
     parsed      = {}
-    delay       = 0.15
+    delay       = 1.0           # 1 second gap between requests
     rate_hits   = 0
 
     for call in calls:
