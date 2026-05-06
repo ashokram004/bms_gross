@@ -1,7 +1,7 @@
 my_env
 reports
 old_reports
-__pycache__
+__pycache__/
 utils/__pycache__/
 HTML_CUSTOMIZATION_GUIDE.md
 HTML_REPORT_GUIDE.md
@@ -10,3 +10,4 @@ TODO.md
 BMSDISTRICTCODE.zip
 logs/
 .env
+__pycache__/reportStateCollections.cpython-314.pyc

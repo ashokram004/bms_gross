@@ -85,7 +85,6 @@ def _find_font(bold=False):
 
 _BOLD_PATH = _find_font(bold=True)
 _REG_PATH  = _find_font(bold=False)
-print(f"Using fonts:\n  Regular: {_REG_PATH}\n  Bold:    {_BOLD_PATH}")
 
 def _f(size, bold=False):
     path = _BOLD_PATH if bold else _REG_PATH
@@ -391,8 +390,8 @@ def generate_premium_city_image_report(all_results, output_path,
         card_w   = (W - PAD*2 - CARD_GAP) // 2
 
         for pi, (name, gross_v, tickets_v, shows_v, bar_col) in enumerate([
-            ("BOOKMYSHOW",   src_gross_bms,  src_tickets_bms,  src_shows_bms,  BMS_C),
             ("DISTRICT APP", src_gross_dist, src_tickets_dist, src_shows_dist, DST_C),
+            ("BOOKMYSHOW (Duplicate shows removed)",   src_gross_bms,  src_tickets_bms,  src_shows_bms,  BMS_C),
         ]):
             cx = PAD + pi*(card_w+CARD_GAP); cy = y
             rr(draw, cx, cy, cx+card_w, cy+CARD_H, 10, fill=SURFACE, outline=BORDER, width=1)
