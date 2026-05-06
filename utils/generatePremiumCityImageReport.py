@@ -85,7 +85,6 @@ def _find_font(bold=False):
 
 _BOLD_PATH = _find_font(bold=True)
 _REG_PATH  = _find_font(bold=False)
-print(f"Using fonts:\n  Regular: {_REG_PATH}\n  Bold:    {_BOLD_PATH}")
 
 def _f(size, bold=False):
     path = _BOLD_PATH if bold else _REG_PATH
