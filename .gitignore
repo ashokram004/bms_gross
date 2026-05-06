@@ -10,3 +10,4 @@ TODO.md
 BMSDISTRICTCODE.zip
 logs/
 .env
+__pycache__/reportStateCollections.cpython-314.pyc
