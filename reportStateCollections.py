@@ -31,7 +31,7 @@ load_dotenv()
 # =============================================================================
 
 INPUT_STATE_LIST = [
-    'Telangana'
+    'Andhra Pradesh', 'Telangana', 'Karnataka', 'Tamil Nadu', 'Maharashtra'
 ]
 
 # File paths
@@ -41,10 +41,10 @@ DISTRICT_MAP_PATH    = os.path.join("utils", "district_area_city_mapping.json")
 BMS_MAP_PATH         = os.path.join("utils", "bms_area_city_mapping.json")
 
 # Target URLs and parameters
-DISTRICT_URL          = "https://www.district.in/movies/jetlee-movie-tickets-in-{city}-MV213451"
+DISTRICT_URL          = "https://www.district.in/movies/michael-movie-tickets-in-{city}-MV185320"
 SHOW_DATE             = "2026-05-07"
 DISTRICT_URL_TEMPLATE = DISTRICT_URL + "?frmtid=TVQjMJQmE&fromdate=" + SHOW_DATE
-BMS_URL_TEMPLATE      = "https://in.bookmyshow.com/movies/{city}/jetlee/buytickets/ET00496021/20260507"
+BMS_URL_TEMPLATE      = "https://in.bookmyshow.com/movies/{city}/michael/buytickets/ET00470110/20260507"
 
 # Proxy configuration
 PROXY_LIST = []

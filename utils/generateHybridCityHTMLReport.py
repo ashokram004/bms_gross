@@ -154,15 +154,6 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path,
 
     # ── Platform cards ────────────────────────────────────────────────────────
     platform_html = f"""
-    <div class="platform-card bms-card">
-        <div class="platform-name">BookMyShow</div>
-        <div class="platform-gross">{format_currency(src_gross_bms)}</div>
-        <div class="platform-stats">
-            <div><div class="pstat-label">Shows</div><div class="pstat-value">{src_shows_bms}</div></div>
-            <div><div class="pstat-label">Tickets</div><div class="pstat-value">{src_tickets_bms:,}</div></div>
-            <div><div class="pstat-label">% Share</div><div class="pstat-value">{round((src_gross_bms/total_gross)*100,1) if total_gross else 0}%</div></div>
-        </div>
-    </div>
     <div class="platform-card dst-card">
         <div class="platform-name">District App</div>
         <div class="platform-gross">{format_currency(src_gross_dist)}</div>
@@ -170,6 +161,15 @@ def generate_hybrid_city_html_report(all_results, ref_url, output_path,
             <div><div class="pstat-label">Shows</div><div class="pstat-value">{src_shows_dist}</div></div>
             <div><div class="pstat-label">Tickets</div><div class="pstat-value">{src_tickets_dist:,}</div></div>
             <div><div class="pstat-label">% Share</div><div class="pstat-value">{round((src_gross_dist/total_gross)*100,1) if total_gross else 0}%</div></div>
+        </div>
+    </div>
+    <div class="platform-card bms-card">
+        <div class="platform-name">BookMyShow (Duplicate shows removed)</div>
+        <div class="platform-gross">{format_currency(src_gross_bms)}</div>
+        <div class="platform-stats">
+            <div><div class="pstat-label">Shows</div><div class="pstat-value">{src_shows_bms}</div></div>
+            <div><div class="pstat-label">Tickets</div><div class="pstat-value">{src_tickets_bms:,}</div></div>
+            <div><div class="pstat-label">% Share</div><div class="pstat-value">{round((src_gross_bms/total_gross)*100,1) if total_gross else 0}%</div></div>
         </div>
     </div>"""
 
