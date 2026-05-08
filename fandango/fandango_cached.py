@@ -11,7 +11,8 @@ MOVIE_ID = "244813"
 MOVIE_SLUG = "peddi-2026"  
 SHOW_DATE = "2026-06-03"
 ZIP_CODE = "75201"
-EXCEL_FILENAME = f"Fandango_Report_{ZIP_CODE}_{SHOW_DATE}.xlsx"
+current_time = time.strftime("%H%M%S")
+EXCEL_FILENAME = f"reports/Fandango_Report_{ZIP_CODE}_{SHOW_DATE}_{current_time}.xlsx"
 
 # =============================================================================
 # ── 2. EXCEL EXPORT ──────────────────────────────────────────────────────────
@@ -27,7 +28,7 @@ def export_to_excel(shows_data, summary_data):
     
     for row in shows_data:
         occ = round((row['booked'] / row['total']) * 100, 2) if row['total'] > 0 else 0
-        ws_shows.append([row['theater'], row['time'], row['status'], f"${row['price']:.2f}", row['total'], row['booked'], occ, row['gross']])
+        ws_shows.append([row['theater'], row['time'], row['status'], row['price_str'], row['total'], row['booked'], occ, row['gross']])
         
     ws_summary = wb.create_sheet(title="Theater Summary")
     ws_summary.append(["Theater Name", "Total Shows", "Total Seats", "Total Booked", "Overall Occ %", "Total Gross ($)"])
@@ -62,8 +63,7 @@ if __name__ == "__main__":
     summary_data = {}
 
     with sync_playwright() as p:
-        print("\n🚀 Launching Browser...")
-        # We keep it headed (headless=False) so Akamai gives us an easy pass
+        print("\n🚀 Launching Browser in Background (Headless Mode)...")
         browser = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
         context = browser.new_context(viewport={'width': 1280, 'height': 800})
         page = context.new_page()
@@ -71,12 +71,10 @@ if __name__ == "__main__":
         print(f"⏳ Loading Fandango main page to bypass Akamai natively...")
         movie_url = f"https://www.fandango.com/{MOVIE_SLUG}-{MOVIE_ID}/movie-overview?date={SHOW_DATE}"
         page.goto(movie_url)
-        
-        # Let the page load and cookies settle
         page.wait_for_timeout(4000)
 
         # ---------------------------------------------------------
-        # Step 1: Fetch the Theater Groupings Natively
+        # Step 1: Fetch and Group the Theaters
         # ---------------------------------------------------------
         print(f"🎬 Fetching theaters for ZIP: {ZIP_CODE}...")
         api_url = f"https://www.fandango.com/napi/theaterShowtimeGroupings/{MOVIE_ID}/{SHOW_DATE}?isdesktop=false&zip={ZIP_CODE}"
@@ -98,7 +96,7 @@ if __name__ == "__main__":
             exit()
 
         theaters = raw_data.get('theaterShowtimes', {}).get('theaters', [])
-        shows_to_check = []
+        grouped_shows = {}
         
         for theater in theaters:
             t_name = theater.get('name', 'Unknown Theater')
@@ -107,85 +105,133 @@ if __name__ == "__main__":
             for variant in theater.get('variants', []):
                 for amenity in variant.get('amenityGroups', []):
                     for show in amenity.get('showtimes', []):
-                        # YOUR DISCOVERY: Grab the showtimeHashCode!
                         show_hash = show.get('showtimeHashCode')
                         if not show_hash: 
                             continue
                             
-                        shows_to_check.append({
-                            'theater': t_name, 
-                            'time': show.get('screenReaderTime', 'Unknown'),
-                            'hash': show_hash, 
-                            'status': show.get('type', 'Unknown')
+                        show_time = show.get('screenReaderTime', 'Unknown')
+                        status = show.get('type', 'Unknown')
+                        
+                        group_key = f"{t_name}_{show_time}"
+                        
+                        if group_key not in grouped_shows:
+                            grouped_shows[group_key] = {
+                                'theater': t_name,
+                                'time': show_time,
+                                'tiers': []
+                            }
+                        
+                        grouped_shows[group_key]['tiers'].append({
+                            'hash': show_hash,
+                            'status': status
                         })
 
-        if not shows_to_check:
+        if not grouped_shows:
             print("❌ No valid bookable showtimes found for this ZIP code.")
             browser.close()
             exit()
 
-        print(f"✅ Found {len(shows_to_check)} shows to check. Blasting the NAPI endpoint...\n")
+        print(f"✅ Found {len(grouped_shows)} unique showtimes (combining multiple tiers). Blasting the NAPI endpoint...\n")
 
         # ---------------------------------------------------------
-        # Step 2: Blast the new `/napi/seatMap` Endpoint!
+        # Step 2: Blast the `/napi/seatMap` Endpoint per Group!
         # ---------------------------------------------------------
-        for show in shows_to_check:
-            t_name, show_time, show_hash, status = show['theater'], show['time'], show['hash'], show['status']
-            print(f"🎟️ Checking: {t_name[:20]:<20} | Time: {show_time:<10}")
-
-            if status.lower() == "soldout":
-                shows_data.append({'theater': t_name, 'time': show_time, 'status': 'Sold Out', 'price': 27.00, 'total': 100, 'booked': 100, 'gross': 2700.00})
-                summary_data[t_name]['shows'] += 1; summary_data[t_name]['total'] += 100
-                summary_data[t_name]['booked'] += 100; summary_data[t_name]['gross'] += 2700.00
-                continue
-
-            # Natively execute the fetch in the browser using your discovered endpoint
-            seat_api_url = f"https://www.fandango.com/napi/seatMap/{show_hash}"
+        for group_key, show_info in grouped_shows.items():
+            t_name = show_info['theater']
+            show_time = show_info['time']
+            tier_count = len(show_info['tiers'])
             
-            try:
-                # We use page.evaluate so the browser handles all Akamai cookies automatically!
-                seat_response = page.evaluate(f"""async () => {{
-                    try {{
-                        const response = await fetch('{seat_api_url}');
-                        if (!response.ok) return {{ error: response.status }};
-                        return await response.json();
-                    }} catch(e) {{
-                        return {{ error: "Fetch Exception" }};
-                    }}
-                }}""")
+            combined_total = 0
+            combined_booked = 0
+            combined_gross = 0.0
+            prices_seen = set()
+            all_sold_out = True
+            
+            print(f"🎟️ Checking: {t_name[:20]:<20} | Time: {show_time:<10} (Tiers: {tier_count})")
+
+            for tier in show_info['tiers']:
+                tier_hash = tier['hash']
+                tier_status = tier['status']
+
+                if tier_status.lower() == "soldout":
+                    combined_total += 100
+                    combined_booked += 100
+                    combined_gross += 2700.00
+                    prices_seen.add(27.00)
+                    continue
                 
-                if not seat_response:
-                    print(f"   => ⚠️ Empty response from API.")
-                elif "error" in seat_response:
-                    print(f"   => ⚠️ Show Unavailable (HTTP {seat_response['error']}) - Likely a ghost showtime.")
-                else:
-                    # Parse the structure Fandango uses
-                    data_block = seat_response.get('data', seat_response)
-                    areas = data_block.get('areas', [])
+                all_sold_out = False
+                seat_api_url = f"https://www.fandango.com/napi/seatMap/{tier_hash}"
+                
+                try:
+                    seat_response = page.evaluate(f"""async () => {{
+                        try {{
+                            const response = await fetch('{seat_api_url}');
+                            if (!response.ok) return {{ error: response.status }};
+                            return await response.json();
+                        }} catch(e) {{
+                            return {{ error: "Fetch Exception" }};
+                        }}
+                    }}""")
                     
-                    if areas:
-                        total_seats = int(areas[0].get('totalSeatCount', 0))
-                        available_seats = int(areas[0].get('availableSeatCount', 0))
+                    if seat_response and "error" not in seat_response:
+                        data_block = seat_response.get('data', seat_response)
+                        areas = data_block.get('areas', [])
+                        seats_array = data_block.get('seats', [])
                         
-                        price = 0.0
-                        try: price = float(areas[0].get('ticketInfo', [{}])[0].get('price', 0))
-                        except: pass
+                        if areas:
+                            # ✨ THE HYBRID LOGIC ✨
+                            if tier_count == 1 and seats_array:
+                                # ONLY 1 TIER: 100% accurate physical seat counting!
+                                total_seats = len(seats_array)
+                                available_seats = sum(1 for seat in seats_array if seat.get('status') == 'A')
+                                booked_seats = max(0, total_seats - available_seats)
+                                calc_method = "Physical Count"
+                            else:
+                                # MULTIPLE TIERS: Fallback to Fandango's cached summary to prevent double counting
+                                total_seats = int(areas[0].get('totalSeatCount', 0))
+                                available_seats = int(areas[0].get('availableSeatCount', 0))
+                                booked_seats = max(0, total_seats - available_seats)
+                                calc_method = "Cached Summary"
                             
-                        booked_seats = total_seats - available_seats
-                        gross = booked_seats * price
-                        
-                        print(f"   => 📊 Seats: {total_seats:<3} | Booked: {booked_seats:<3} | Gross: ${gross:<7.2f}")
-                        
-                        shows_data.append({'theater': t_name, 'time': show_time, 'status': status, 'price': price, 'total': total_seats, 'booked': booked_seats, 'gross': gross})
-                        summary_data[t_name]['shows'] += 1; summary_data[t_name]['total'] += total_seats
-                        summary_data[t_name]['booked'] += booked_seats; summary_data[t_name]['gross'] += gross
-                    else:
-                        print(f"   => ⚠️ No valid seat area data found.")
-                        
-            except Exception as e:
-                print(f"   => ❌ Browser execution error: {e}")
-            
-            time.sleep(1.0) # Lightning fast 1 second delay
+                            # Price Extraction
+                            price = 0.0
+                            try: price = float(areas[0].get('ticketInfo', [{}])[0].get('price', 0))
+                            except: pass
+                                
+                            gross = booked_seats * price
+                            
+                            combined_total += total_seats
+                            combined_booked += booked_seats
+                            combined_gross += gross
+                            if price > 0: prices_seen.add(price)
+                            
+                except Exception as e:
+                    pass
+                
+                time.sleep(0.5) 
+
+            # Compile and append exactly ONE row per physical showtime
+            if combined_total > 0:
+                final_status = "Sold Out" if all_sold_out else "Available"
+                price_str = " / ".join(sorted([f"${p:.2f}" for p in prices_seen])) if prices_seen else "$0.00"
+                
+                # Using tier_count to display which method was used in the logs for your visibility
+                log_method = "Physical Count" if tier_count == 1 else "Cached Summary"
+                print(f"   => 📊 Seats: {combined_total:<3} | Booked: {combined_booked:<3} | Gross: ${combined_gross:<7.2f} [{log_method}]")
+                
+                shows_data.append({
+                    'theater': t_name, 'time': show_time, 'status': final_status, 
+                    'price_str': price_str, 'total': combined_total, 
+                    'booked': combined_booked, 'gross': combined_gross
+                })
+                
+                summary_data[t_name]['shows'] += 1
+                summary_data[t_name]['total'] += combined_total
+                summary_data[t_name]['booked'] += combined_booked
+                summary_data[t_name]['gross'] += combined_gross
+            else:
+                print(f"   => ⚠️ No valid seat data returned for any tier of this showtime.")
 
         print("\n🛑 Closing browser.")
         browser.close()
