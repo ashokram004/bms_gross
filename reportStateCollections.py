@@ -42,9 +42,9 @@ BMS_MAP_PATH         = os.path.join("utils", "bms_area_city_mapping.json")
 
 # Target URLs and parameters
 DISTRICT_URL          = "https://www.district.in/movies/drishyam-3-2026-movie-tickets-in-{city}-MV200342"
-SHOW_DATE             = "2026-05-26"
+SHOW_DATE             = "2026-05-31"
 DISTRICT_URL_TEMPLATE = DISTRICT_URL + "?frmtid=2x0muo9SYv&fromdate=" + SHOW_DATE
-BMS_URL_TEMPLATE      = "https://in.bookmyshow.com/movies/{city}/drishyam-3/buytickets/ET00487295/20260526"
+BMS_URL_TEMPLATE      = "https://in.bookmyshow.com/movies/{city}/drishyam-3/buytickets/ET00487295/20260531"
 
 # Proxy configuration
 PROXY_LIST = []
