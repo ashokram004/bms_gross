@@ -31,7 +31,7 @@ load_dotenv()
 # =============================================================================
 
 INPUT_STATE_LIST = [
-    'Kerala'
+    'Andhra Pradesh', 'Telangana'
 ]
 
 # File paths
@@ -41,10 +41,10 @@ DISTRICT_MAP_PATH    = os.path.join("utils", "district_area_city_mapping.json")
 BMS_MAP_PATH         = os.path.join("utils", "bms_area_city_mapping.json")
 
 # Target URLs and parameters
-DISTRICT_URL          = "https://www.district.in/movies/drishyam-3-2026-movie-tickets-in-{city}-MV200342"
-SHOW_DATE             = "2026-05-31"
-DISTRICT_URL_TEMPLATE = DISTRICT_URL + "?frmtid=2x0muo9SYv&fromdate=" + SHOW_DATE
-BMS_URL_TEMPLATE      = "https://in.bookmyshow.com/movies/{city}/drishyam-3/buytickets/ET00487295/20260531"
+DISTRICT_URL          = "https://www.district.in/movies/peddi-movie-tickets-in-{city}-MV194276"
+SHOW_DATE             = "2026-06-03"
+DISTRICT_URL_TEMPLATE = DISTRICT_URL + "?frmtid=xxq1fs8rrhk&fromdate=" + SHOW_DATE
+BMS_URL_TEMPLATE      = "https://in.bookmyshow.com/movies/{city}/peddi/buytickets/ET00439772/20260603"
 
 # Proxy configuration
 PROXY_LIST = []
@@ -321,6 +321,8 @@ def fetch_district_city(state, city, city_counter_str):
                 return [] 
             key = list(sessions.keys())[0]
             cinemas = sessions[key]['pageData']['nearbyCinemas']
+            if not cinemas:
+                cinemas = sessions[key]['pageData']['farCinemas']
             break 
         except Exception as e:
             print(f"   ❌ [District] {city_counter_str} {city_name:<15} — Error: {str(e).splitlines()[0]}")
@@ -1047,9 +1049,9 @@ if __name__ == "__main__":
     start_time = time.monotonic()
 
     with ThreadPoolExecutor(max_workers=2) as platform_pool:
-        bms_future  = platform_pool.submit(run_bms, bms_cities)
+        # bms_future  = platform_pool.submit(run_bms, bms_cities)
         dist_future = platform_pool.submit(run_district, district_cities)
-        all_bms_data  = bms_future.result()
+        all_bms_data  = [] #bms_future.result()
         all_dist_data = dist_future.result()
 
     elapsed = time.monotonic() - start_time

@@ -1010,7 +1010,7 @@
         },
         {
             "name": "Kalyanpur",
-            "slug": null
+            "slug": "kalyanpur"
         },
         {
             "name": "Katihar",
@@ -4288,7 +4288,7 @@
         },
         {
             "name": "Tirupattur",
-            "slug": null
+            "slug": "tirupattur"
         },
         {
             "name": "Tirupur",
@@ -4638,7 +4638,7 @@
         },
         {
             "name": "Medak",
-            "slug": null
+            "slug": "medak"
         },
         {
             "name": "Metpally",
