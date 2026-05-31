@@ -211,6 +211,12 @@ def process_district_venue(cin, state, city_name, reporting_city):
     results = []
     venue = cin['cinemaInfo']['name']
     for s in cin.get('sessions', []):
+        normalized_time = district_gmt_to_ist(s['showTime'])
+        
+        # Only process sessions that match the configured SHOW_DATE
+        if not normalized_time.startswith(SHOW_DATE):
+            continue
+            
         sid = str(s.get('sid', ''))
         cid = s.get('cid')
 
@@ -254,7 +260,6 @@ def process_district_venue(cin, state, city_name, reporting_city):
 
         price_seat_list = sorted(price_seat_map.items())
         occ = round((b_tkts / t_tkts) * 100, 2) if t_tkts else 0
-        normalized_time = district_gmt_to_ist(s['showTime'])
 
         results.append({
             "source": "district",
@@ -333,6 +338,10 @@ def fetch_district_city(state, city, city_counter_str):
 
     city_results = []
     for cin in cinemas:
+        # Strictly force it to use the current selected city sessions only
+        if cin.get('cinemaInfo', {}).get('city', '').lower() != city_name.lower():
+            continue
+            
         results = process_district_venue(cin, state, city_name, reporting_city)
         city_results.extend(results)
 
