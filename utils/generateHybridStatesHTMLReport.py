@@ -1,788 +1,773 @@
-"""
-Professional HTML Report Generator (State-wise) - Premium Design
-Generates beautiful interactive reports matching premium box office standards
-"""
-
-import json
 import os
+import json
 from datetime import datetime
 
+def generate_hybrid_states_html_report(
+        all_results,
+        output_path,
+        movie_name="Movie Collection",
+        show_date="N/A"
+):
+    print("🎨 Generating Premium Reactive Glassmorphism HTML Report...")
 
-def format_currency(value):
-    """Format large numbers (Cr = Crores, L = Lakhs, K = Thousands)"""
-    if value >= 10000000:
-        return f"₹{value/10000000:.2f} Cr"
-    elif value >= 100000:
-        return f"₹{value/100000:.2f} L"
-    elif value >= 1000:
-        return f"₹{value/1000:.1f} K"
-    else:
-        return f"₹{value:.0f}"
-
-
-def get_occupancy_color(occ):
-    """Get color code based on occupancy percentage"""
-    if occ >= 60:
-        return "#00c853" # Green
-    elif occ >= 50:
-        return "#ff6d00" # Orange
-    elif occ >= 30:
-        return "#ffd600" # Yellow
-    else:
-        return "#ff1744" # Red
-
-
-def generate_hybrid_states_html_report(all_results, output_path, movie_name="Movie Collection", show_date=None):
-    """Generate professional HTML report for state-wise data"""
-    
-    print("🎨 Generating Premium Multi-State HTML Report...")
-    
-    if show_date is None:
+    if not show_date or show_date == "N/A":
         show_date = datetime.now().strftime("%d %b %Y")
-    
-    # --- 1. AGGREGATE BY STATE ---
-    state_venue_map = {}
-    state_stats = {}
-    
-    for r in all_results:
-        state = r.get("state", "Unknown")
-        venue = r["venue"]
-        
-        if state not in state_stats:
-            state_stats[state] = {
-                "gross": 0, "tickets": 0, "seats": 0, "shows": 0,
-                "venues": set(), "source_count": {"district": 0, "bms": 0}
-            }
-        
-        state_stats[state]["gross"] += r["booked_gross"]
-        state_stats[state]["tickets"] += r["booked_tickets"]
-        state_stats[state]["seats"] += r["total_tickets"]
-        state_stats[state]["shows"] += 1
-        state_stats[state]["venues"].add(venue)
-        
-        source = r.get("source", "district").lower()
-        if source in state_stats[state]["source_count"]:
-            state_stats[state]["source_count"][source] += 1
-        
-        if state not in state_venue_map:
-            state_venue_map[state] = {}
-        
-        if venue not in state_venue_map[state]:
-            state_venue_map[state][venue] = {
-                "gross": 0, "tickets": 0, "shows": 0, "seats": 0,
-                "source_count": {"district": 0, "bms": 0}
-            }
-        
-        state_venue_map[state][venue]["gross"] += r["booked_gross"]
-        state_venue_map[state][venue]["tickets"] += r["booked_tickets"]
-        state_venue_map[state][venue]["shows"] += 1
-        state_venue_map[state][venue]["seats"] += r["total_tickets"]
-        
-        if source in state_venue_map[state][venue]["source_count"]:
-            state_venue_map[state][venue]["source_count"][source] += 1
-    
-    # State summary list
-    state_list = []
-    for state, stats in state_stats.items():
-        occ = round((stats["tickets"] / stats["seats"]) * 100, 1) if stats["seats"] else 0
-        state_list.append({
-            "name": state,
-            "gross": stats["gross"],
-            "tickets": stats["tickets"],
-            "shows": stats["shows"],
-            "venues": len(stats["venues"]),
-            "occupancy": occ,
-            "district_shows": stats["source_count"]["district"],
-            "bms_shows": stats["source_count"]["bms"]
-        })
-    
-    state_list.sort(key=lambda x: x["gross"], reverse=True)
 
-    # --- 1b. AGGREGATE BY CITY ---
-    city_stats = {}
-    for r in all_results:
-        city = r.get("city", "Unknown")
-        state = r.get("state", "Unknown")
-        venue = r["venue"]
-        city_key = (state, city)
+    # ========================================================
+    # FRONTEND RAW DATA
+    # ========================================================
 
-        if city_key not in city_stats:
-            city_stats[city_key] = {
-                "city": city, "state": state,
-                "gross": 0, "tickets": 0, "seats": 0, "shows": 0,
-                "venues": set()
-            }
+    frontend_rows = []
 
-        city_stats[city_key]["gross"] += r["booked_gross"]
-        city_stats[city_key]["tickets"] += r["booked_tickets"]
-        city_stats[city_key]["seats"] += r["total_tickets"]
-        city_stats[city_key]["shows"] += 1
-        city_stats[city_key]["venues"].add(venue)
+    for row in all_results:
+        # Time Category parsing
+        dt_str = row.get('normalized_show_time', '')
+        time_str = "Unknown"
+        timeCat = "7. Unknown Time"
+        
+        if dt_str:
+            try:
+                dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+                time_str = dt.strftime("%I:%M %p")
+                h = dt.hour
+                if 5 <= h < 9: timeCat = "1. Early Morning (5am-9am)"
+                elif 9 <= h < 12: timeCat = "2. Morning (9am-12pm)"
+                elif 12 <= h < 16: timeCat = "3. Afternoon (12pm-4pm)"
+                elif 16 <= h < 20: timeCat = "4. Evening (4pm-8pm)"
+                elif 20 <= h < 24: timeCat = "5. Night (8pm-12am)"
+                else: timeCat = "6. Midnight (12am-5am)"
+            except Exception:
+                pass
 
-    city_list = []
-    for ck, cs in city_stats.items():
-        occ = round((cs["tickets"] / cs["seats"]) * 100, 1) if cs["seats"] else 0
-        city_list.append({
-            "name": cs["city"],
-            "state": cs["state"],
-            "gross": cs["gross"],
-            "tickets": cs["tickets"],
-            "shows": cs["shows"],
-            "venues": len(cs["venues"]),
-            "occupancy": occ
+        total_tix = row.get('total_tickets', 0)
+        booked_tix = row.get('booked_tickets', 0)
+        
+        status = "Available"
+        if total_tix == 0:
+            status = "N/A"
+        elif booked_tix >= total_tix:
+            status = "Sold Out"
+
+        frontend_rows.append({
+            'source': row.get('source', '').upper(),
+            'state': row.get('state', 'Unknown'),
+            'city': row.get('city', 'Unknown'),
+            'theater': row.get('venue', 'Unknown'),
+            'time': time_str,
+            'timeCat': timeCat,
+            'status': status,
+            'total': total_tix,
+            'booked': booked_tix,
+            'gross': row.get('booked_gross', 0),
+            'is_extra': row.get('is_fallback', False)
         })
 
-    city_list.sort(key=lambda x: x["gross"], reverse=True)
-    total_cities = len(city_list)
-    
-    # --- 2. BUILD STATE ROWS ---
-    state_rows = ""
-    for idx, s in enumerate(state_list, 1):
-        occ_color = get_occupancy_color(s["occupancy"])
-        state_rows += f"""
-        <tr>
-            <td class="rank">${idx}</td>
-            <td><strong>{s['name']}</strong></td>
-            <td class="num">{s['venues']}</td>
-            <td class="num">{s['shows']}</td>
-            <td class="num">{s['tickets']:,}</td>
-            <td class="num">
-                <div class="occ-bar-wrap">
-                    <div class="occ-bar" style="width:{s['occupancy']}%;background:{occ_color}"></div>
-                    <span style="color:{occ_color}">{s['occupancy']}%</span>
-                </div>
-            </td>
-            <td class="num gross-cell">{format_currency(s['gross'])}</td>
-        </tr>"""
-    
-    # --- 2b. BUILD CITY ROWS ---
-    city_rows = ""
-    for idx, c in enumerate(city_list, 1):
-        occ_color = get_occupancy_color(c["occupancy"])
-        hidden_class = ' class="hidden-row"' if idx > 50 else ''
-        city_rows += f"""
-        <tr{hidden_class}>
-            <td class="rank">{idx}</td>
-            <td><strong>{c['state']}</strong></td>
-            <td><strong>{c['name']}</strong></td>
-            <td class="num">{c['venues']}</td>
-            <td class="num">{c['shows']}</td>
-            <td class="num">{c['tickets']:,}</td>
-            <td class="num">
-                <div class="occ-bar-wrap">
-                    <div class="occ-bar" style="width:{c['occupancy']}%;background:{occ_color}"></div>
-                    <span style="color:{occ_color}">{c['occupancy']}%</span>
-                </div>
-            </td>
-            <td class="num gross-cell">{format_currency(c['gross'])}</td>
-        </tr>"""
+    frontend_json = json.dumps(frontend_rows)
 
-    # --- 3. BUILD VENUE ROWS (All States) ---
-    venue_rows = ""
-    venue_count = 1
-    total_venues = 0
-    for state_name in [s["name"] for s in state_list]:
-        venues = state_venue_map[state_name]
-        venue_list = []
-        
-        for v, d in venues.items():
-            occ = round((d["tickets"] / d["seats"]) * 100, 1) if d["seats"] else 0
-            venue_list.append({
-                "name": v, "state": state_name, "gross": d["gross"],
-                "tickets": d["tickets"], "shows": d["shows"], "seats": d["seats"],
-                "occupancy": occ, "district_shows": d["source_count"]["district"],
-                "bms_shows": d["source_count"]["bms"]
-            })
-        
-        venue_list.sort(key=lambda x: x["gross"], reverse=True)
-        total_venues += len(venue_list)
-        
-        for idx, v in enumerate(venue_list):  # Show all venues
-            occ_color = get_occupancy_color(v["occupancy"])
-            # Mark rows beyond 50 as hidden initially
-            hidden_class = ' class="hidden-row"' if venue_count > 50 else ''
-            venue_rows += f"""
-            <tr{hidden_class}>
-                <td class="rank">{venue_count}</td>
-                <td><strong>{v['state']}</strong></td>
-                <td><div class="theatre-name">{v['name']}</div></td>
-                <td class="num">{v['shows']}</td>
-                <td class="num">{v['tickets']:,}/{v['seats']:,}</td>
-                <td class="num">
-                    <div class="occ-bar-wrap">
-                        <div class="occ-bar" style="width:{v['occupancy']}%;background:{occ_color}"></div>
-                        <span style="color:{occ_color}">{v['occupancy']}%</span>
-                    </div>
-                </td>
-                <td class="num gross-cell">{format_currency(v['gross'])}</td>
-            </tr>"""
-            venue_count += 1
-    
-    # --- 4. TOTAL STATS ---
-    total_gross = sum(s["gross"] for s in state_list)
-    total_tickets = sum(s["tickets"] for s in state_list)
-    total_occupancy = round((sum(r["booked_tickets"] for r in all_results) / sum(r["total_tickets"] for r in all_results) * 100), 1) if all_results else 0
-    num_theatres = sum(s["venues"] for s in state_list)
-    num_shows = len(all_results)
-    
-    # --- 5. Platform breakdown ---
-    source_gross_dist = sum(r["booked_gross"] for r in all_results if r.get("source") == "district")
-    source_gross_bms = sum(r["booked_gross"] for r in all_results if r.get("source") == "bms")
-    source_tickets_dist = sum(r["booked_tickets"] for r in all_results if r.get("source") == "district")
-    source_tickets_bms = sum(r["booked_tickets"] for r in all_results if r.get("source") == "bms")
-    source_shows_dist = sum(1 for r in all_results if r.get("source") == "district")
-    source_shows_bms = sum(1 for r in all_results if r.get("source") == "bms")
-    
-    platform_html = f"""
-    <div class="platform-card dst-card">
-        <div class="platform-name">District App</div>
-        <div class="platform-gross">{format_currency(source_gross_dist)}</div>
-        <div class="platform-stats">
-            <div>
-                <div class="pstat-label">Shows</div>
-                <div class="pstat-value">{source_shows_dist}</div>
-            </div>
-            <div>
-                <div class="pstat-label">Tickets</div>
-                <div class="pstat-value">{source_tickets_dist:,}</div>
-            </div>
-            <div>
-                <div class="pstat-label">% Share</div>
-                <div class="pstat-value">{round((source_gross_dist/total_gross)*100, 1) if total_gross else 0}%</div>
-            </div>
-        </div>
-    </div>
-    <div class="platform-card bms-card">
-        <div class="platform-name">BookMyShow (Duplicate shows removed)</div>
-        <div class="platform-gross">{format_currency(source_gross_bms)}</div>
-        <div class="platform-stats">
-            <div>
-                <div class="pstat-label">Shows</div>
-                <div class="pstat-value">{source_shows_bms}</div>
-            </div>
-            <div>
-                <div class="pstat-label">Tickets</div>
-                <div class="pstat-value">{source_tickets_bms:,}</div>
-            </div>
-            <div>
-                <div class="pstat-label">% Share</div>
-                <div class="pstat-value">{round((source_gross_bms/total_gross)*100, 1) if total_gross else 0}%</div>
-            </div>
-        </div>
-    </div>"""
-    
-    total_occ_color = get_occupancy_color(total_occupancy)
-    # --- 6. BUILD HTML ---
-    html_content = f"""<!DOCTYPE html>
+    # ========================================================
+    # HTML SKELETON & VUE TEMPLATE
+    # ========================================================
+
+    html_content = f"""
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>{movie_name} — Multi-State Box Office Report</title>
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-    <style>
-        :root {{
-            --bg: #0a0a0f;
-            --surface: #13131c;
-            --surface2: #1c1c2a;
-            --border: #2a2a3d;
-            --accent: #f5a623;
-            --accent2: #e8174d;
-            --text: #e8e8f0;
-            --muted: #7070a0;
-            --bms: #e8174d;
-            --district: #9B4BE1;
-        }}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{movie_name} - Advance Sales Report</title>
 
-        *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 
-        body {{
-            font-family: 'DM Sans', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-        }}
+<style>
+:root {{
+    --bg-color: #020617;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --primary: #f58320;
+    --glass-bg: rgba(255, 255, 255, 0.03);
+    --glass-border: rgba(255, 255, 255, 0.06);
+    --glass-highlight: rgba(255, 255, 255, 0.12);
+}}
 
-        /* ── Hero ── */
-        .hero {{
-            background: linear-gradient(135deg, #0d0d1a 0%, #1a0a20 50%, #0a1020 100%);
-            border-bottom: 1px solid var(--border);
-            padding: 48px 40px 36px;
-            position: relative;
-            overflow: hidden;
-        }}
-        .hero::before {{
-            content: '';
-            position: absolute;
-            top: -60px; right: -60px;
-            width: 320px; height: 320px;
-            background: radial-gradient(circle, rgba(245,166,35,0.12) 0%, transparent 70%);
-            pointer-events: none;
-        }}
-        .hero::after {{
-            content: '';
-            position: absolute;
-            bottom: -80px; left: 20%;
-            width: 400px; height: 200px;
-            background: radial-gradient(circle, rgba(232,23,77,0.08) 0%, transparent 70%);
-            pointer-events: none;
-        }}
-        .hero-eyebrow {{
-            font-size: 11px;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            color: var(--accent);
-            margin-bottom: 10px;
-            font-weight: 600;
-        }}
-        .hero-title {{
-            font-family: 'Bebas Neue', sans-serif;
-            font-size: clamp(42px, 7vw, 80px);
-            letter-spacing: 2px;
-            line-height: 0.95;
-            background: linear-gradient(135deg, #fff 30%, var(--accent) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 12px;
-        }}
-        .hero-meta {{
-            display: flex;
-            gap: 24px;
-            flex-wrap: wrap;
-            margin-top: 16px;
-            color: var(--muted);
-            font-size: 13px;
-        }}
-        .hero-meta span {{
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }}
-        .hero-meta strong {{ color: var(--text); }}
+* {{
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+}}
 
-        /* ── KPI Strip ── */
-        .kpi-strip {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 1px;
-            background: var(--border);
-            border-bottom: 1px solid var(--border);
-        }}
-        .kpi-card {{
-            background: var(--surface);
-            padding: 28px 24px;
-            text-align: center;
-        }}
-        .kpi-label {{
-            font-size: 10px;
-            letter-spacing: 2.5px;
-            text-transform: uppercase;
-            color: var(--muted);
-            margin-bottom: 8px;
-            font-weight: 600;
-        }}
-        .kpi-value {{
-            font-family: 'Bebas Neue', sans-serif;
-            font-size: 36px;
-            letter-spacing: 1px;
-            color: var(--accent);
-        }}
-        .kpi-card.total .kpi-value {{
-            background: linear-gradient(135deg, var(--accent), var(--accent2));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            font-size: 44px;
-        }}
+body {{
+    background-color: var(--bg-color);
+    background-image:
+        radial-gradient(circle at 10% 20%, rgba(37, 99, 235, 0.12), transparent 30%),
+        radial-gradient(circle at 90% 40%, rgba(245, 131, 32, 0.08), transparent 30%),
+        radial-gradient(circle at 50% 90%, rgba(139, 92, 246, 0.12), transparent 40%);
+    background-attachment: fixed;
+    color: var(--text-main);
+    padding: 20px;
+}}
 
-        /* ── Main Layout ── */
-        .main {{ padding: 32px 40px; max-width: 1400px; margin: 0 auto; }}
+.container {{
+    max-width: 1400px;
+    margin: 0 auto;
+}}
 
-        /* ── Section ── */
-        .section {{ margin-bottom: 48px; }}
-        .section-header {{
-            display: flex;
-            align-items: baseline;
-            gap: 12px;
-            margin-bottom: 20px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid var(--border);
-        }}
-        .section-title {{
-            font-family: 'Bebas Neue', sans-serif;
-            font-size: 24px;
-            letter-spacing: 1.5px;
-            color: var(--text);
-        }}
-        .section-sub {{
-            font-size: 12px;
-            color: var(--muted);
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }}
+.header {{
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--glass-border);
+}}
 
-        /* ── Platform Cards ── */
-        .platform-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 16px;
-        }}
-        .platform-card {{
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 24px;
-            position: relative;
-            overflow: hidden;
-            transition: transform 0.2s;
-        }}
-        .platform-card:hover {{ transform: translateY(-2px); }}
-        .platform-card.bms-card {{ border-top: 3px solid var(--bms); }}
-        .platform-card.dst-card {{ border-top: 3px solid var(--district); }}
-        .platform-card::before {{
-            content: '';
-            position: absolute;
-            top: 0; right: 0;
-            width: 120px; height: 120px;
-            border-radius: 50%;
-            opacity: 0.06;
-        }}
-        .bms-card::before {{ background: var(--bms); }}
-        .dst-card::before {{ background: var(--district); }}
-        .platform-name {{
-            font-size: 11px;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: var(--muted);
-            margin-bottom: 4px;
-        }}
-        .platform-gross {{
-            font-family: 'Bebas Neue', sans-serif;
-            font-size: 36px;
-            letter-spacing: 1px;
-            margin-bottom: 16px;
-        }}
-        .bms-card .platform-gross {{ color: var(--bms); }}
-        .dst-card .platform-gross {{ color: var(--district); }}
-        .platform-stats {{
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 12px;
-        }}
-        .pstat-label {{ font-size: 10px; color: var(--muted); text-transform: uppercase; }}
-        .pstat-value {{ font-size: 18px; font-weight: 700; color: var(--text); }}
+.header h1 {{
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--text-main);
+    letter-spacing: -0.5px;
+}}
 
-        /* ── Tables ── */
-        .table-wrap {{
-            overflow-x: auto;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-        }}
-        table {{
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13.5px;
-        }}
-        thead th {{
-            background: var(--surface2);
-            color: var(--muted);
-            font-size: 10px;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            font-weight: 600;
-            padding: 12px 16px;
-            text-align: left;
-            white-space: nowrap;
-            border-bottom: 1px solid var(--border);
-        }}
-        /* Align numeric columns right */
-        table:nth-of-type(1) thead th:nth-child(3),
-        table:nth-of-type(1) thead th:nth-child(4),
-        table:nth-of-type(1) thead th:nth-child(5),
-        table:nth-of-type(1) thead th:nth-child(6),
-        table:nth-of-type(1) thead th:nth-child(7) {{
-            text-align: right;
-        }}
-        table:nth-of-type(2) thead th:nth-child(4),
-        table:nth-of-type(2) thead th:nth-child(5),
-        table:nth-of-type(2) thead th:nth-child(6),
-        table:nth-of-type(2) thead th:nth-child(7),
-        table:nth-of-type(2) thead th:nth-child(8) {{
-            text-align: right;
-        }}
-        table:nth-of-type(3) thead th:nth-child(4),
-        table:nth-of-type(3) thead th:nth-child(5),
-        table:nth-of-type(3) thead th:nth-child(6),
-        table:nth-of-type(3) thead th:nth-child(7) {{
-            text-align: right;
-        }}
-        tbody tr {{
-            border-bottom: 1px solid var(--border);
-            transition: background 0.15s;
-        }}
-        tbody tr:hover {{ background: var(--surface2); }}
-        td {{
-            padding: 12px 16px;
-            vertical-align: middle;
-        }}
-        td.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
-        td.gross-cell {{ font-weight: 700; color: var(--accent); }}
-        td.rank {{ color: var(--muted); font-size: 12px; width: 40px; }}
+.header-meta {{
+    text-align: right;
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.6;
+}}
 
-        .theatre-name {{ font-weight: 600; color: var(--text); }}
+.header-meta strong {{ color: var(--text-main); font-weight: 500; }}
 
-        /* ── Occupancy Bar ── */
-        .occ-bar-wrap {{
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            justify-content: flex-end;
-        }}
-        .occ-bar {{
-            height: 6px;
-            border-radius: 3px;
-            max-width: 70px;
-            width: 70px;
-            flex-shrink: 0;
-            order: -1;
-        }}
-        .occ-bar-wrap span {{ font-weight: 700; font-size: 13px; width: 42px; text-align: right; }}
+.kpi-grid {{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}}
 
-        /* ── Footer ── */
-        .footer {{
-            text-align: center;
-            padding: 32px 40px;
-            color: var(--muted);
-            font-size: 12px;
-            border-top: 1px solid var(--border);
-        }}
-        .footer strong {{ color: var(--accent); }}
+.kpi-card {{
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    padding: 20px;
+    border-radius: 16px;
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-highlight);
+    border-left: 1px solid var(--glass-highlight);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+    position: relative;
+    overflow: hidden;
+}}
 
-        /* ── Toggle ── */
-        .hidden-row {{ display: none; }}
-        .show-all-btn {{
-            display: inline-block;
-            margin-top: 16px;
-            padding: 8px 16px;
-            background: var(--surface2);
-            color: var(--accent);
-            border: 1px solid var(--accent);
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            transition: all 0.2s;
-        }}
-        .show-all-btn:hover {{
-            background: var(--accent);
-            color: var(--bg);
-        }}
-        .toggle-container {{
-            text-align: center;
-            padding: 20px;
-        }}
+.kpi-title {{
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}}
 
-        /* ── Responsive ── */
-        @media (max-width: 768px) {{
-            .hero {{ padding: 32px 20px; }}
-            .main {{ padding: 20px; }}
-            table {{ font-size: 12px; }}
-            td {{ padding: 8px; }}
-        }}
+.kpi-value {{
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--text-main);
+}}
 
-        ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
-        ::-webkit-scrollbar-track {{ background: var(--bg); }}
-        ::-webkit-scrollbar-thumb {{ background: var(--border); }}
-    </style>
+.kpi-sub {{
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 6px;
+}}
+
+.dashboard-row {{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+    align-items: stretch;
+}}
+
+@media (max-width: 1000px) {{
+    .dashboard-row {{ grid-template-columns: 1fr; }}
+}}
+
+.summary-section {{
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 16px;
+    padding: 20px;
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-highlight);
+    border-left: 1px solid var(--glass-highlight);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+    overflow-x: auto;
+    display: flex;
+    flex-direction: column;
+}}
+
+.summary-section h2 {{
+    font-size: 16px;
+    margin-bottom: 15px;
+    font-weight: 500;
+    color: var(--text-main);
+    border-bottom: 1px solid var(--glass-border);
+    padding-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}}
+
+table {{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}}
+
+th, td {{
+    padding: 12px 10px;
+    text-align: right;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}}
+
+th {{
+    background-color: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 11px;
+    cursor: pointer;
+    user-select: none;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}}
+
+th:first-child, td:first-child {{ text-align: left; }}
+
+tr:hover td {{ background-color: rgba(255,255,255,0.04); }}
+
+.gross-val {{ font-weight: 600; color: #f8fafc; }}
+.state-col {{ font-weight: 500; color: var(--text-muted); }}
+.theater-col {{ font-weight: 400; color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }}
+.format-col {{ color: #fbbf24; font-weight: 500; }}
+.language-col {{ color: #a78bfa; font-weight: 500; }}
+
+.status-badge {{
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}}
+.status-available {{ background-color: rgba(22, 163, 74, 0.15); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.2); }}
+.status-sold-out {{ background-color: rgba(220, 38, 38, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.2); }}
+
+.btn-toggle {{
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-main);
+    margin-top: auto;
+    width: 100%;
+    transition: all 0.2s;
+}}
+.btn-toggle:hover {{ background: rgba(255,255,255,0.1); border-color: var(--glass-highlight); }}
+
+.footer {{
+    text-align: center;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    font-size: 12px;
+}}
+
+/* FILTER PANEL */
+.filter-panel {{
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 16px;
+    padding: 20px;
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-highlight);
+    border-left: 1px solid var(--glass-highlight);
+    margin-bottom: 20px;
+}}
+
+.filter-grid {{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+}}
+
+.filter-label {{
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    font-weight: 600;
+}}
+
+.filter-select {{
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--glass-border);
+    color: var(--text-main);
+    padding: 12px;
+    border-radius: 10px;
+    outline: none;
+    font-size: 13px;
+}}
+.filter-select option {{ background: #0f172a; color: white; }}
+
+.toggle-filter-btn {{
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    border: none;
+    color: white;
+    padding: 12px 18px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+}}
+.toggle-filter-btn:hover {{ transform: translateY(-1px); opacity: 0.95; }}
+
+</style>
 </head>
+
 <body>
+<div id="app">
+<div class="container">
 
-<!-- Hero -->
-<header class="hero">
-    <div class="hero-eyebrow">📽 State-wise Box Office Report</div>
-    <div class="hero-title">{movie_name}</div>
-    <div class="hero-meta">
-        <span>🌍 <strong>Multi-State Release</strong></span>
-        <span>📅 <strong>{show_date}</strong></span>
-        <span>🕐 Report Generated: <strong>{datetime.now().strftime("%d %b %Y, %I:%M %p")}</strong></span>
-        <span>🗺️ <strong>{len(state_list)} States</strong></span>
-        <span>🎪 <strong>{num_theatres} Theatres</strong></span>
-        <span>🎬 <strong>{num_shows} Shows</strong></span>
-    </div>
-</header>
-
-<!-- KPI Strip -->
-<div class="kpi-strip">
-    <div class="kpi-card total">
-        <div class="kpi-label">Total Gross Collection</div>
-        <div class="kpi-value">{format_currency(total_gross)}</div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Tickets Sold</div>
-        <div class="kpi-value">{total_tickets:,}</div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">States</div>
-        <div class="kpi-value">{len(state_list)}</div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Theatres</div>
-        <div class="kpi-value">{num_theatres}</div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Avg Occupancy</div>
-        <div class="kpi-value" style="color:{total_occ_color}">{total_occupancy}%</div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Total Shows</div>
-        <div class="kpi-value">{num_shows}</div>
-    </div>
-</div>
-
-<!-- Main Content -->
-<main class="main">
-
-    <!-- Platform Breakdown -->
-    <section class="section">
-        <div class="section-header">
-            <div class="section-title">Platform Breakdown</div>
-            <div class="section-sub">BMS vs District</div>
+    <div class="header">
+        <h1>{movie_name} - Advance Sales Report</h1>
+        <div class="header-meta">
+            Show Date: <strong>{show_date}</strong><br>
+            Report Generated: <strong>{datetime.now().strftime("%d %b %Y, %I:%M %p")}</strong> IST
         </div>
-        <div class="platform-grid">
-            {platform_html}
-        </div>
-    </section>
+    </div>
 
-    <!-- State Rankings -->
-    <section class="section">
-        <div class="section-header">
-            <div class="section-title">State Rankings</div>
-            <div class="section-sub">By Gross Collection</div>
+    <div style="display:flex; justify-content:flex-end; margin-bottom:20px;">
+        <button @click="showFilters = !showFilters" class="toggle-filter-btn">
+            {{{{ showFilters ? 'Hide Filters' : 'Show Filters' }}}}
+        </button>
+    </div>
+
+    <div v-show="showFilters" class="filter-panel">
+        <div class="filter-grid">
+            
+            <div>
+                <div class="filter-label">State</div>
+                <select v-model="filters.state" class="filter-select">
+                    <option value="ALL">All States</option>
+                    <option v-for="st in uniqueStates" :key="st" :value="st">{{{{ st }}}}</option>
+                </select>
+            </div>
+
+            <div>
+                <div class="filter-label">City</div>
+                <select v-model="filters.city" class="filter-select">
+                    <option value="ALL">All Cities</option>
+                    <option v-for="ct in filteredCitiesList" :key="ct" :value="ct">{{{{ ct }}}}</option>
+                </select>
+            </div>
+
+            <div>
+                <div class="filter-label">Theatre</div>
+                <select v-model="filters.theater" class="filter-select">
+                    <option value="ALL">All Theatres</option>
+                    <option v-for="th in filteredTheatersList" :key="th" :value="th">{{{{ th }}}}</option>
+                </select>
+            </div>
+
+            <div>
+                <div class="filter-label">Platform (Source)</div>
+                <select v-model="filters.source" class="filter-select">
+                    <option value="ALL">All Platforms</option>
+                    <option v-for="sc in uniqueSources" :key="sc" :value="sc">{{{{ sc }}}}</option>
+                </select>
+            </div>
+
+            <div>
+                <div class="filter-label">Time Of Day</div>
+                <select v-model="filters.timeCat" class="filter-select">
+                    <option value="ALL">All Times</option>
+                    <option v-for="tm in uniqueTimeCats" :key="tm" :value="tm">{{{{ tm }}}}</option>
+                </select>
+            </div>
+
         </div>
-        <div class="table-wrap">
+    </div>
+
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-title">Total Gross</div>
+            <div class="kpi-value">{{{{ formatCurrency(kpis.gross) }}}}</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-title">Tickets Sold</div>
+            <div class="kpi-value">{{{{ formatInt(kpis.booked) }}}}</div>
+            <div class="kpi-sub">{{{{ formatInt(kpis.total) }}}} cap</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-title">Total Venues</div>
+            <div class="kpi-value">{{{{ formatInt(kpis.venues) }}}}</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-title">Total Shows</div>
+            <div class="kpi-value">{{{{ formatInt(kpis.shows) }}}}</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-title">Overall Occupancy</div>
+            <div class="kpi-value" :style="{{ color: getOccupancyColor(kpis.occupancy) }}">
+                {{{{ kpis.occupancy.toFixed(1) }}}}%
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-title">Avg Ticket Price</div>
+            <div class="kpi-value">{{{{ formatCurrency(kpis.atp) }}}}</div>
+        </div>
+    </div>
+
+    <div class="dashboard-row">
+        
+        <div class="summary-section">
+            <h2>Platform Distribution</h2>
             <table>
                 <thead>
                     <tr>
-                        <th>#</th>
-                        <th>State</th>
-                        <th>Theatres</th>
+                        <th>Platform</th>
                         <th>Shows</th>
-                        <th>Tickets Sold</th>
-                        <th>Occupancy</th>
+                        <th>Tickets</th>
                         <th>Gross</th>
+                        <th>Occ %</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {state_rows}
+                    <tr v-for="row in sourceSummary" :key="row.name">
+                        <td class="format-col">{{{{ row.name }}}}</td>
+                        <td>{{{{ formatInt(row.shows) }}}}</td>
+                        <td>{{{{ formatInt(row.booked) }}}}</td>
+                        <td class="gross-val">{{{{ formatCurrency(row.gross) }}}}</td>
+                        <td :style="{{ color: getOccupancyColor(row.occupancy) }}">{{{{ row.occupancy.toFixed(1) }}}}%</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
-    </section>
 
-    <!-- City Rankings -->
-    <section class="section">
-        <div class="section-header">
-            <div class="section-title">City Rankings</div>
-            <div class="section-sub">All States - By Gross Collection</div>
-        </div>
-        <div class="table-wrap">
-            <table id="cityTable">
+        <div class="summary-section">
+            <h2>Time Of Day Analysis</h2>
+            <table>
                 <thead>
                     <tr>
-                        <th>#</th>
+                        <th>Time Category</th>
+                        <th>Shows</th>
+                        <th>Tickets</th>
+                        <th>Gross</th>
+                        <th>Occ %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="row in timeSummary" :key="row.name">
+                        <td class="state-col">{{{{ row.name }}}}</td>
+                        <td>{{{{ formatInt(row.shows) }}}}</td>
+                        <td>{{{{ formatInt(row.booked) }}}}</td>
+                        <td class="gross-val">{{{{ formatCurrency(row.gross) }}}}</td>
+                        <td :style="{{ color: getOccupancyColor(row.occupancy) }}">{{{{ row.occupancy.toFixed(1) }}}}%</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <div class="dashboard-row">
+        
+        <div class="summary-section">
+            <h2>State Distribution</h2>
+            <table>
+                <thead>
+                    <tr>
                         <th>State</th>
+                        <th>Shows</th>
+                        <th>Tickets</th>
+                        <th>Gross</th>
+                        <th>Occ %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="row in stateSummary" :key="row.name">
+                        <td class="state-col">{{{{ row.name }}}}</td>
+                        <td>{{{{ formatInt(row.shows) }}}}</td>
+                        <td>{{{{ formatInt(row.booked) }}}}</td>
+                        <td class="gross-val">{{{{ formatCurrency(row.gross) }}}}</td>
+                        <td :style="{{ color: getOccupancyColor(row.occupancy) }}">{{{{ row.occupancy.toFixed(1) }}}}%</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="summary-section">
+            <h2>City Distribution</h2>
+            <table>
+                <thead>
+                    <tr>
                         <th>City</th>
-                        <th>Theatres</th>
                         <th>Shows</th>
-                        <th>Tickets Sold</th>
-                        <th>Occupancy</th>
+                        <th>Tickets</th>
                         <th>Gross</th>
+                        <th>Occ %</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {city_rows}
+                    <tr v-for="row in displayedCitySummary" :key="row.name">
+                        <td class="language-col">{{{{ row.name }}}}</td>
+                        <td>{{{{ formatInt(row.shows) }}}}</td>
+                        <td>{{{{ formatInt(row.booked) }}}}</td>
+                        <td class="gross-val">{{{{ formatCurrency(row.gross) }}}}</td>
+                        <td :style="{{ color: getOccupancyColor(row.occupancy) }}">{{{{ row.occupancy.toFixed(1) }}}}%</td>
+                    </tr>
+                    <tr v-if="citySummary.length > 20">
+                        <td colspan="5" style="text-align:center; padding:18px; border-bottom:none;">
+                            <button @click="showAllCities = !showAllCities" class="btn-toggle" style="width:auto; padding:10px 18px;">
+                                {{{{ showAllCities ? 'Hide Full City List' : 'Show Full City List' }}}}
+                            </button>
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
-        {f'<div class="toggle-container"><button class="show-all-btn" onclick="toggleRows(\'cityTable\')">🏙️ Show All {total_cities} Cities</button></div>' if total_cities > 50 else ''}
-    </section>
 
-    <!-- Theatre Rankings -->
-    <section class="section">
-        <div class="section-header">
-            <div class="section-title">Theatre Rankings</div>
-            <div class="section-sub">All States - By Gross Collection</div>
-        </div>
-        <div class="table-wrap">
-            <table id="venueTable">
+    </div>
+
+    <div class="summary-section" style="margin-bottom:20px;">
+        <h2>Top Theatres</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>State</th>
+                    <th>City</th>
+                    <th>Theatre</th>
+                    <th>Shows</th>
+                    <th>Tickets</th>
+                    <th>Gross</th>
+                    <th>Occ %</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="row in displayedTheatreSummary" :key="row.name">
+                    <td class="state-col">{{{{ row.state }}}}</td>
+                    <td class="language-col">{{{{ row.city }}}}</td>
+                    <td class="theater-col">{{{{ row.name }}}}</td>
+                    <td>{{{{ formatInt(row.shows) }}}}</td>
+                    <td>{{{{ formatInt(row.booked) }}}}</td>
+                    <td class="gross-val">{{{{ formatCurrency(row.gross) }}}}</td>
+                    <td :style="{{ color: getOccupancyColor(row.occupancy) }}">{{{{ row.occupancy.toFixed(1) }}}}%</td>
+                </tr>
+                <tr v-if="theatreSummary.length > 40">
+                    <td colspan="7" style="text-align:center; padding:18px; border-bottom:none;">
+                        <button @click="showAllTheatres = !showAllTheatres" class="btn-toggle" style="width:auto; padding:10px 18px;">
+                            {{{{ showAllTheatres ? 'Hide Full Theatre List' : 'Show Full Theatre List' }}}}
+                        </button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="summary-section" style="margin-bottom:0;">
+        <h2>All Showtimes <span style="font-size:12px; font-weight:400; color:var(--text-muted);">(Reactive Filtering Enabled)</span></h2>
+        <div style="overflow-x:auto; max-height:700px; overflow-y:auto;">
+            <table id="showsTable">
                 <thead>
                     <tr>
-                        <th>#</th>
-                        <th>State</th>
-                        <th>Theatre</th>
-                        <th>Shows</th>
-                        <th>Seats (Booked/Total)</th>
-                        <th>Occupancy</th>
+                        <th>Platform</th>
+                        <th>City</th>
+                        <th>Theatre Name</th>
+                        <th>Time</th>
+                        <th>Time Category</th>
+                        <th>Status</th>
+                        <th>Tickets</th>
                         <th>Gross</th>
+                        <th>Occ %</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {venue_rows}
+                    <tr v-for="(row, idx) in filteredShows" :key="idx">
+                        <td class="format-col">{{{{ row.source }}}}</td>
+                        <td class="language-col">{{{{ row.city }}}}</td>
+                        <td class="theater-col">{{{{ row.theater }}}}</td>
+                        <td>{{{{ row.time }}}}</td>
+                        <td style="font-size:11px; color:#94a3b8;">{{{{ row.timeCat }}}}</td>
+                        <td>
+                            <span class="status-badge" :class="[row.status === 'Sold Out' ? 'status-sold-out' : 'status-available']">
+                                {{{{ row.status }}}}
+                            </span>
+                        </td>
+                        <td>{{{{ formatInt(row.booked) }}}} / {{{{ formatInt(row.total) }}}}</td>
+                        <td class="gross-val">{{{{ formatCurrency(row.gross) }}}}</td>
+                        <td :style="{{ color: getOccupancyColor((row.booked / row.total) * 100 || 0) }}">
+                            {{{{ ((row.booked / row.total) * 100 || 0).toFixed(1) }}}}%
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
-        {f'<div class="toggle-container"><button class="show-all-btn" onclick="toggleRows(\'venueTable\')">🎪 Show All {total_venues} Venues</button></div>' if total_venues > 50 else ''}
-    </section>
+    </div>
 
-</main>
+    <div class="footer">
+        Data Aggregation • WkndCinema BookMyShow & District Scraper • Generated {datetime.now().strftime("%d %b %Y, %I:%M %p")}
+    </div>
 
-<footer class="footer">
-    Generated by <strong>WkndCinema</strong> &nbsp;·&nbsp;
-    Data from BookMyShow &amp; District &nbsp;·&nbsp;
-    {datetime.now().strftime("%d %b %Y, %I:%M %p")} &nbsp;·&nbsp;
-    For informational purposes only
-</footer>
+</div>
 
 <script>
-function toggleRows(tableId) {{
-    const table = document.getElementById(tableId);
-    const rows = Array.from(table.querySelectorAll('tbody tr'));
-    const btn = event.target;
-    
-    // Check if there are currently hidden rows
-    const hiddenCount = table.querySelectorAll('tbody tr.hidden-row').length;
-    const hasHidden = hiddenCount > 0;
-    
-    if(hasHidden) {{
-        // Show all rows
-        table.querySelectorAll('tbody tr.hidden-row').forEach(row => {{
-            row.classList.remove('hidden-row');
-        }});
-        btn.textContent = '🔽 Hide Details';
-    }} else {{
-        // Hide rows beyond first 50
-        rows.forEach((row, index) => {{
-            if(index >= 50) {{
-                row.classList.add('hidden-row');
+window.__MASTER_DATA__ = {frontend_json};
+
+const {{ createApp }} = Vue;
+
+createApp({{
+    data() {{
+        return {{
+            rawData: window.__MASTER_DATA__,
+            showFilters: true,
+            showAllTheatres: false,
+            showAllCities: false,
+            filters: {{
+                state: 'ALL',
+                city: 'ALL',
+                theater: 'ALL',
+                source: 'ALL',
+                timeCat: 'ALL'
             }}
-        }});
-        btn.textContent = '🎪 Show All ' + rows.length + ' Venues';
+        }}
+    }},
+    computed: {{
+        uniqueStates() {{ return [...new Set(this.rawData.map(d => d.state))].sort(); }},
+        uniqueSources() {{ return [...new Set(this.rawData.map(d => d.source))].sort(); }},
+        uniqueTimeCats() {{ return [...new Set(this.rawData.map(d => d.timeCat))].sort(); }},
+
+        filteredCitiesList() {{
+            let data = this.rawData;
+            if (this.filters.state !== 'ALL') data = data.filter(d => d.state === this.filters.state);
+            return [...new Set(data.map(d => d.city))].sort();
+        }},
+
+        filteredTheatersList() {{
+            let data = this.rawData;
+            if (this.filters.state !== 'ALL') data = data.filter(d => d.state === this.filters.state);
+            if (this.filters.city !== 'ALL') data = data.filter(d => d.city === this.filters.city);
+            return [...new Set(data.map(d => d.theater))].sort();
+        }},
+
+        filteredData() {{
+            return this.rawData.filter(row => {{
+                if (this.filters.state !== 'ALL' && row.state !== this.filters.state) return false;
+                if (this.filters.city !== 'ALL' && row.city !== this.filters.city) return false;
+                if (this.filters.theater !== 'ALL' && row.theater !== this.filters.theater) return false;
+                if (this.filters.source !== 'ALL' && row.source !== this.filters.source) return false;
+                if (this.filters.timeCat !== 'ALL' && row.timeCat !== this.filters.timeCat) return false;
+                return true;
+            }});
+        }},
+
+        kpis() {{
+            const total = this.filteredData.reduce((s, r) => s + r.total, 0);
+            const booked = this.filteredData.reduce((s, r) => s + r.booked, 0);
+            const gross = this.filteredData.reduce((s, r) => s + r.gross, 0);
+            return {{
+                total, booked, gross,
+                shows: this.filteredData.length,
+                venues: new Set(this.filteredData.map(r => r.theater)).size,
+                occupancy: total > 0 ? (booked / total) * 100 : 0,
+                atp: booked > 0 ? gross / booked : 0
+            }}
+        }},
+
+        stateSummary() {{ return this.groupByField('state'); }},
+        citySummary() {{ return this.groupByField('city'); }},
+        displayedCitySummary() {{ return this.showAllCities ? this.citySummary : this.citySummary.slice(0, 20); }},
+        
+        theatreSummary() {{ return this.groupByField('theater'); }},
+        displayedTheatreSummary() {{ return this.showAllTheatres ? this.theatreSummary : this.theatreSummary.slice(0, 40); }},
+        
+        sourceSummary() {{ return this.groupByField('source'); }},
+        timeSummary() {{ return this.groupByField('timeCat'); }},
+
+        filteredShows() {{
+            return [...this.filteredData].sort((a, b) => b.gross - a.gross);
+        }}
+    }},
+    methods: {{
+        formatCurrency(v) {{
+            const absVal = Math.round(Math.abs(Number(v)));
+            if (absVal >= 10000000) return "₹" + (v/10000000).toFixed(2) + " Cr";
+            if (absVal >= 100000) return "₹" + (v/100000).toFixed(2) + " L";
+            if (absVal >= 1000) return "₹" + (v/1000).toFixed(1) + " K";
+            return "₹" + absVal.toLocaleString('en-IN');
+        }},
+        formatInt(v) {{ return Math.round(Number(v)).toLocaleString('en-IN'); }},
+        getOccupancyColor(occ) {{
+            if (occ >= 60) return '#4ade80';
+            if (occ >= 50) return '#fb923c';
+            if (occ >= 30) return '#facc15';
+            return '#f87171';
+        }},
+        groupByField(field) {{
+            const map = {{}};
+            this.filteredData.forEach(r => {{
+                const key = r[field];
+                if (!map[key]) {{
+                    map[key] = {{ name: key, state: r.state, city: r.city, shows: 0, total: 0, booked: 0, gross: 0 }}
+                }}
+                map[key].shows += 1;
+                map[key].total += r.total;
+                map[key].booked += r.booked;
+                map[key].gross += r.gross;
+            }});
+            return Object.values(map)
+                .map(r => ({{ ...r, occupancy: r.total > 0 ? (r.booked / r.total) * 100 : 0 }}))
+                .sort((a, b) => b.gross - a.gross);
+        }}
     }}
-}}
+}}).mount('#app');
 </script>
 
 </body>
-</html>"""
-    
-    # Ensure reports directory exists
-    reports_dir = os.path.dirname(output_path)
-    if reports_dir:
-        os.makedirs(reports_dir, exist_ok=True)
-    
-    # Write HTML file
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(html_content)
-    
-    print(f"✅ Premium Multi-State HTML Report generated: {output_path}")
+</html>
+"""
+
+    # ========================================================
+    # SAVE HTML
+    # ========================================================
+
+    try:
+        if os.path.dirname(output_path):
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        print(f"📊 Reactive Glassmorphism HTML report saved to {output_path}")
+        return output_path
+    except Exception as e:
+        print(f"Error saving HTML: {e}")
+        return None

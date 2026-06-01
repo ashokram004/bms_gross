@@ -1,526 +1,429 @@
 """
-Premium Box Office Report Generator
-Pixel-accurate match to reference image.
-Output: 1280px wide
+Premium Box Office Image Generator - Deep Space Glassmorphism UI 
+Tailored for BMS vs District Data
 """
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from datetime import datetime
 import os
+import platform
 
-# ── CANVAS WIDTH ─────────────────────────────────────────────────────────────
-W   = 1280      # ← widened from 1080
-PAD = 56        # ← slightly more padding to match proportionally
+# ── CANVAS ───────────────────────────────────────────────────────────────────
+W   = 2560      
+PAD = 80        
 
-# ── WATERMARK ────────────────────────────────────────────────────────────────
 WATERMARK_ENABLED = False
 WATERMARK_TEXT    = "WkndCinema"
 WATERMARK_OPACITY = 90
 WATERMARK_ANGLE   = 35
 
-# ── EXACT COLOURS FROM REFERENCE ─────────────────────────────────────────────
-BG       = (11,  10,  15)
-SURFACE  = (20,  20,  30)
-SURFACE2 = (30,  30,  44)
-BORDER   = (46,  46,  64)
-ACCENT   = (245, 166,  35)
-TEXT     = (232, 232, 240)
-MUTED    = (108, 108, 148)
-BMS_C    = (232,  23,  77)
-DST_C    = (152,  68, 222)
-GREEN    = (30,  200,  80)
-ORANGE   = (255, 120,   0)
-YELLOW   = (240, 200,   0)
-RED_OCC  = (220,  40,  60)
+# ── GLASSMORPHISM TEXT PALETTE ───────────────────────────────────────────────
+TEXT_BRIGHT = (255, 255, 255)   
+TEXT        = (232, 232, 240)   
+MUTED       = (160, 160, 180)   
+GREEN       = (74,  222, 128)  
+ORANGE      = (251, 146,  60)  
+RED         = (248, 113, 113)  
+ACCENT      = (245, 166,  35)  
+BMS_C       = (232,  23,  77)  
+DST_C       = (152,  68, 222)
 
-# ── FONTS — cross-platform, ₹ support required ───────────────────────────────
-import sys, platform
+# ── HELPERS ──────────────────────────────────────────────────────────────────
 
-def _find_font(bold=False):
-    candidates_bold = [
-        r"C:\Windows\Fonts\NotoSans-Bold.ttf",
-        r"C:\Windows\Fonts\NotoSans_Condensed-Bold.ttf",
-        r"C:\Windows\Fonts\seguisb.ttf",
-        r"C:\Windows\Fonts\segoeui.ttf",
+def format_currency_inr(value):
+    """Formats currency into Indian numbering system (Crores, Lakhs)"""
+    if value >= 10000000: return f"₹{value/10000000:.2f} Cr"
+    elif value >= 100000: return f"₹{value/100000:.2f} L"
+    elif value >= 1000: return f"₹{value/1000:.2f} K"
+    else: return f"₹{value:.0f}"
+
+def get_font(size, bold=False):
+    """Attempts to load a robust font for ₹ support, falls back gracefully."""
+    fonts_to_try = [
+        r"C:\Windows\Fonts\NotoSans-Bold.ttf" if bold else r"C:\Windows\Fonts\NotoSans-Regular.ttf",
         r"C:\Windows\Fonts\Arial.ttf",
-        "/Library/Fonts/NotoSans-Bold.ttf",
-        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-        "/System/Library/Fonts/Helvetica.ttc",
-        "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-        "/usr/share/fonts/truetype/google-fonts/Poppins-Bold.ttf",
+        "/Library/Fonts/Arial Bold.ttf" if bold else "/Library/Fonts/Arial.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "arialbd.ttf" if bold else "arial.ttf",
+        "Helvetica-Bold.ttf" if bold else "Helvetica.ttf"
     ]
-    candidates_reg = [
-        r"C:\Windows\Fonts\NotoSans-Regular.ttf",
-        r"C:\Windows\Fonts\NotoSans_Condensed-Regular.ttf",
-        r"C:\Windows\Fonts\segoeui.ttf",
-        r"C:\Windows\Fonts\Arial.ttf",
-        "/Library/Fonts/NotoSans-Regular.ttf",
-        "/System/Library/Fonts/Supplemental/Arial.ttf",
-        "/System/Library/Fonts/Helvetica.ttc",
-        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
-        "/usr/share/fonts/truetype/google-fonts/Poppins-Regular.ttf",
-    ]
-    candidates = candidates_bold if bold else candidates_reg
-    for path in candidates:
-        if os.path.exists(path):
-            return path
-    try:
-        import matplotlib.font_manager as fm
-        fp = fm.findfont(fm.FontProperties(family="DejaVu Sans", weight="bold" if bold else "regular"))
-        if fp and os.path.exists(fp):
-            return fp
-    except Exception:
-        pass
-    raise FileNotFoundError(
-        "Could not find a suitable font with ₹ support.\n"
-        "Please install Noto Sans: https://fonts.google.com/noto/specimen/Noto+Sans\n"
-        "and place NotoSans-Regular.ttf / NotoSans-Bold.ttf in C:\\Windows\\Fonts\\"
-    )
+    for font_name in fonts_to_try:
+        try:
+            return ImageFont.truetype(font_name, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
 
-_BOLD_PATH = _find_font(bold=True)
-_REG_PATH  = _find_font(bold=False)
+def draw_glass_panel(bg_img, draw, xy, radius=16):
+    """Draws a translucent glassmorphic panel over the background."""
+    x1, y1, x2, y2 = xy
+    
+    # Extract background, blur, and brighten
+    region = bg_img.crop((int(x1), int(y1), int(x2), int(y2)))
+    blurred_region = region.filter(ImageFilter.GaussianBlur(30))
+    enhancer = ImageEnhance.Brightness(blurred_region)
+    blurred_region = enhancer.enhance(1.2)
+    
+    # Create mask for rounded corners
+    mask = Image.new('L', blurred_region.size, 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.rounded_rectangle((0, 0, x2-x1, y2-y1), radius=radius, fill=255)
+    
+    # Paste blurred glass onto main image
+    bg_img.paste(blurred_region, (int(x1), int(y1)), mask)
+    
+    # Overlay tints and highlights
+    overlay = Image.new('RGBA', bg_img.size, (0,0,0,0))
+    overlay_draw = ImageDraw.Draw(overlay)
+    overlay_draw.rounded_rectangle(xy, radius=radius, fill=(255, 255, 255, 12))
+    overlay_draw.polygon([(x1, y1+radius), (x1+radius, y1), (x2-(x2-x1)//3, y1), (x1, y2-(y2-y1)//3)], fill=(255, 255, 255, 8))
+    overlay_draw.rounded_rectangle(xy, radius=radius, outline=(255, 255, 255, 45), width=2)
+    bg_img.paste(overlay, (0,0), overlay)
 
-def _f(size, bold=False):
-    path = _BOLD_PATH if bold else _REG_PATH
-    return ImageFont.truetype(path, size)
+def aggregate_data(data):
+    """Aggregates raw show data into State, City, and Theatre dictionaries."""
+    state_stats, city_stats, theatre_stats = {}, {}, {}
+    
+    for r in data:
+        st = r.get("state", "Unknown")
+        ct = r.get("city", "Unknown")
+        th = r.get("venue", "Unknown")
+        g = r.get("booked_gross", 0)
+        t = r.get("booked_tickets", 0)
+        s = r.get("total_tickets", 0)
+        
+        # State
+        if st not in state_stats: state_stats[st] = {'name': st, 'shows': 0, 'tickets': 0, 'booked': 0, 'gross': 0, 'venues': set()}
+        state_stats[st]['shows'] += 1
+        state_stats[st]['tickets'] += s
+        state_stats[st]['booked'] += t
+        state_stats[st]['gross'] += g
+        state_stats[st]['venues'].add(th)
 
-# Font sizes — unchanged from original
-F_EYEBROW  = _f(25)
-F_HERO     = _f(85, bold=True)
-F_PILL_LBL = _f(25)
-F_KPI_LBL  = _f(25)
-F_KPI_VAL  = _f(70, bold=True)
-F_SEC_TITLE= _f(34, bold=True)
-F_SEC_SUB  = _f(25)
-F_CARD_LBL = _f(25)
-F_CARD_VAL = _f(65, bold=True)
-F_STAT_LBL = _f(25)
-F_STAT_VAL = _f(30, bold=True)
-F_TBL_HDR  = _f(25, bold=True)
-F_TBL_RANK = _f(32)
-F_TBL_NAME = _f(35, bold=True)
-F_TBL_NUM  = _f(32, bold=True)
-F_TBL_BODY = _f(32)
-F_TBL_GROSS= _f(32, bold=True)
-F_OCC_PCT  = _f(32)
-F_FOOTER   = _f(25)
+        # City
+        if ct not in city_stats: city_stats[ct] = {'name': ct, 'shows': 0, 'tickets': 0, 'booked': 0, 'gross': 0, 'venues': set()}
+        city_stats[ct]['shows'] += 1
+        city_stats[ct]['tickets'] += s
+        city_stats[ct]['booked'] += t
+        city_stats[ct]['gross'] += g
+        city_stats[ct]['venues'].add(th)
 
-# ── HELPERS ───────────────────────────────────────────────────────────────────
-def tw(draw, text, font, stroke=0):
-    bb = draw.textbbox((0, 0), text, font=font, stroke_width=stroke)
-    return bb[2] - bb[0]
-
-def th_font(draw, font, stroke=0):
-    bb = draw.textbbox((0, 0), "Ag", font=font, stroke_width=stroke)
-    return bb[3] - bb[1]
-
-def draw_text_c(draw, cx, y, text, font, color, stroke=0):
-    x = int(cx - tw(draw, text, font, stroke) / 2)
-    if stroke > 0:
-        draw.text((x, y), text, font=font, fill=color, stroke_width=stroke, stroke_fill=color)
-    else:
-        draw.text((x, y), text, font=font, fill=color)
-
-def tbold(draw, xy, text, font, fill, stroke=1):
-    draw.text(xy, text, font=font, fill=fill, stroke_width=stroke, stroke_fill=fill)
-
-def rr(draw, x1, y1, x2, y2, r=8, fill=None, outline=None, width=1):
-    draw.rounded_rectangle([x1, y1, x2, y2], radius=r, fill=fill, outline=outline, width=width)
-
-def fmt(v):
-    if v >= 10_000_000: return f"\u20b9{v/10_000_000:.2f} Cr"
-    if v >= 100_000:    return f"\u20b9{v/100_000:.2f} L"
-    if v >= 1_000:      return f"\u20b9{v/1_000:.1f} K"
-    return f"\u20b9{v:.0f}"
-
-def occ_col(o):
-    if o >= 60: return GREEN
-    if o >= 50: return ORANGE
-    if o >= 30: return YELLOW
-    return RED_OCC
-
-# ── AGGREGATE ─────────────────────────────────────────────────────────────────
-def aggregate(all_results):
-    state_stats, city_stats = {}, {}
-    for r in all_results:
-        state = r.get("state", "Unknown")
-        city  = r.get("city",  "Unknown")
-        venue = r["venue"]
-        g = r["booked_gross"]; t = r["booked_tickets"]; s = r["total_tickets"]
-        if state not in state_stats:
-            state_stats[state] = {"name": state, "gross":0,"tickets":0,"seats":0,"shows":0,"venues":set()}
-        ss = state_stats[state]
-        ss["gross"]+=g; ss["tickets"]+=t; ss["seats"]+=s; ss["shows"]+=1; ss["venues"].add(venue)
-        ck = (state, city)
-        if ck not in city_stats:
-            city_stats[ck] = {"city":city,"state":state,"gross":0,"tickets":0,"seats":0,"shows":0,"venues":set()}
-        cs = city_stats[ck]
-        cs["gross"]+=g; cs["tickets"]+=t; cs["seats"]+=s; cs["shows"]+=1; cs["venues"].add(venue)
-
-    def build(d):
+        # Theatre
+        if th not in theatre_stats: theatre_stats[th] = {'name': th, 'shows': 0, 'tickets': 0, 'booked': 0, 'gross': 0}
+        theatre_stats[th]['shows'] += 1
+        theatre_stats[th]['tickets'] += s
+        theatre_stats[th]['booked'] += t
+        theatre_stats[th]['gross'] += g
+        
+    def finalize(d):
         out = []
-        for v in d.values():
-            occ = round((v["tickets"]/v["seats"])*100, 1) if v["seats"] else 0
-            row = {k:(len(vv) if isinstance(vv, set) else vv) for k, vv in v.items()}
-            row["occupancy"] = occ
+        for k, v in d.items():
+            row = v.copy()
+            if 'venues' in row: row['venues'] = len(row['venues'])
+            row['occ'] = (row['booked'] / row['tickets'] * 100) if row['tickets'] > 0 else 0
             out.append(row)
-        out.sort(key=lambda x: x["gross"], reverse=True)
-        return out
-    return build(state_stats), build(city_stats)
+        return sorted(out, key=lambda x: x['gross'], reverse=True)
 
-# ── WATERMARK ─────────────────────────────────────────────────────────────────
-def apply_watermark(img):
-    wfont = _f(80, bold=True)
-    tmp = Image.new("RGBA", (1,1))
-    td  = ImageDraw.Draw(tmp)
-    bb  = td.textbbox((0,0), WATERMARK_TEXT, font=wfont)
-    tw_, th_ = bb[2]-bb[0]+4, bb[3]-bb[1]+4
-    tile_w, tile_h = tw_+120, th_+100
-    tile = Image.new("RGBA", (tile_w, tile_h), (0,0,0,0))
-    td2  = ImageDraw.Draw(tile)
-    td2.text(((tile_w-tw_)//2, (tile_h-th_)//2), WATERMARK_TEXT,
-             font=wfont, fill=(255,255,255, WATERMARK_OPACITY))
-    rotated = tile.rotate(WATERMARK_ANGLE, expand=True)
-    rw, rh  = rotated.size
-    W_, H_  = img.size
-    overlay = Image.new("RGBA", (W_, H_), (0,0,0,0))
-    for yy in range(-rh, H_+rh, rh):
-        for xx in range(-rw, W_+rw, rw):
-            overlay.paste(rotated, (xx, yy), rotated)
-    return Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+    return finalize(state_stats), finalize(city_stats), finalize(theatre_stats)
 
-# ── TABLE ─────────────────────────────────────────────────────────────────────
-def draw_table(draw, y, headers, rows, col_widths, alignments, col_x_start):
-    TW     = W - PAD*2
-    tx     = col_x_start
-    HEAD_H = 62
-    ROW_H  = 88
 
-    # Header row
-    draw.rectangle([tx, y, tx+TW, y+HEAD_H], fill=SURFACE2)
-    cx = tx
-    for hdr, cw, al in zip(headers, col_widths, alignments):
-        hdr_w = tw(draw, hdr, F_TBL_HDR)
-        ty_hdr = y + (HEAD_H - th_font(draw, F_TBL_HDR)) // 2
-        if al == 'R':
-            draw.text((cx+cw-hdr_w-8, ty_hdr), hdr, font=F_TBL_HDR, fill=MUTED)
-        elif al == 'C':
-            draw.text((cx+(cw-hdr_w)//2, ty_hdr), hdr, font=F_TBL_HDR, fill=MUTED)
-        else:
-            draw.text((cx+8, ty_hdr), hdr, font=F_TBL_HDR, fill=MUTED)
-        cx += cw
-    y += HEAD_H
+# ── MAIN GENERATOR ───────────────────────────────────────────────────────────
 
-    # Data rows
-    for ri, row in enumerate(rows):
-        row_bg = SURFACE if ri % 2 == 0 else BG
-        draw.rectangle([tx, y, tx+TW, y+ROW_H], fill=row_bg)
-        cx = tx
-        mid_y = y + ROW_H // 2
+def generate_premium_states_image_report(data, filename, movie_name="Movie Collection", show_date="N/A", last_updated_str="N/A", country_name="India"):
+    
+    if not data:
+        print("No data available for image generation.")
+        return None
 
-        for ci, (cell, cw, al) in enumerate(zip(row, col_widths, alignments)):
-            if isinstance(cell, dict) and cell.get("type") == "occ_bar":
-                occ_val = cell["value"]
-                o_col   = occ_col(occ_val)
-                occ_str = f"{occ_val}%"
-                bar_x  = cx + 8
-                bar_w  = 90          # ← wider bar to use extra column space
-                bar_h  = 12
-                bar_y  = mid_y - bar_h // 2
-                fill_w = max(2, int(bar_w * occ_val / 100))
-                rr(draw, bar_x, bar_y, bar_x+bar_w, bar_y+bar_h, 6, fill=SURFACE2)
-                rr(draw, bar_x, bar_y, bar_x+fill_w, bar_y+bar_h, 6, fill=o_col)
-                pct_w = tw(draw, occ_str, F_OCC_PCT)
-                pct_x = cx + cw - pct_w - 8
-                pct_y = mid_y - th_font(draw, F_OCC_PCT)//2
-                draw.text((pct_x, pct_y), occ_str, font=F_OCC_PCT, fill=o_col)
-            else:
-                cell_str = str(cell)
-                is_rank  = ci == 0
-                is_name  = ci == 1
-                is_gross = ci == len(row) - 1
+    # 1. PREPARE DATA
+    total_venues = len(set(r['venue'] for r in data))
+    total_shows = len(data)
+    total_tickets = sum(r['total_tickets'] for r in data)
+    total_booked = sum(r['booked_tickets'] for r in data)
+    total_gross = sum(r['booked_gross'] for r in data)
+    overall_occ = (total_booked / total_tickets * 100) if total_tickets > 0 else 0
 
-                if is_rank:
-                    font  = F_TBL_RANK;  color = MUTED;   stroke = 0
-                elif is_name:
-                    font  = F_TBL_NAME;  color = TEXT;    stroke = 0
-                elif is_gross:
-                    font  = F_TBL_GROSS; color = ACCENT;  stroke = 0
-                else:
-                    font  = F_TBL_NUM;   color = TEXT;    stroke = 0
+    # Platform Data
+    bms_data = [r for r in data if r.get('source') == 'bms']
+    dst_data = [r for r in data if r.get('source') == 'district']
+    
+    bms_gross = sum(r['booked_gross'] for r in bms_data)
+    bms_booked = sum(r['booked_tickets'] for r in bms_data)
+    dst_gross = sum(r['booked_gross'] for r in dst_data)
+    dst_booked = sum(r['booked_tickets'] for r in dst_data)
 
-                max_w = cw - 16
-                while len(cell_str) > 1 and tw(draw, cell_str, font) > max_w:
-                    cell_str = cell_str[:-1]
+    states_list, cities_list, theatres_list = aggregate_data(data)
 
-                cw_t = tw(draw, cell_str, font)
-                cy_t = mid_y - th_font(draw, font) // 2
+    # 2. DYNAMIC HEIGHT CALCULATION
+    header_h = 160
+    kpi_h = 200 
+    platform_h = 240
+    
+    # 10 rows max + 1 remaining
+    st_rows = min(11, len(states_list) + (1 if len(states_list) > 10 else 0))
+    st_h = 220 + (st_rows * 60) 
+    
+    max_bot_rows = max(len(cities_list[:10]), len(theatres_list[:10]))
+    bot_rows = max_bot_rows + (1 if len(cities_list) > 10 or len(theatres_list) > 10 else 0)
+    bot_h = 220 + (bot_rows * 60)
+    
+    footer_h = 80
+    
+    H = PAD + header_h + kpi_h + 40 + platform_h + 40 + st_h + 40 + bot_h + 40 + footer_h + PAD
 
-                if al == 'R':
-                    draw.text((cx+cw-cw_t-8, cy_t), cell_str, font=font, fill=color)
-                elif al == 'C':
-                    draw.text((cx+(cw-cw_t)//2, cy_t), cell_str, font=font, fill=color)
-                else:
-                    draw.text((cx+8, cy_t), cell_str, font=font, fill=color)
+    # 3. BACKGROUND SETUP (Muted Obsidian Slate)
+    base_bg = Image.new('RGB', (4, 4))
+    base_bg.putpixel((0,0), (8, 10, 15))   
+    base_bg.putpixel((3,0), (12, 14, 20))  
+    base_bg.putpixel((0,3), (10, 12, 18))  
+    base_bg.putpixel((3,3), (15, 18, 24))  
+    img = base_bg.resize((W, int(H)), Image.Resampling.BICUBIC)
+    
+    orb_layer = Image.new('RGBA', (W, int(H)), (0,0,0,0))
+    orb_draw = ImageDraw.Draw(orb_layer)
+    orb_draw.ellipse([-600, -600, 1200, 1200], fill=(51, 65, 85, 100)) 
+    orb_draw.ellipse([W-1400, int(H)//2 - 800, W+600, int(H)//2 + 800], fill=(30, 41, 59, 120)) 
+    orb_draw.ellipse([W//2 - 1000, int(H)-1000, W//2 + 1000, int(H)+1000], fill=(245, 131, 32, 12)) 
+    
+    orb_layer = orb_layer.filter(ImageFilter.GaussianBlur(250))
+    img.paste(orb_layer, (0,0), orb_layer)
 
-            cx += cw
+    draw = ImageDraw.Draw(img)
 
-        draw.line([(tx, y+ROW_H), (tx+TW, y+ROW_H)], fill=BORDER, width=1)
-        y += ROW_H
+    # Fonts
+    f_title = get_font(64, bold=True)
+    f_sub = get_font(28)
+    f_kpi_val = get_font(72, bold=True)
+    f_kpi_lbl = get_font(22, bold=True)
+    f_kpi_sub = get_font(26, bold=True)
+    
+    f_sec = get_font(36, bold=True)   
+    f_th = get_font(24, bold=True)    
+    f_row = get_font(28, bold=True)   
+    f_row_b = get_font(28, bold=True) 
+    
+    f_plat_lbl = get_font(32, bold=True)
+    f_plat_val = get_font(85, bold=True)
 
-    rr(draw, tx, y - ROW_H*len(rows) - HEAD_H, tx+TW, y, 8, outline=BORDER, width=1)
-    return y + 32
-
-# ── MAIN GENERATOR ────────────────────────────────────────────────────────────
-def generate_premium_states_image_report(all_results, output_path,
-                                          movie_name="Movie Collection",
-                                          show_date=None):
-    if show_date is None:
-        show_date = datetime.now().strftime("%d %b %Y")
-
-    TOP_ROWS = 10
-    state_list, city_list = aggregate(all_results)
-
-    total_gross   = sum(r["booked_gross"]   for r in all_results)
-    total_tickets = sum(r["booked_tickets"] for r in all_results)
-    total_seats   = sum(r["total_tickets"]  for r in all_results)
-    total_occ     = round((total_tickets/total_seats)*100, 1) if total_seats else 0
-    num_states    = len(state_list)
-    num_venues    = len(set(r["venue"] for r in all_results))
-    num_shows     = len(all_results)
-
-    src_gross_bms    = sum(r["booked_gross"]   for r in all_results if r.get("source")=="bms")
-    src_gross_dist   = sum(r["booked_gross"]   for r in all_results if r.get("source")=="district")
-    src_tickets_bms  = sum(r["booked_tickets"] for r in all_results if r.get("source")=="bms")
-    src_tickets_dist = sum(r["booked_tickets"] for r in all_results if r.get("source")=="district")
-    src_shows_bms    = sum(1 for r in all_results if r.get("source")=="bms")
-    src_shows_dist   = sum(1 for r in all_results if r.get("source")=="district")
-
-    # ── TABLE COLUMN DEFINITIONS — recalculated for wider canvas ─────────────
-    TW     = W - PAD * 2   # 1280 - 112 = 1168px
-    # Fixed cols: rank(60) vens(80) shows(90) tickets(120) occ(220) gross(175)
-    fixed  = 68 + 100 + 112 + 140 + 235 + 190
-    name_w = TW - fixed    # remaining space goes to name column
-    col_widths  = [68, name_w, 100, 112, 140, 235, 190]
-    col_headers = ["#", "STATE", "VENS", "SHOWS", "TICKETS", "OCCUPANCY", "GROSS"]
-    col_aligns  = ["C", "L",    "R",    "R",      "R",       "L",          "R"]
-
-    def render(canvas_h):
-        img  = Image.new("RGB", (W, canvas_h), BG)
-        draw = ImageDraw.Draw(img)
-        y    = 0
-
-        # ── HERO ─────────────────────────────────────────────────────────────
-        hero_h_approx = 280
-        for gy in range(hero_h_approx):
-            t = gy / hero_h_approx
-            draw.line([(0, gy), (W, gy)], fill=(int(11+t*5), int(10+t*2), int(15+t*18)))
-
-        draw.text((PAD, 18), "STATE-WISE BOX OFFICE REPORT", font=F_EYEBROW, fill=ACCENT)
-
-        title_font = F_HERO
-        words = movie_name.upper().split()
-        lines, cur = [], ""
-        for w in words:
-            test = (cur + " " + w).strip()
-            if tw(draw, test, title_font, stroke=1) <= W - PAD*2:
-                cur = test
-            else:
-                if cur: lines.append(cur)
-                cur = w
-        if cur: lines.append(cur)
-
-        line_h = th_font(draw, title_font, stroke=1) + 6
-        ty = 44
-        for line in lines:
-            draw.text((PAD+2, ty+2), line, font=title_font, fill=(20, 18, 28), stroke_width=1, stroke_fill=(20,18,28))
-            tbold(draw, (PAD, ty), line, title_font, TEXT, stroke=1)
-            ty += line_h
-        title_end = ty + 20
-
-        PILL_H = 40
-        PILL_R = 7
-        pill_items = [show_date, f"{num_states} States", f"{num_venues} Theatres", f"{num_shows} Shows"]
-        mx = PAD
-        for label in pill_items:
-            pw = tw(draw, label, F_PILL_LBL) + 28
-            rr(draw, mx, title_end, mx+pw, title_end+PILL_H, PILL_R, fill=SURFACE2)
-            lbl_y = title_end + (PILL_H - th_font(draw, F_PILL_LBL)) // 2
-            draw.text((mx+14, lbl_y), label, font=F_PILL_LBL, fill=MUTED)
-            mx += pw + 10
-
-        hero_h = title_end + PILL_H + 30
-        y = hero_h
-
-        # ── KPI STRIP ────────────────────────────────────────────────────────
-        KPI_ROW_H = 170
-        kpis = [
-            ("TOTAL GROSS",   fmt(total_gross),      ACCENT),
-            ("TICKETS SOLD",  f"{total_tickets:,}",  ACCENT),
-            ("STATES",        str(num_states),        ACCENT),
-            ("THEATRES",      str(num_venues),         ACCENT),
-            ("AVG OCCUPANCY", f"{total_occ}%",        occ_col(total_occ)),
-            ("TOTAL SHOWS",   str(num_shows),          ACCENT),
-        ]
-        COLS   = 3
-        cell_w = W // COLS
-
-        for i, (label, val, col) in enumerate(kpis):
-            ci = i % COLS; ri = i // COLS
-            kx = ci * cell_w; ky = y + ri * KPI_ROW_H
-            draw.rectangle([kx, ky, kx+cell_w, ky+KPI_ROW_H], fill=SURFACE, outline=BORDER)
-            lw = tw(draw, label, F_KPI_LBL)
-            draw.text((kx + cell_w//2 - lw//2, ky+26), label, font=F_KPI_LBL, fill=MUTED)
-            vw = tw(draw, val, F_KPI_VAL, stroke=1)
-            tbold(draw, (kx + cell_w//2 - vw//2, ky+60), val, F_KPI_VAL, col, stroke=1)
-
-        y += KPI_ROW_H * 2
-        draw.line([(0, y), (W, y)], fill=BORDER, width=1)
-        y += 40
-
-        # ── PLATFORM BREAKDOWN ───────────────────────────────────────────────
-        sec_y = y
-        tbold(draw, (PAD, sec_y), "PLATFORM BREAKDOWN", F_SEC_TITLE, TEXT, stroke=1)
-        sub_x   = PAD + tw(draw, "PLATFORM BREAKDOWN", F_SEC_TITLE, stroke=1) + 18
-        sub_off = (th_font(draw, F_SEC_TITLE) - th_font(draw, F_SEC_SUB)) // 2
-        draw.text((sub_x, sec_y+sub_off+2), "BMS VS DISTRICT", font=F_SEC_SUB, fill=MUTED)
-        y = sec_y + th_font(draw, F_SEC_TITLE, stroke=1) + 16
-        draw.line([(PAD, y), (W-PAD, y)], fill=BORDER, width=1)
-        y += 22
-
-        CARD_H   = 260
-        CARD_GAP = 22
-        card_w   = (W - PAD*2 - CARD_GAP) // 2
-
-        for pi, (name, gross_v, tickets_v, shows_v, bar_col) in enumerate([
-            ("DISTRICT APP", src_gross_dist, src_tickets_dist, src_shows_dist, DST_C),
-            ("BOOKMYSHOW (Duplicate shows removed)",   src_gross_bms,  src_tickets_bms,  src_shows_bms,  BMS_C),
-        ]):
-            cx = PAD + pi*(card_w+CARD_GAP); cy = y
-            rr(draw, cx, cy, cx+card_w, cy+CARD_H, 10, fill=SURFACE, outline=BORDER, width=1)
-            rr(draw, cx+1, cy+1, cx+card_w-1, cy+5, 10, fill=bar_col)
-            draw.rectangle([cx+1, cy+3, cx+card_w-1, cy+5], fill=bar_col)
-            draw.text((cx+24, cy+18), name, font=F_CARD_LBL, fill=MUTED)
-            tbold(draw, (cx+24, cy+46), fmt(gross_v), F_CARD_VAL, bar_col, stroke=1)
-            stats = [("Shows", str(shows_v)), ("Tickets", f"{tickets_v:,}"),
-                     ("% Share", f"{round((gross_v/total_gross)*100,1) if total_gross else 0}%")]
-            stat_w = (card_w - 48) // 3
-            for si, (sl, sv) in enumerate(stats):
-                sx = cx + 24 + si*stat_w
-                draw.text((sx, cy+172), sl, font=F_STAT_LBL, fill=MUTED)
-                tbold(draw, (sx, cy+200), sv, F_STAT_VAL, TEXT, stroke=1)
-
-        y += CARD_H + 42
-
-        # ── STATE RANKINGS TABLE ─────────────────────────────────────────────
-        sec_y = y
-        tbold(draw, (PAD, sec_y), "STATE RANKINGS", F_SEC_TITLE, TEXT, stroke=1)
-        sub_x   = PAD + tw(draw, "STATE RANKINGS", F_SEC_TITLE, stroke=1) + 18
-        sub_off = (th_font(draw, F_SEC_TITLE) - th_font(draw, F_SEC_SUB)) // 2
-        draw.text((sub_x, sec_y+sub_off+2), "BY GROSS COLLECTION", font=F_SEC_SUB, fill=MUTED)
-        y = sec_y + th_font(draw, F_SEC_TITLE, stroke=1) + 16
-        draw.line([(PAD, y), (W-PAD, y)], fill=BORDER, width=1)
-        y += 18
-
-        state_rows = []
-        for i, s in enumerate(state_list[:TOP_ROWS], 1):
-            state_rows.append([str(i), s["name"], str(s["venues"]), str(s["shows"]),
-                                f"{s['tickets']:,}", {"type":"occ_bar","value":s["occupancy"]}, fmt(s["gross"])])
-        y = draw_table(draw, y, col_headers, state_rows, col_widths, col_aligns, PAD)
-
-        # ── CITY RANKINGS TABLE ──────────────────────────────────────────────
-        sec_y = y
-        tbold(draw, (PAD, sec_y), "CITY RANKINGS", F_SEC_TITLE, TEXT, stroke=1)
-        sub_x   = PAD + tw(draw, "CITY RANKINGS", F_SEC_TITLE, stroke=1) + 18
-        sub_off = (th_font(draw, F_SEC_TITLE) - th_font(draw, F_SEC_SUB)) // 2
-        draw.text((sub_x, sec_y+sub_off+2), "TOP 10 \u00b7 BY GROSS", font=F_SEC_SUB, fill=MUTED)
-        y = sec_y + th_font(draw, F_SEC_TITLE, stroke=1) + 16
-        draw.line([(PAD, y), (W-PAD, y)], fill=BORDER, width=1)
-        y += 18
-
-        city_col_headers = ["#", "CITY", "VENS", "SHOWS", "TICKETS", "OCCUPANCY", "GROSS"]
-        city_rows = []
-        for i, c in enumerate(city_list[:TOP_ROWS], 1):
-            city_rows.append([str(i), c["city"], str(c["venues"]), str(c["shows"]),
-                               f"{c['tickets']:,}", {"type":"occ_bar","value":c["occupancy"]}, fmt(c["gross"])])
-        y = draw_table(draw, y, city_col_headers, city_rows, col_widths, col_aligns, PAD)
-
-        # ── FOOTER ───────────────────────────────────────────────────────────
-        y += 10
-        FOOT_H = 95
-        draw.rectangle([0, y, W, y+FOOT_H], fill=SURFACE)
-        f1 = "Generated by WkndCinema  \u00b7  Data: BookMyShow & District" + datetime.now().strftime("%d %b %Y, %I:%M %p")
-        f2 = "Note: Duplicate shows from BMS are removed if already present in the District app; only District entries are retained."
-        draw_text_c(draw, W//2, y+18, f1, F_FOOTER, MUTED)
-        draw_text_c(draw, W//2, y+50, f2, F_FOOTER, MUTED)
-        y += FOOT_H
-
-        return img, y
-
-    _, est_h = render(9000)
-    img, _   = render(est_h + 10)
-    img = img.crop((0, 0, W, est_h + 10))
     if WATERMARK_ENABLED:
-        img = apply_watermark(img)
-    os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
-    img.save(output_path, "PNG", optimize=True)
-    print(f"✅ Saved: {output_path}  ({W}×{est_h+10}px)")
-    return output_path
+        try:
+            wm_font = get_font(180, bold=True)
+            wm_layer = Image.new('RGBA', img.size, (0, 0, 0, 0))
+            wm_draw = ImageDraw.Draw(wm_layer)
+            tw, th = wm_draw.textbbox((0,0), WATERMARK_TEXT, font=wm_font)[2:]
+            wm_x, wm_y = (W-tw)//2, (H-th)//2
+            wm_draw.text((wm_x, wm_y), WATERMARK_TEXT, font=wm_font, fill=(255, 255, 255, WATERMARK_OPACITY))
+            wm_layer = wm_layer.rotate(WATERMARK_ANGLE, expand=False, center=(W//2, H//2))
+            img.paste(wm_layer, (0,0), wm_layer)
+        except: pass
+
+    # --- HEADER ---
+    draw.text((PAD, PAD), movie_name, font=f_title, fill=TEXT_BRIGHT)
+    sub_text = f"{country_name} Advance Sales • Show Date: {show_date}"
+    draw.text((PAD, PAD+85), sub_text, font=f_sub, fill=ACCENT)
+
+    meta_x = W - PAD
+    draw.text((meta_x, PAD+20), f"Report: {datetime.now().strftime('%d %b %Y, %I:%M %p')} IST", font=f_sub, fill=TEXT, anchor="ra")
+    
+    ov_line = Image.new('RGBA', img.size, (0,0,0,0))
+    ImageDraw.Draw(ov_line).line([(PAD, PAD+150), (W-PAD, PAD+150)], fill=(255,255,255,40), width=3)
+    img.paste(ov_line, (0,0), ov_line)
+
+    # --- KPIs ---
+    kpi_y = PAD + 180
+    kpi_width = (W - (2*PAD) - (4*30)) // 5 
+    
+    def draw_kpi(idx, label, val, sub_val, highlight_col=(245, 131, 32, 200)):
+        x = PAD + (idx * (kpi_width + 30))
+        draw_glass_panel(img, draw, [x, kpi_y, x+kpi_width, kpi_y+180], radius=24)
+        
+        ov_strip = Image.new('RGBA', img.size, (0,0,0,0))
+        ImageDraw.Draw(ov_strip).rounded_rectangle([x, kpi_y, x+8, kpi_y+180], radius=6, fill=highlight_col)
+        img.paste(ov_strip, (0,0), ov_strip)
+        
+        draw.text((x+40, kpi_y+35), label.upper(), font=f_kpi_lbl, fill=MUTED)
+        right_margin_x = x + kpi_width - 30
+        draw.text((right_margin_x, kpi_y+39), str(sub_val), font=f_kpi_sub, fill=MUTED, anchor="rt")
+        draw.text((x+40, kpi_y+75), val, font=f_kpi_val, fill=TEXT_BRIGHT)
+
+    draw_kpi(0, "Total Gross", format_currency_inr(total_gross), "", highlight_col=(245, 131, 32, 200))
+    draw_kpi(1, "Tickets Sold", f"{total_booked:,}", f"{total_tickets:,} cap")
+    draw_kpi(2, "Total Venues", f"{total_venues:,}", "")
+    draw_kpi(3, "Total Shows", f"{total_shows:,}", "")
+    draw_kpi(4, "Occupancy", f"{overall_occ:.1f}%", f"{total_tickets:,} seats")
+
+    # --- PLATFORM CARDS ---
+    plat_y = kpi_y + 220
+    plat_w = (W - (2*PAD) - 40) // 2
+    
+    def draw_platform_card(x, title, gross, booked, shows, bar_color):
+        draw_glass_panel(img, draw, [x, plat_y, x+plat_w, plat_y+platform_h], radius=24)
+        
+        ov_strip = Image.new('RGBA', img.size, (0,0,0,0))
+        ImageDraw.Draw(ov_strip).rounded_rectangle([x, plat_y, x+plat_w, plat_y+8], radius=8, fill=bar_color)
+        img.paste(ov_strip, (0,0), ov_strip)
+        
+        draw.text((x+40, plat_y+40), title, font=f_plat_lbl, fill=MUTED)
+        draw.text((x+40, plat_y+90), format_currency_inr(gross), font=f_plat_val, fill=bar_color)
+        
+        # Bottom stats
+        pct = (gross / total_gross * 100) if total_gross else 0
+        draw.text((x+40, plat_y+190), f"Tickets: {booked:,}   |   Shows: {shows:,}   |   Share: {pct:.1f}%", font=f_sub, fill=TEXT_BRIGHT)
+
+    draw_platform_card(PAD, "DISTRICT APP", dst_gross, dst_booked, len(dst_data), (152, 68, 222, 255))
+    draw_platform_card(PAD + plat_w + 40, "BOOKMYSHOW (Deduped)", bms_gross, bms_booked, len(bms_data), (232, 23, 77, 255))
 
 
-# ── DEMO ──────────────────────────────────────────────────────────────────────
-if __name__ == "__main__":
-    import random
-    states_cities = {
-        "Telangana":      ["Hyderabad", "Warangal", "Karimnagar"],
-        "Andhra Pradesh": ["Vijayawada", "Visakhapatnam", "Tirupati", "Guntur"],
-        "Tamil Nadu":     ["Chennai", "Coimbatore", "Madurai"],
-        "Karnataka":      ["Bengaluru", "Mysuru", "Mangaluru"],
-        "Kerala":         ["Kochi", "Thiruvananthapuram", "Kozhikode"],
-    }
-    venues_by_city = {
-        "Hyderabad":     ["AMB Cinemas", "PVR IMAX Inorbit", "Cinepolis Kukatpally", "Asian Mukta A2"],
-        "Vijayawada":    ["PVR CinemaS", "SVC Cinemas", "Imax Cinemas"],
-        "Chennai":       ["PVR SPI Palazzo", "INOX Chennai", "AGS Cinemas"],
-        "Bengaluru":     ["PVR Orion", "INOX Garuda", "Cinepolis HSR"],
-        "Kochi":         ["PVR LuLu", "INOX Oberon", "PVR Gold"],
-        "Warangal":      ["Sri Mayuri Theatre", "Vinayaka Cinemas"],
-        "Coimbatore":    ["INOX Brookefields", "Cinepolis Fun Mall"],
-        "Mysuru":        ["PVR Forum", "Cinepolis Mysuru Mall"],
-        "Thiruvananthapuram": ["PVR Kims", "INOX TVM"],
-        "Tirupati":      ["Sri Devi Theatre", "Nagaland Complex"],
-        "Guntur":        ["Sri Ram Cinemas", "PVR Guntur"],
-        "Karimnagar":    ["Vaishnavi Theatre", "MGM Complex"],
-        "Visakhapatnam": ["PVR CMR", "INOX Vizag", "Cinepolis Rushikonda"],
-        "Madurai":       ["Inox Madurai", "AGS Cinemas Madurai"],
-        "Mangaluru":     ["PVR Forum", "INOX Mangaluru"],
-        "Kozhikode":     ["PVR Kozhikode", "INOX Kozhikode"],
-    }
-    random.seed(42)
-    sample_data = []
-    for state, cities in states_cities.items():
-        for city in cities:
-            venues = venues_by_city.get(city, [f"{city} Cinema 1", f"{city} Cinema 2"])
-            for venue in venues:
-                for _ in range(random.randint(2, 6)):
-                    total  = random.choice([150, 200, 250, 300, 400])
-                    booked = random.randint(int(total*0.25), total)
-                    price  = random.choice([180, 200, 250, 300, 350, 400])
-                    source = random.choice(["bms", "district"])
-                    sample_data.append({
-                        "state": state, "city": city, "venue": venue,
-                        "booked_tickets": booked, "total_tickets": total,
-                        "booked_gross": booked*price, "source": source,
-                    })
-    generate_premium_states_image_report(
-        sample_data,
-        output_path="box_office_report.png",
-        movie_name="KALKI 2898 AD",
-        show_date="16 Mar 2025"
-    )
+    # --- SHARED TABLE DRAW FUNCTION ---
+    def draw_table(x, y, w, h, title, cols, data_rows, highlight_name=False):
+        draw_glass_panel(img, draw, [x, y, x+w, y+h], radius=24)
+        draw.text((x+35, y+35), title, font=f_sec, fill=TEXT_BRIGHT)
+        
+        th_y = y + 90
+        
+        overlay = Image.new('RGBA', img.size, (0,0,0,0))
+        ov_draw = ImageDraw.Draw(overlay)
+        ov_draw.rectangle([x, th_y, x+w, th_y+55], fill=(0, 0, 0, 80))
+        ov_draw.line([(x, th_y), (x+w, th_y)], fill=(255,255,255,30), width=1)
+        ov_draw.line([(x, th_y+55), (x+w, th_y+55)], fill=(255,255,255,30), width=1)
+        img.paste(overlay, (0,0), overlay)
+
+        for c in cols:
+            anchor = "la" if c['align'] == 'left' else "ra"
+            cx = x + c['pos'] if c['align'] == 'left' else x + w - c['pos']
+            draw.text((cx, th_y+15), c['name'].upper(), font=f_th, fill=MUTED, anchor=anchor)
+
+        cy = th_y + 80
+        for row in data_rows:
+            for c in cols:
+                anchor = "la" if c['align'] == 'left' else "ra"
+                cx = x + c['pos'] if c['align'] == 'left' else x + w - c['pos']
+                
+                val = str(row[c['key']])
+                color = TEXT
+                font_to_use = f_row
+                
+                if c['key'] == 'name':
+                    color = ACCENT if highlight_name else TEXT_BRIGHT
+                    font_to_use = f_row_b
+                elif c['key'] == 'gross':
+                    font_to_use = f_row_b
+                    color = TEXT_BRIGHT
+                elif c['key'] == 'occ':
+                    color = TEXT_BRIGHT
+                elif 'Remaining' in str(row.get('name','')):
+                    color = MUTED
+                    
+                draw.text((cx, cy), val, font=font_to_use, fill=color, anchor=anchor)
+                
+            ov_line = Image.new('RGBA', img.size, (0,0,0,0))
+            ImageDraw.Draw(ov_line).line([(x+40, cy+45), (x+w-40, cy+45)], fill=(255,255,255,15), width=1)
+            img.paste(ov_line, (0,0), ov_line)
+            
+            cy += 60
+
+    # Table Row Builders
+    def build_rows(raw_list, is_theatre=False, is_state=False):
+        out = []
+        top_10 = raw_list[:10]
+        
+        for r in top_10:
+            name = str(r['name'])
+            if not is_state and len(name) > 30: name = name[:27] + "..."
+            
+            row_dict = {
+                'name': name,
+                'shows': f"{r['shows']:,}",
+                'booked': f"{r['booked']:,}",
+                'gross': format_currency_inr(r['gross']),
+                'occ': f"{r['occ']:.1f}%"
+            }
+            if is_state or not is_theatre:
+                row_dict['venues'] = f"{r['venues']:,}"
+                
+            out.append(row_dict)
+            
+        if len(raw_list) > 10:
+            rem = raw_list[10:]
+            r_shows = sum(x['shows'] for x in rem)
+            r_tix = sum(x['tickets'] for x in rem)
+            r_booked = sum(x['booked'] for x in rem)
+            r_gross = sum(x['gross'] for x in rem)
+            r_occ = (r_booked / r_tix * 100) if r_tix > 0 else 0
+            
+            lbl = f"Remaining {len(rem)} Venues" if is_theatre else f"Remaining {len(rem)} Areas"
+            row_dict = {
+                'name': lbl,
+                'shows': f"{r_shows:,}",
+                'booked': f"{r_booked:,}",
+                'gross': format_currency_inr(r_gross),
+                'occ': f"{r_occ:.1f}%"
+            }
+            if is_state or not is_theatre:
+                r_venues = sum(x.get('venues', 0) for x in rem)
+                row_dict['venues'] = f"{r_venues:,}"
+            out.append(row_dict)
+            
+        return out
+
+
+    # --- ROW 3: STATE TABLE (FULL WIDTH) ---
+    st_y = plat_y + platform_h + 40
+    st_w = W - (2 * PAD)
+    
+    st_cols = [
+        {'name': 'State', 'key': 'name', 'pos': 40, 'align': 'left'},
+        {'name': 'Gross', 'key': 'gross', 'pos': 40, 'align': 'right'},
+        {'name': 'Occ %', 'key': 'occ', 'pos': 300, 'align': 'right'},
+        {'name': 'Booked', 'key': 'booked', 'pos': 550, 'align': 'right'},
+        {'name': 'Shows', 'key': 'shows', 'pos': 800, 'align': 'right'},
+        {'name': 'Venues', 'key': 'venues', 'pos': 1050, 'align': 'right'},
+    ]
+    
+    draw_table(PAD, st_y, st_w, st_h, "State Rankings", st_cols, build_rows(states_list, is_state=True))
+
+    # --- ROW 4: CITY & THEATRE TABLES (HALF WIDTH) ---
+    bot_y = st_y + st_h + 40
+    bot_w = (W - (2*PAD) - 40) // 2
+    
+    city_cols = [
+        {'name': 'City', 'key': 'name', 'pos': 35, 'align': 'left'},
+        {'name': 'Gross', 'key': 'gross', 'pos': 35, 'align': 'right'},
+        {'name': 'Occ %', 'key': 'occ', 'pos': 220, 'align': 'right'},
+        {'name': 'Booked', 'key': 'booked', 'pos': 380, 'align': 'right'},
+        {'name': 'Shows', 'key': 'shows', 'pos': 550, 'align': 'right'},
+        {'name': 'Vens', 'key': 'venues', 'pos': 700, 'align': 'right'},
+    ]
+    
+    th_cols = [
+        {'name': 'Theatre', 'key': 'name', 'pos': 35, 'align': 'left'},
+        {'name': 'Gross', 'key': 'gross', 'pos': 35, 'align': 'right'},
+        {'name': 'Occ %', 'key': 'occ', 'pos': 240, 'align': 'right'},
+        {'name': 'Booked', 'key': 'booked', 'pos': 420, 'align': 'right'},
+        {'name': 'Shows', 'key': 'shows', 'pos': 600, 'align': 'right'},
+    ]
+
+    draw_table(PAD, bot_y, bot_w, bot_h, "Top Cities", city_cols, build_rows(cities_list))
+    draw_table(PAD + bot_w + 40, bot_y, bot_w, bot_h, "Top Theatres", th_cols, build_rows(theatres_list, is_theatre=True))
+
+    # --- FOOTER ---
+    footer_y = bot_y + bot_h + 40
+    
+    ov_line2 = Image.new('RGBA', img.size, (0,0,0,0))
+    ImageDraw.Draw(ov_line2).line([(PAD, footer_y), (W-PAD, footer_y)], fill=(255,255,255,40), width=2)
+    img.paste(ov_line2, (0,0), ov_line2)
+    
+    footer_text = f"WkndCinema • Data from BookMyShow & District • Generated {datetime.now().strftime('%d %b %Y, %I:%M %p')}"
+    tw_foot, th_foot = draw.textbbox((0,0), footer_text, font=f_sub)[2:]
+    draw.text(((W-tw_foot)//2, footer_y+30), footer_text, font=f_sub, fill=MUTED)
+
+    # Save
+    try:
+        os.makedirs(os.path.dirname(filename) if os.path.dirname(filename) else ".", exist_ok=True)
+        img.save(filename, quality=95)
+        print(f"📸 Visual report saved to {filename}")
+        return filename
+    except Exception as e:
+        print(f"Error saving image: {e}")
+        return None
